@@ -255,7 +255,10 @@
     <div id="view-bills" class="view">
       <div class="section-head">
         <div class="section-title">Bills</div>
-        <button class="add-btn" onclick="openBillModal()">+</button>
+        <div style="display:flex;gap:8px;">
+          <button onclick="syncDebtMinimums()" style="background:var(--surface2);border:1px solid var(--border);color:var(--accent);border-radius:99px;padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer;">⚡ Sync Debts</button>
+          <button class="add-btn" onclick="openBillModal()">+</button>
+        </div>
       </div>
       <div id="bills-list"></div>
     </div>
@@ -500,6 +503,27 @@ async function loadExpenses(){const{data}=await sb.from('expenses').select('*').
 async function loadWeeks(){const{data}=await sb.from('pay_weeks').select('*').eq('user_id',currentUser.id).order('pay_date',{ascending:false});weeks=data||[];}
 async function loadPaychecks(){const{data}=await sb.from('paychecks').select('*').eq('user_id',currentUser.id).order('pay_date',{ascending:false});paychecks=data||[];}
 async function loadBills(){const{data}=await sb.from('bills').select('*').eq('user_id',currentUser.id).order('due_day');bills=data||[];}
+
+async function syncDebtMinimums() {
+  const debtsWithMin = debts.filter(d => parseFloat(d.min_payment||0) > 0);
+  if(debtsWithMin.length === 0){toast('No debts with minimum payments set');return;}
+  let added=0, updated=0;
+  for(const d of debtsWithMin) {
+    const existing = bills.find(b => b.debt_id === d.id);
+    if(existing) {
+      // Update if minimum payment or due date changed
+      if(parseFloat(existing.amount) !== parseFloat(d.min_payment) || existing.due_day !== d.due_date) {
+        await sb.from('bills').update({amount:d.min_payment, due_day:d.due_date||null}).eq('id',existing.id);
+        updated++;
+      }
+    } else {
+      await sb.from('bills').insert({user_id:currentUser.id, name:d.name+' (Min Payment)', amount:d.min_payment, due_day:d.due_date||null, category:'Debt', recurring:'monthly', debt_id:d.id, notes:'Auto-synced from debt account'});
+      added++;
+    }
+  }
+  await loadBills();renderBills();
+  toast(`Synced! ${added} added, ${updated} updated`);
+}
 async function loadBillPayments(){const{data}=await sb.from('bill_payments').select('*').eq('user_id',currentUser.id).order('paid_date',{ascending:false});billPayments=data||[];}
 
 // DASHBOARD
@@ -844,8 +868,21 @@ async function savePayment(){
   const {error}=await sb.from('payments').insert({user_id:currentUser.id,debt_id,amount,pay_date,pay_week_id:weekId||null,notes:document.getElementById('pay-notes').value.trim()||null});
   if(error){toast('Error: '+error.message);return;}
   if(debt){const newBal=Math.max(0,parseFloat(debt.balance||0)-amount);await sb.from('debts').update({balance:newBal}).eq('id',debt_id);}
+
+  // Auto-mark linked bill as paid if amount >= minimum payment
+  if(debt && parseFloat(debt.min_payment||0) > 0 && amount >= parseFloat(debt.min_payment||0)) {
+    const linkedBill = bills.find(b => b.debt_id === debt_id);
+    if(linkedBill) {
+      const thisMonth = pay_date.slice(0,7);
+      const alreadyPaid = billPayments.find(p => p.bill_id === linkedBill.id && (p.paid_date||'').startsWith(thisMonth));
+      if(!alreadyPaid) {
+        await sb.from('bill_payments').insert({user_id:currentUser.id,bill_id:linkedBill.id,amount,paid_date:pay_date,notes:`Auto: ${debt.name} payment`});
+      }
+    }
+  }
+
   closeModal('payment-modal');
-  await Promise.all([loadPayments(),loadDebts()]);
+  await Promise.all([loadPayments(),loadDebts(),loadBillPayments()]);
   renderPayments();renderDashboard();
   if(weekId)renderWeekly();
   toast('Payment logged ✓');
