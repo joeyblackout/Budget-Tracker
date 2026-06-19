@@ -293,8 +293,6 @@
     <div class="modal-title">Add Pay Period</div>
     <div class="field"><label>Pay Date</label><input type="date" id="week-date"/></div>
     <div class="field"><label>Actual Paycheck Amount ($)</label><input type="number" id="week-paycheck" placeholder="0.00" step="0.01" min="0"/></div>
-    <div class="field"><label>Bills Due This Period ($)</label><input type="number" id="week-bills" placeholder="0.00" step="0.01" min="0"/></div>
-    <div class="field"><label>Bill Notes (optional)</label><input type="text" id="week-bill-notes" placeholder="e.g. AirBnB + TXU"/></div>
     <div class="field"><label>Notes</label><textarea id="week-notes" placeholder="Optional notes…"></textarea></div>
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeModal('week-modal')">Cancel</button>
@@ -709,10 +707,8 @@ async function saveWeek(){
   const pay_date=document.getElementById('week-date').value;
   if(!pay_date){toast('Enter a pay date');return;}
   const paycheck_amount=parseFloat(document.getElementById('week-paycheck').value)||0;
-  const bills_amount=parseFloat(document.getElementById('week-bills').value)||0;
-  const bill_notes=document.getElementById('week-bill-notes').value.trim();
   const notes=document.getElementById('week-notes').value.trim();
-  const {data:weekData,error}=await sb.from('pay_weeks').insert({user_id:currentUser.id,pay_date,bills_amount,bill_notes:bill_notes||null,notes:notes||null}).select().single();
+  const {data:weekData,error}=await sb.from('pay_weeks').insert({user_id:currentUser.id,pay_date,bills_amount:0,notes:notes||null}).select().single();
   if(error){toast('Error: '+error.message);return;}
   if(paycheck_amount>0) await sb.from('paychecks').insert({user_id:currentUser.id,pay_week_id:weekData.id,amount:paycheck_amount,pay_date});
   closeModal('week-modal');
