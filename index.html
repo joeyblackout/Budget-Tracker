@@ -501,9 +501,9 @@ async function loadBills(){const{data}=await sb.from('bills').select('*').eq('us
 async function loadBillPayments(){const{data}=await sb.from('bill_payments').select('*').eq('user_id',currentUser.id).order('paid_date',{ascending:false});billPayments=data||[];}
 async function loadPots(){const{data}=await sb.from('savings_pots').select('*').eq('user_id',currentUser.id).order('created_at');pots=data||[];}
 async function loadSavingsTxns(){const{data}=await sb.from('savings_transactions').select('*').eq('user_id',currentUser.id).order('txn_date',{ascending:false});savingsTxns=data||[];}
-async function loadProfiles(){const{data}=await sb.from('profiles').select('*');profiles=data||[];myProfile=profiles.find(p=>p.user_id===currentUser.id)||null;}
-async function loadPosts(){const{data}=await sb.from('community_posts').select('*').order('created_at',{ascending:false}).limit(100);posts=data||[];}
-async function loadReactions(){const{data}=await sb.from('post_reactions').select('*');reactions=data||[];}
+async function loadProfiles(){try{const{data,error}=await sb.from('profiles').select('*');if(error)throw error;profiles=data||[];myProfile=profiles.find(p=>p.user_id===currentUser.id)||null;}catch(e){profiles=[];myProfile=null;}}
+async function loadPosts(){try{const{data,error}=await sb.from('community_posts').select('*').order('created_at',{ascending:false}).limit(100);if(error)throw error;posts=data||[];}catch(e){posts=[];}}
+async function loadReactions(){try{const{data,error}=await sb.from('post_reactions').select('*');if(error)throw error;reactions=data||[];}catch(e){reactions=[];}}
 function displayName(userId){const p=profiles.find(x=>x.user_id===userId);return p?.display_name||'Someone';}
 function initials(name){if(!name)return'?';const parts=name.trim().split(' ');return(parts[0][0]+(parts[1]?parts[1][0]:'')).toUpperCase();}
 
