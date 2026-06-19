@@ -166,6 +166,21 @@ select option{background:var(--surface);color:var(--text);}
 .loading-text{font-size:14px;color:var(--muted);}
 #toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--surface2);border:1px solid var(--border);border-radius:99px;padding:12px 22px;font-size:14px;font-weight:600;z-index:300;opacity:0;transition:all 0.25s;white-space:nowrap;pointer-events:none;}
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+/* COMMUNITY */
+.feed-post{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;margin-bottom:12px;}
+.feed-post.milestone{border-color:var(--accent);background:linear-gradient(135deg,rgba(79,142,247,0.06),rgba(124,77,255,0.04));}
+.feed-header{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
+.feed-avatar{width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;color:#fff;flex-shrink:0;}
+.feed-name{font-size:14px;font-weight:700;}
+.feed-time{font-size:11px;color:var(--muted);}
+.feed-message{font-size:15px;line-height:1.5;margin-bottom:12px;}
+.feed-milestone-tag{display:inline-block;font-size:10px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;padding:3px 9px;border-radius:99px;background:rgba(79,142,247,0.15);color:var(--accent);margin-bottom:8px;}
+.feed-reactions{display:flex;gap:6px;flex-wrap:wrap;align-items:center;}
+.reaction-btn{background:var(--surface2);border:1px solid var(--border);border-radius:99px;padding:5px 11px;font-size:14px;cursor:pointer;transition:all 0.15s;display:flex;align-items:center;gap:4px;}
+.reaction-btn:active{transform:scale(0.92);}
+.reaction-btn.reacted{border-color:var(--accent);background:rgba(79,142,247,0.12);}
+.reaction-count{font-size:12px;font-weight:700;color:var(--muted);}
+.reaction-btn.reacted .reaction-count{color:var(--accent);}
 </style>
 </head>
 <body>
@@ -233,6 +248,10 @@ select option{background:var(--surface);color:var(--text);}
       <div class="section-head"><div class="section-title">Savings</div><button class="add-btn" onclick="openPotModal()">+</button></div>
       <div id="savings-list"></div>
     </div>
+    <div id="view-community" class="view">
+      <div class="section-head"><div class="section-title">Community</div><button class="add-btn" onclick="openPostModal()">+</button></div>
+      <div id="community-list"></div>
+    </div>
     <div id="view-expenses" class="view">
       <div class="section-head"><div class="section-title">Expenses</div><button class="add-btn" onclick="openExpenseModal()">+</button></div>
       <div id="expenses-list"></div>
@@ -249,6 +268,7 @@ select option{background:var(--surface);color:var(--text);}
     <button class="nav-btn" onclick="switchView('payments',this)"><span class="icon">✅</span>Debt Pmts</button>
     <button class="nav-btn" onclick="switchView('bills',this)"><span class="icon">🏠</span>Bills</button>
     <button class="nav-btn" onclick="switchView('savings',this)"><span class="icon">🏦</span>Savings</button>
+    <button class="nav-btn" onclick="switchView('community',this)"><span class="icon">🎉</span>Community</button>
     <button class="nav-btn" onclick="switchView('expenses',this)"><span class="icon">🧾</span>Expenses</button>
     <button class="nav-btn" onclick="switchView('setup',this)"><span class="icon">⚙️</span>Settings</button>
   </nav>
@@ -367,6 +387,13 @@ select option{background:var(--surface);color:var(--text);}
   <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal('savings-history-modal')">Close</button></div>
 </div></div>
 
+<!-- COMMUNITY POST MODAL -->
+<div class="modal-overlay" id="post-modal"><div class="modal">
+  <div class="modal-handle"></div><div class="modal-title">Share an Update</div>
+  <div class="field"><label>What's on your mind?</label><textarea id="post-message" placeholder="Share a win, a goal, or some encouragement…"></textarea></div>
+  <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal('post-modal')">Cancel</button><button class="btn btn-primary" onclick="savePost()">Post</button></div>
+</div></div>
+
 <!-- EXPENSE MODAL -->
 <div class="modal-overlay" id="expense-modal"><div class="modal">
   <div class="modal-handle"></div><div class="modal-title">Log Expense</div>
@@ -385,6 +412,7 @@ const {createClient}=supabase;
 const sb=createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
 let currentUser=null;
 let debts=[],payments=[],expenses=[],weeks=[],paychecks=[],bills=[],billPayments=[],pots=[],savingsTxns=[];
+let posts=[],reactions=[],profiles=[],myProfile=null;
 let dashSection='overview';
 
 window.addEventListener('DOMContentLoaded',async()=>{
@@ -423,12 +451,13 @@ function switchView(name,btn){
   if(name==='payments')renderPayments();
   if(name==='bills')renderBills();
   if(name==='savings')renderSavings();
+  if(name==='community')renderCommunity();
   if(name==='expenses')renderExpenses();
   if(name==='setup')renderSetup();
 }
 
 // DATA
-async function loadAll(){await Promise.all([loadDebts(),loadPayments(),loadExpenses(),loadWeeks(),loadPaychecks(),loadBills(),loadBillPayments(),loadPots(),loadSavingsTxns()]);renderDashboard();}
+async function loadAll(){await Promise.all([loadDebts(),loadPayments(),loadExpenses(),loadWeeks(),loadPaychecks(),loadBills(),loadBillPayments(),loadPots(),loadSavingsTxns(),loadProfiles(),loadPosts(),loadReactions()]);renderDashboard();}
 async function loadDebts(){const{data}=await sb.from('debts').select('*').eq('user_id',currentUser.id).order('created_at');debts=data||[];}
 async function loadPayments(){const{data}=await sb.from('payments').select('*').eq('user_id',currentUser.id).order('pay_date',{ascending:false});payments=data||[];}
 async function loadExpenses(){const{data}=await sb.from('expenses').select('*').eq('user_id',currentUser.id).order('exp_date',{ascending:false});expenses=data||[];}
@@ -438,6 +467,11 @@ async function loadBills(){const{data}=await sb.from('bills').select('*').eq('us
 async function loadBillPayments(){const{data}=await sb.from('bill_payments').select('*').eq('user_id',currentUser.id).order('paid_date',{ascending:false});billPayments=data||[];}
 async function loadPots(){const{data}=await sb.from('savings_pots').select('*').eq('user_id',currentUser.id).order('created_at');pots=data||[];}
 async function loadSavingsTxns(){const{data}=await sb.from('savings_transactions').select('*').eq('user_id',currentUser.id).order('txn_date',{ascending:false});savingsTxns=data||[];}
+async function loadProfiles(){const{data}=await sb.from('profiles').select('*');profiles=data||[];myProfile=profiles.find(p=>p.user_id===currentUser.id)||null;}
+async function loadPosts(){const{data}=await sb.from('community_posts').select('*').order('created_at',{ascending:false}).limit(100);posts=data||[];}
+async function loadReactions(){const{data}=await sb.from('post_reactions').select('*');reactions=data||[];}
+function displayName(userId){const p=profiles.find(x=>x.user_id===userId);return p?.display_name||'Someone';}
+function initials(name){if(!name)return'?';const parts=name.trim().split(' ');return(parts[0][0]+(parts[1]?parts[1][0]:'')).toUpperCase();}
 
 // DASHBOARD
 function setDashSection(s){dashSection=s;renderDashboard();}
@@ -483,6 +517,10 @@ function renderDashboard(){
   }
 
   el.innerHTML=`
+    <div style="margin-bottom:16px;">
+      <div style="font-size:13px;color:var(--muted);font-weight:600;">${greeting()},</div>
+      <div style="font-size:26px;font-weight:800;letter-spacing:-0.03em;">${myProfile?.display_name?esc(myProfile.display_name):'Welcome'} 👋</div>
+    </div>
     <div class="balance-card">
       <div class="balance-label">💵 Running Balance</div>
       <div class="balance-amount ${runningBalance>=0?'text-success':'text-danger'}">${fmt(runningBalance)}</div>
@@ -604,7 +642,18 @@ async function saveSavingsTxn(){
   const {error}=await sb.from('savings_transactions').insert({user_id:currentUser.id,pot_id:potId,type,amount,txn_date:document.getElementById('savings-txn-date').value,notes:document.getElementById('savings-txn-notes').value.trim()||null});
   if(error){toast('Error: '+error.message);return;}
   closeModal('savings-txn-modal');
-  await loadSavingsTxns();renderSavings();renderDashboard();
+  await loadSavingsTxns();
+  // Check if goal reached on a deposit
+  if(type==='deposit'){
+    const pot=pots.find(p=>p.id===potId);
+    const goal=parseFloat(pot?.goal_amount||0);
+    if(goal>0){
+      const bal=savingsTxns.filter(t=>t.pot_id===potId).reduce((s,t)=>s+((t.type==='deposit'||t.type==='transfer_in')?parseFloat(t.amount||0):-(parseFloat(t.amount||0))),0);
+      const prevBal=bal-amount;
+      if(bal>=goal&&prevBal<goal){const name=myProfile?.display_name||'Someone';await autoPost(`🎯 ${name} reached their ${pot.name} savings goal!`);}
+    }
+  }
+  renderSavings();renderDashboard();
   toast(type==='deposit'?'Deposit saved ✓':'Withdrawal saved ✓');
 }
 
@@ -644,10 +693,63 @@ function openHistoryModal(potId,potName){
   openModal('savings-history-modal');
 }
 
-// BILLS
-function renderBills(){
-  const el=document.getElementById('bills-list');
-  if(bills.length===0){el.innerHTML=`<div class="empty"><div class="icon">🏠</div><p>No bills yet. Tap <strong>+</strong> to add one.</p></div>`;return;}
+// COMMUNITY
+const REACTION_EMOJIS=['🔥','💪','🎉','👏','❤️'];
+function renderCommunity(){
+  const el=document.getElementById('community-list');
+  if(!myProfile?.display_name){
+    el.innerHTML=`<div class="card" style="border-color:var(--warning);"><div style="font-size:15px;font-weight:700;margin-bottom:8px;">👋 Set your name first</div><p class="text-muted mb8">Add a display name in Settings so others know who you are in the feed.</p><button class="btn btn-primary" onclick="switchView('setup',document.querySelectorAll('.nav-btn')[document.querySelectorAll('.nav-btn').length-1])">Go to Settings</button></div>`;
+    return;
+  }
+  if(posts.length===0){el.innerHTML=`<div class="empty"><div class="icon">🎉</div><p>No posts yet. Be the first to share a win or cheer someone on! Tap <strong>+</strong> to post.</p></div>`;return;}
+  el.innerHTML=posts.map(post=>{
+    const name=displayName(post.user_id);
+    const postReactions=reactions.filter(r=>r.post_id===post.id);
+    const reactionCounts={};
+    REACTION_EMOJIS.forEach(e=>{reactionCounts[e]=postReactions.filter(r=>r.emoji===e).length;});
+    return`<div class="feed-post ${post.is_milestone?'milestone':''}">
+      <div class="feed-header">
+        <div class="feed-avatar">${initials(name)}</div>
+        <div><div class="feed-name">${esc(name)}</div><div class="feed-time">${timeAgo(post.created_at)}</div></div>
+      </div>
+      ${post.is_milestone?`<span class="feed-milestone-tag">🏆 Milestone</span>`:''}
+      <div class="feed-message">${esc(post.message)}</div>
+      <div class="feed-reactions">
+        ${REACTION_EMOJIS.map(e=>{
+          const mine=postReactions.some(r=>r.emoji===e&&r.user_id===currentUser.id);
+          const count=reactionCounts[e];
+          return`<button class="reaction-btn ${mine?'reacted':''}" onclick="toggleReaction('${post.id}','${e}')">${e}${count>0?`<span class="reaction-count">${count}</span>`:''}</button>`;
+        }).join('')}
+      </div>
+    </div>`;
+  }).join('');
+}
+function openPostModal(){
+  if(!myProfile?.display_name){toast('Set your name in Settings first');switchView('setup',document.querySelectorAll('.nav-btn')[document.querySelectorAll('.nav-btn').length-1]);return;}
+  document.getElementById('post-message').value='';
+  openModal('post-modal');
+}
+async function savePost(){
+  const message=document.getElementById('post-message').value.trim();
+  if(!message){toast('Write something first');return;}
+  const{error}=await sb.from('community_posts').insert({user_id:currentUser.id,message,is_milestone:false});
+  if(error){toast('Error: '+error.message);return;}
+  closeModal('post-modal');await loadPosts();renderCommunity();toast('Posted ✓');
+}
+async function toggleReaction(postId,emoji){
+  const existing=reactions.find(r=>r.post_id===postId&&r.emoji===emoji&&r.user_id===currentUser.id);
+  if(existing){await sb.from('post_reactions').delete().eq('id',existing.id);}
+  else{await sb.from('post_reactions').insert({user_id:currentUser.id,post_id:postId,emoji});}
+  await loadReactions();renderCommunity();
+}
+async function autoPost(message){
+  if(myProfile&&myProfile.auto_post===false)return;
+  if(!myProfile?.display_name)return;
+  await sb.from('community_posts').insert({user_id:currentUser.id,message,is_milestone:true});
+  await loadPosts();
+}
+
+
   const todayDay=new Date().getDate();
   const thisMonth=new Date().toISOString().slice(0,7);
   const monthly=bills.filter(b=>b.recurring==='monthly');
@@ -822,7 +924,18 @@ async function savePayment(){
   const debt=debts.find(d=>d.id===debt_id);
   const{error}=await sb.from('payments').insert({user_id:currentUser.id,debt_id,amount,pay_date,pay_week_id:weekId||null,notes:document.getElementById('pay-notes').value.trim()||null});
   if(error){toast('Error: '+error.message);return;}
-  if(debt){const newBal=Math.max(0,parseFloat(debt.balance||0)-amount);await sb.from('debts').update({balance:newBal}).eq('id',debt_id);}
+  if(debt){const newBal=Math.max(0,parseFloat(debt.balance||0)-amount);await sb.from('debts').update({balance:newBal}).eq('id',debt_id);
+    const oldBal=parseFloat(debt.balance||0);
+    const lim=parseFloat(debt.credit_limit||0);
+    const name=myProfile?.display_name||'Someone';
+    // Debt paid off
+    if(oldBal>0&&newBal===0){await autoPost(`🎉 ${name} paid off ${debt.name}!`);}
+    // Crossed under 30% utilization
+    else if(lim>0){const oldUtil=(oldBal/lim)*100;const newUtil=(newBal/lim)*100;if(oldUtil>=30&&newUtil<30){await autoPost(`📉 ${name} got ${debt.name} under 30% utilization!`);}}
+    // Debt-free milestone (all debts now zero)
+    const allOthers=debts.filter(d=>d.id!==debt_id);
+    if(newBal===0&&allOthers.every(d=>parseFloat(d.balance||0)===0)){await autoPost(`🏆 ${name} is officially DEBT FREE! 🎊`);}
+  }
   if(debt&&parseFloat(debt.min_payment||0)>0&&amount>=parseFloat(debt.min_payment||0)){const linkedBill=bills.find(b=>b.debt_id===debt_id);if(linkedBill){const thisMonth=pay_date.slice(0,7);const alreadyPaid=billPayments.find(p=>p.bill_id===linkedBill.id&&(p.paid_date||'').startsWith(thisMonth));if(!alreadyPaid){await sb.from('bill_payments').insert({user_id:currentUser.id,bill_id:linkedBill.id,amount,paid_date:pay_date,notes:`Auto: ${debt.name} payment`});}}}
   closeModal('payment-modal');
   await Promise.all([loadPayments(),loadDebts(),loadBillPayments()]);
@@ -864,7 +977,18 @@ function loadSavedTheme(){const s=localStorage.getItem('bt-theme');if(s&&THEMES[
 function renderSetup(){
   const el=document.getElementById('setup-content');
   const currentTheme=localStorage.getItem('bt-theme')||'midnight';
+  const autoOn=!myProfile||myProfile.auto_post!==false;
   el.innerHTML=`
+    <div class="card">
+      <div class="card-title">Profile</div>
+      <div class="field"><label>Display Name (shown in Community)</label><input type="text" id="setting-display-name" placeholder="e.g. Joey" value="${myProfile?.display_name?esc(myProfile.display_name):''}"/></div>
+      <button class="btn btn-primary" onclick="saveDisplayName()">Save Name</button>
+    </div>
+    <div class="card">
+      <div class="card-title">Community Auto-Posts</div>
+      <p class="text-muted mb8">Automatically share milestones (debts paid off, goals reached) to the community feed. Amounts are never shown.</p>
+      <button class="btn ${autoOn?'btn-primary':'btn-ghost'}" onclick="toggleAutoPost()">${autoOn?'✓ Auto-Posts On':'Auto-Posts Off'}</button>
+    </div>
     <div class="card">
       <div class="card-title">Color Scheme</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
@@ -872,6 +996,21 @@ function renderSetup(){
       </div>
     </div>
     <div class="card"><div class="card-title">Account Info</div><div class="text-muted">Signed in as <strong>${esc(currentUser.email)}</strong></div><div class="divider"></div><button class="btn btn-danger" onclick="doLogout()">Sign Out</button></div>`;
+}
+async function saveDisplayName(){
+  const name=document.getElementById('setting-display-name').value.trim();
+  if(!name){toast('Enter a name');return;}
+  const payload={user_id:currentUser.id,display_name:name,auto_post:myProfile?myProfile.auto_post:true};
+  const{error}=await sb.from('profiles').upsert(payload,{onConflict:'user_id'});
+  if(error){toast('Error: '+error.message);return;}
+  await loadProfiles();renderSetup();renderDashboard();toast('Name saved ✓');
+}
+async function toggleAutoPost(){
+  const newVal=!(myProfile?myProfile.auto_post!==false:true);
+  const payload={user_id:currentUser.id,display_name:myProfile?.display_name||null,auto_post:newVal};
+  const{error}=await sb.from('profiles').upsert(payload,{onConflict:'user_id'});
+  if(error){toast('Error: '+error.message);return;}
+  await loadProfiles();renderSetup();toast(newVal?'Auto-posts on':'Auto-posts off');
 }
 
 // MODALS
@@ -890,6 +1029,8 @@ function fmtMonth(str){if(!str)return'—';const[y,m]=str.split('-');const month
 function today(){return new Date().toISOString().slice(0,10);}
 function esc(str){if(!str)return'';return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 function capFirst(str){if(!str)return'';return str.charAt(0).toUpperCase()+str.slice(1);}
+function greeting(){const h=new Date().getHours();if(h<12)return'Good morning';if(h<18)return'Good afternoon';return'Good evening';}
+function timeAgo(ts){if(!ts)return'';const d=new Date(ts);const secs=Math.floor((Date.now()-d.getTime())/1000);if(secs<60)return'just now';const mins=Math.floor(secs/60);if(mins<60)return mins+'m ago';const hrs=Math.floor(mins/60);if(hrs<24)return hrs+'h ago';const days=Math.floor(hrs/24);if(days<7)return days+'d ago';return d.toLocaleDateString('en-US',{month:'short',day:'numeric'});}
 </script>
 </body>
 </html>
