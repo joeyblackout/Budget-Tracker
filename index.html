@@ -424,7 +424,7 @@ const SUPABASE_ANON_KEY = 'sb_publishable_tAn5TF5Cuear3qJMzZdN5Q_4G_mUVUh';
 const {createClient} = supabase;
 const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 let currentUser = null;
-let debts=[], payments=[], expenses=[], weeks=[], paychecks=[], bills=[];
+let debts=[], payments=[], expenses=[], weeks=[], paychecks=[], bills=[], billPayments=[];
 
 window.addEventListener('DOMContentLoaded', async () => {
   const {data:{session}} = await sb.auth.getSession();
@@ -491,7 +491,7 @@ function switchView(name,btn) {
 
 // DATA
 async function loadAll() {
-  await Promise.all([loadDebts(),loadPayments(),loadExpenses(),loadWeeks(),loadPaychecks(),loadBills()]);
+  await Promise.all([loadDebts(),loadPayments(),loadExpenses(),loadWeeks(),loadPaychecks(),loadBills(),loadBillPayments()]);
   renderDashboard();
 }
 async function loadDebts(){const{data}=await sb.from('debts').select('*').eq('user_id',currentUser.id).order('created_at');debts=data||[];}
@@ -500,6 +500,7 @@ async function loadExpenses(){const{data}=await sb.from('expenses').select('*').
 async function loadWeeks(){const{data}=await sb.from('pay_weeks').select('*').eq('user_id',currentUser.id).order('pay_date',{ascending:false});weeks=data||[];}
 async function loadPaychecks(){const{data}=await sb.from('paychecks').select('*').eq('user_id',currentUser.id).order('pay_date',{ascending:false});paychecks=data||[];}
 async function loadBills(){const{data}=await sb.from('bills').select('*').eq('user_id',currentUser.id).order('due_day');bills=data||[];}
+async function loadBillPayments(){const{data}=await sb.from('bill_payments').select('*').eq('user_id',currentUser.id).order('paid_date',{ascending:false});billPayments=data||[];}
 
 // DASHBOARD
 function renderDashboard() {
@@ -512,7 +513,7 @@ function renderDashboard() {
   const progress=startDebt>0?Math.min((totalPaid/startDebt)*100,100):0;
   const totalIncome=paychecks.reduce((s,p)=>s+parseFloat(p.amount||0),0);
   const totalExpenses=expenses.reduce((s,e)=>s+parseFloat(e.amount||0),0);
-  const totalBillsPaid=weeks.reduce((s,w)=>s+parseFloat(w.bills_amount||0),0);
+  const totalBillsPaid=billPayments.reduce((s,b)=>s+parseFloat(b.amount||0),0);
   const runningBalance=totalIncome-totalPaid-totalExpenses-totalBillsPaid;
   const ccDebts=debts.filter(d=>d.type==='Credit Card'&&d.credit_limit>0);
   const totalCC=ccDebts.reduce((s,d)=>s+parseFloat(d.balance||0),0);
@@ -560,52 +561,73 @@ function renderDashboard() {
 function renderBills() {
   const el=document.getElementById('bills-list');
   if(bills.length===0){el.innerHTML=`<div class="empty"><div class="icon">🏠</div><p>No bills yet. Tap <strong>+</strong> to add a recurring bill.</p></div>`;return;}
-  const today=new Date().getDate();
+  const todayDay=new Date().getDate();
+  const thisMonth=new Date().toISOString().slice(0,7);
   const monthly=bills.filter(b=>b.recurring==='monthly');
   const other=bills.filter(b=>b.recurring!=='monthly');
   const monthlyTotal=monthly.reduce((s,b)=>s+parseFloat(b.amount||0),0);
+  const totalBillsPaid=billPayments.reduce((s,b)=>s+parseFloat(b.amount||0),0);
+
+  const billCard = (b) => {
+    const dueDay=parseInt(b.due_day||0);
+    const dueSoon=dueDay>0&&(dueDay-todayDay)>=0&&(dueDay-todayDay)<=5;
+    const overdue=dueDay>0&&todayDay>dueDay;
+    const paidThisMonth=billPayments.filter(p=>p.bill_id===b.id&&(p.paid_date||'').startsWith(thisMonth));
+    const isPaid=paidThisMonth.length>0;
+    const paidAmount=paidThisMonth.reduce((s,p)=>s+parseFloat(p.amount||0),0);
+    return`<div class="bill-row" style="${isPaid?'opacity:0.6':''}">
+      <div style="flex:1;">
+        <div class="bill-name">${esc(b.name)} ${isPaid?'<span style="font-size:11px;color:var(--success);font-weight:700;">✓ Paid</span>':''}</div>
+        <div class="bill-meta">${esc(b.category)}${b.due_day?' · Due day '+b.due_day:''}${b.notes?' · '+esc(b.notes):''}</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px;">
+          ${isPaid?`<span class="bill-recur" style="background:rgba(45,212,160,0.15);color:var(--success);">Paid ${fmt(paidAmount)} this month</span>`
+            :dueSoon?`<span class="bill-due-soon">Due in ${dueDay-todayDay} days</span>`
+            :overdue?`<span class="bill-due-soon" style="background:rgba(247,90,90,0.15);color:var(--danger);">Overdue</span>`
+            :`<span class="bill-recur">${capFirst(b.recurring)}</span>`}
+        </div>
+      </div>
+      <div style="text-align:right;flex-shrink:0;margin-left:12px;">
+        <div class="bill-amount">${fmt(b.amount)}</div>
+        <div style="display:flex;gap:4px;justify-content:flex-end;margin-top:6px;flex-wrap:wrap;">
+          ${!isPaid?`<button onclick="markBillPaid('${b.id}','${b.name}',${b.amount})" style="background:rgba(45,212,160,0.15);color:var(--success);border:1px solid rgba(45,212,160,0.3);border-radius:6px;padding:5px 10px;font-size:12px;font-weight:700;cursor:pointer;">✓ Mark Paid</button>`
+            :`<button onclick="undoBillPayment('${b.id}')" style="background:rgba(247,90,90,0.1);color:var(--muted);border:1px solid var(--border);border-radius:6px;padding:5px 10px;font-size:11px;cursor:pointer;">Undo</button>`}
+          <button class="del-btn" onclick="editBill('${b.id}')">✏️</button>
+          <button class="del-btn" onclick="deleteBill('${b.id}')">🗑️</button>
+        </div>
+      </div>
+    </div>`;
+  };
 
   el.innerHTML=`
-    ${monthly.length>0?`
-    <div class="card-title">Monthly · ${fmt(monthlyTotal)}/mo</div>
-    <div class="card" style="padding:0 18px;">
-      ${monthly.map(b=>{
-        const dueDay=parseInt(b.due_day||0);
-        const dueSoon=dueDay>0&&Math.abs(dueDay-today)<=5;
-        return`<div class="bill-row">
-          <div>
-            <div class="bill-name">${esc(b.name)}</div>
-            <div class="bill-meta">${esc(b.category)}${b.due_day?' · Due day '+b.due_day:''}${b.notes?' · '+esc(b.notes):''}</div>
-            ${dueSoon?`<span class="bill-due-soon">Due soon</span>`:`<span class="bill-recur">Monthly</span>`}
-          </div>
-          <div style="text-align:right;">
-            <div class="bill-amount">${fmt(b.amount)}</div>
-            <div style="display:flex;gap:4px;justify-content:flex-end;margin-top:6px;">
-              <button class="del-btn" onclick="editBill('${b.id}')">✏️</button>
-              <button class="del-btn" onclick="deleteBill('${b.id}')">🗑️</button>
-            </div>
-          </div>
-        </div>`;
-      }).join('')}
-    </div>`:''}
-    ${other.length>0?`
-    <div class="card-title" style="margin-top:8px;">Other</div>
-    <div class="card" style="padding:0 18px;">
-      ${other.map(b=>`<div class="bill-row">
-        <div>
-          <div class="bill-name">${esc(b.name)}</div>
-          <div class="bill-meta">${esc(b.category)}${b.due_day?' · Due day '+b.due_day:''}${b.notes?' · '+esc(b.notes):''}</div>
-          <span class="bill-recur">${capFirst(b.recurring)}</span>
-        </div>
-        <div style="text-align:right;">
-          <div class="bill-amount">${fmt(b.amount)}</div>
-          <div style="display:flex;gap:4px;justify-content:flex-end;margin-top:6px;">
-            <button class="del-btn" onclick="editBill('${b.id}')">✏️</button>
-            <button class="del-btn" onclick="deleteBill('${b.id}')">🗑️</button>
-          </div>
-        </div>
-      </div>`).join('')}
-    </div>`:''}`;
+    <div class="card" style="margin-bottom:14px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div><div class="stat-label">Paid This Month</div><div style="font-size:20px;font-weight:800;color:var(--success);">${fmt(totalBillsPaid)}</div></div>
+        <div style="text-align:right;"><div class="stat-label">Monthly Total</div><div style="font-size:20px;font-weight:800;color:var(--danger);">${fmt(monthlyTotal)}/mo</div></div>
+      </div>
+    </div>
+    ${monthly.length>0?`<div class="card-title">Monthly</div><div class="card" style="padding:0 18px;">${monthly.map(billCard).join('')}</div>`:''}
+    ${other.length>0?`<div class="card-title" style="margin-top:8px;">Other</div><div class="card" style="padding:0 18px;">${other.map(billCard).join('')}</div>`:''}`;
+}
+
+async function markBillPaid(billId, billName, amount) {
+  const {error}=await sb.from('bill_payments').insert({
+    user_id:currentUser.id, bill_id:billId, amount:parseFloat(amount), paid_date:today(), notes:billName
+  });
+  if(error){toast('Error: '+error.message);return;}
+  await loadBillPayments();
+  renderBills();renderDashboard();
+  toast(`${billName} marked as paid ✓`);
+}
+
+async function undoBillPayment(billId) {
+  const thisMonth=new Date().toISOString().slice(0,7);
+  const recent=billPayments.find(p=>p.bill_id===billId&&(p.paid_date||'').startsWith(thisMonth));
+  if(!recent)return;
+  if(!confirm('Undo this bill payment?'))return;
+  await sb.from('bill_payments').delete().eq('id',recent.id);
+  await loadBillPayments();
+  renderBills();renderDashboard();
+  toast('Payment undone');
 }
 
 function openBillModal(id=null) {
