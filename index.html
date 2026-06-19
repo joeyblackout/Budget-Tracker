@@ -783,7 +783,10 @@ async function autoPost(message){
   await loadPosts();
 }
 
-
+// BILLS
+function renderBills(){
+  const el=document.getElementById('bills-list');
+  if(bills.length===0){el.innerHTML=`<div class="empty"><div class="icon">🏠</div><p>No bills yet. Tap <strong>+</strong> to add one.</p></div>`;return;}
   const todayDay=new Date().getDate();
   const thisMonth=new Date().toISOString().slice(0,7);
   const monthly=bills.filter(b=>b.recurring==='monthly');
