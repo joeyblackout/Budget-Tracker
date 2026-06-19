@@ -443,6 +443,7 @@ function showApp() {
   document.getElementById('auth-screen').style.display='none';
   document.getElementById('app-screen').classList.add('visible');
   document.getElementById('user-email-display').textContent=currentUser.email;
+  loadSavedTheme();
   loadAll();
 }
 
@@ -872,9 +873,68 @@ async function deleteExpense(id){
 }
 
 // SETUP
+const THEMES = {
+  midnight: { label:'Midnight Blue', emoji:'🌙', bg:'#0d0f14', surface:'#161a23', surface2:'#1e2433', border:'#2a3045', accent:'#4f8ef7', accent2:'#7c4dff', success:'#2dd4a0', warning:'#f7c948', danger:'#f75a5a', text:'#e8eaf2', muted:'#7a82a0' },
+  forest:   { label:'Forest',        emoji:'🌲', bg:'#0a1210', surface:'#111e18', surface2:'#172a20', border:'#1e3a28', accent:'#2dd4a0', accent2:'#4f8ef7', success:'#2dd4a0', warning:'#f7c948', danger:'#f75a5a', text:'#e2ede8', muted:'#6a9080' },
+  crimson:  { label:'Crimson',       emoji:'🔴', bg:'#130a0a', surface:'#1e1010', surface2:'#2a1515', border:'#3a1e1e', accent:'#f75a5a', accent2:'#f7a94f', success:'#2dd4a0', warning:'#f7c948', danger:'#f75a5a', text:'#f0e0e0', muted:'#9a7070' },
+  violet:   { label:'Violet',        emoji:'💜', bg:'#0e0a14', surface:'#17112a', surface2:'#201835', border:'#2e2045', accent:'#b07fff', accent2:'#7c4dff', success:'#2dd4a0', warning:'#f7c948', danger:'#f75a5a', text:'#ece0f8', muted:'#8070a0' },
+  slate:    { label:'Slate',         emoji:'🩶', bg:'#0a0c10', surface:'#13161e', surface2:'#1a1e28', border:'#252a38', accent:'#94a3b8', accent2:'#64748b', success:'#2dd4a0', warning:'#f7c948', danger:'#f75a5a', text:'#e2e8f0', muted:'#64748b' },
+  gold:     { label:'Gold',          emoji:'✨', bg:'#0f0d08', surface:'#1a1710', surface2:'#252018', border:'#352e18', accent:'#f7c948', accent2:'#f7a94f', success:'#2dd4a0', warning:'#f7c948', danger:'#f75a5a', text:'#f0ead0', muted:'#9a8a60' },
+};
+
+function applyTheme(key) {
+  const t = THEMES[key];
+  if (!t) return;
+  const root = document.documentElement;
+  root.style.setProperty('--bg', t.bg);
+  root.style.setProperty('--surface', t.surface);
+  root.style.setProperty('--surface2', t.surface2);
+  root.style.setProperty('--border', t.border);
+  root.style.setProperty('--accent', t.accent);
+  root.style.setProperty('--accent2', t.accent2);
+  root.style.setProperty('--success', t.success);
+  root.style.setProperty('--warning', t.warning);
+  root.style.setProperty('--danger', t.danger);
+  root.style.setProperty('--text', t.text);
+  root.style.setProperty('--muted', t.muted);
+  localStorage.setItem('bt-theme', key);
+  renderSetup();
+}
+
+function loadSavedTheme() {
+  const saved = localStorage.getItem('bt-theme');
+  if (saved && THEMES[saved]) applyTheme(saved);
+}
+
 function renderSetup(){
   const el=document.getElementById('setup-content');
-  el.innerHTML=`<div class="card"><div class="card-title">Account Info</div><div class="text-muted">Signed in as <strong>${esc(currentUser.email)}</strong></div><div class="divider"></div><button class="btn btn-danger" onclick="doLogout()">Sign Out</button></div>`;
+  const currentTheme = localStorage.getItem('bt-theme') || 'midnight';
+  el.innerHTML=`
+    <div class="card">
+      <div class="card-title">Color Scheme</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        ${Object.entries(THEMES).map(([key,t])=>`
+          <button onclick="applyTheme('${key}')" style="
+            background:${t.surface};
+            border:2px solid ${key===currentTheme?t.accent:t.border};
+            border-radius:12px;
+            padding:14px 10px;
+            cursor:pointer;
+            text-align:center;
+            transition:all 0.2s;
+          ">
+            <div style="font-size:22px;margin-bottom:6px;">${t.emoji}</div>
+            <div style="font-size:13px;font-weight:700;color:${t.text};">${t.label}</div>
+            <div style="display:flex;gap:4px;justify-content:center;margin-top:8px;">
+              <div style="width:14px;height:14px;border-radius:50%;background:${t.accent};"></div>
+              <div style="width:14px;height:14px;border-radius:50%;background:${t.accent2};"></div>
+              <div style="width:14px;height:14px;border-radius:50%;background:${t.success};"></div>
+            </div>
+            ${key===currentTheme?`<div style="font-size:10px;font-weight:700;color:${t.accent};margin-top:6px;letter-spacing:0.08em;">ACTIVE</div>`:''}
+          </button>`).join('')}
+      </div>
+    </div>
+    <div class="card"><div class="card-title">Account Info</div><div class="text-muted">Signed in as <strong>${esc(currentUser.email)}</strong></div><div class="divider"></div><button class="btn btn-danger" onclick="doLogout()">Sign Out</button></div>`;
 }
 
 // MODALS
