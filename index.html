@@ -186,6 +186,19 @@ select option{background:var(--surface);color:var(--text);}
 <body>
 <div id="loading-screen"><div class="spinner"></div><div class="loading-text">Loading…</div></div>
 
+<!-- WELCOME / NAME SETUP -->
+<div id="welcome-screen" style="display:none;min-height:100dvh;flex-direction:column;align-items:center;justify-content:center;padding:24px;background:radial-gradient(ellipse at 50% 0%,#1a1f35 0%,var(--bg) 70%);">
+  <div class="auth-logo">Welcome to</div>
+  <div class="auth-title">Budget<br><span>Tracker</span></div>
+  <div class="auth-card">
+    <div style="font-size:17px;font-weight:700;margin-bottom:8px;text-align:center;">👋 Let's get you set up</div>
+    <p class="text-muted mb8" style="text-align:center;line-height:1.5;">What should we call you? This name appears in the Community feed when you hit milestones.</p>
+    <div class="field" style="margin-top:18px;"><label>Display Name</label><input type="text" id="welcome-name" placeholder="e.g. Joey" autocomplete="name"/></div>
+    <button class="btn btn-primary" onclick="saveWelcomeName()">Get Started</button>
+    <div id="welcome-msg" class="auth-msg"></div>
+  </div>
+</div>
+
 <!-- AUTH -->
 <div id="auth-screen" style="display:none;">
   <div class="auth-logo">Personal Finance</div>
@@ -423,13 +436,34 @@ window.addEventListener('DOMContentLoaded',async()=>{
   });
 });
 
-function showAuth(){document.getElementById('loading-screen').style.display='none';document.getElementById('auth-screen').style.display='flex';document.getElementById('app-screen').classList.remove('visible');}
-function showApp(){
-  document.getElementById('loading-screen').style.display='none';
+function showAuth(){document.getElementById('loading-screen').style.display='none';document.getElementById('auth-screen').style.display='flex';document.getElementById('welcome-screen').style.display='none';document.getElementById('app-screen').classList.remove('visible');}
+async function showApp(){
+  document.getElementById('loading-screen').style.display='block';
   document.getElementById('auth-screen').style.display='none';
+  loadSavedTheme();
+  await loadProfiles();
+  if(!myProfile?.display_name){
+    document.getElementById('loading-screen').style.display='none';
+    document.getElementById('welcome-screen').style.display='flex';
+    return;
+  }
+  document.getElementById('loading-screen').style.display='none';
+  document.getElementById('welcome-screen').style.display='none';
   document.getElementById('app-screen').classList.add('visible');
   document.getElementById('user-email-display').textContent=currentUser.email;
-  loadSavedTheme();loadAll();
+  loadAll();
+}
+async function saveWelcomeName(){
+  const name=document.getElementById('welcome-name').value.trim();
+  const msg=document.getElementById('welcome-msg');
+  if(!name){showMsg(msg,'error','Please enter a name.');return;}
+  const{error}=await sb.from('profiles').upsert({user_id:currentUser.id,display_name:name,auto_post:true},{onConflict:'user_id'});
+  if(error){showMsg(msg,'error',error.message);return;}
+  await loadProfiles();
+  document.getElementById('welcome-screen').style.display='none';
+  document.getElementById('app-screen').classList.add('visible');
+  document.getElementById('user-email-display').textContent=currentUser.email;
+  loadAll();
 }
 
 // AUTH
