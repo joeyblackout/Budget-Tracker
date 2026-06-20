@@ -65,7 +65,12 @@ select option{background:var(--surface);color:var(--text);}
 .nav-btn{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:10px 2px 8px;border:none;background:transparent;color:var(--muted);font-size:9px;font-weight:600;letter-spacing:0.02em;text-transform:uppercase;cursor:pointer;transition:color 0.15s;min-width:0;}
 .nav-btn .icon{font-size:20px;line-height:1;}
 .nav-btn.active{color:var(--accent);}
-.more-item{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:20px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-size:13px;font-weight:600;cursor:pointer;transition:all 0.15s;}
+.quick-add-bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;}
+.quick-btn{display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);cursor:pointer;transition:all 0.15s;min-width:70px;flex:1;}
+.quick-btn:active{border-color:var(--accent);transform:scale(0.96);}
+.quick-btn-emoji{font-size:22px;line-height:1;}
+.quick-btn-label{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;text-align:center;}
+.quick-btn-edit{background:none;border:none;color:var(--muted);font-size:11px;cursor:pointer;padding:4px 8px;text-decoration:underline;}flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:20px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-size:13px;font-weight:600;cursor:pointer;transition:all 0.15s;}
 .more-item:active{transform:scale(0.96);border-color:var(--accent);}
 .tooltip-wrap{position:relative;display:inline-block;}
 .tooltip-box{display:none;position:absolute;top:calc(100% + 8px);right:0;width:220px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;font-size:12px;color:var(--muted);line-height:1.5;z-index:200;box-shadow:0 4px 20px rgba(0,0,0,0.4);}
@@ -336,6 +341,7 @@ select option{background:var(--surface);color:var(--text);}
     </div>
     <div id="view-expenses" class="view">
       <div class="section-head"><div class="section-title">Expenses</div><button class="add-btn" onclick="openExpenseModal()">+</button></div>
+      <div id="quick-add-bar"></div>
       <div id="expenses-list"></div>
     </div>
     <div id="view-setup" class="view">
@@ -565,6 +571,18 @@ select option{background:var(--surface);color:var(--text);}
   <div class="modal-handle"></div><div class="modal-title">Share an Update</div>
   <div class="field"><label>What's on your mind?</label><textarea id="post-message" placeholder="Share a win, a goal, or some encouragement…"></textarea></div>
   <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal('post-modal')">Cancel</button><button class="btn btn-primary" onclick="savePost()">Post</button></div>
+</div></div>
+
+<!-- QUICK EXPENSE MODAL -->
+<div class="modal-overlay" id="quick-expense-modal"><div class="modal">
+  <div class="modal-handle"></div>
+  <div class="modal-title" id="quick-expense-title">Quick Add</div>
+  <input type="hidden" id="quick-exp-category"/>
+  <input type="hidden" id="quick-exp-desc"/>
+  <div class="field"><label>Amount ($)</label><input type="number" id="quick-exp-amount" placeholder="0.00" step="0.01" min="0"/></div>
+  <div class="field"><label>Date</label><input type="date" id="quick-exp-date"/></div>
+  <div class="field"><label>Notes (optional)</label><input type="text" id="quick-exp-notes" placeholder="Optional…"/></div>
+  <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal('quick-expense-modal')">Cancel</button><button class="btn btn-primary" onclick="saveQuickExpense()">Log It</button></div>
 </div></div>
 
 <!-- EXPENSE MODAL -->
@@ -1927,11 +1945,95 @@ async function deletePayment(id){
 }
 
 // EXPENSES
+const DEFAULT_QUICK_ADDS=[
+  {emoji:'⛽',label:'Gas',category:'Gas Station',desc:''},
+  {emoji:'🛒',label:'Groceries',category:'Groceries',desc:''},
+  {emoji:'🍔',label:'Food',category:'Dining / DoorDash',desc:''},
+  {emoji:'🚬',label:'Nicotine',category:'Nicotine',desc:''},
+  {emoji:'🧺',label:'Laundry',category:'Laundry',desc:''},
+  {emoji:'🎮',label:'Fun',category:'Entertainment',desc:''},
+];
+function getQuickAdds(){try{const s=localStorage.getItem('bt-quick-adds');return s?JSON.parse(s):DEFAULT_QUICK_ADDS;}catch(e){return DEFAULT_QUICK_ADDS;}}
+function saveQuickAdds(arr){localStorage.setItem('bt-quick-adds',JSON.stringify(arr));}
+function renderQuickAddBar(){
+  const el=document.getElementById('quick-add-bar');
+  if(!el)return;
+  const qa=getQuickAdds();
+  el.innerHTML=`<div class="quick-add-bar">
+    ${qa.map((q,i)=>`<button class="quick-btn" onclick="openQuickExpense('${esc(q.category)}','${esc(q.desc)}','${esc(q.label)}','${esc(q.emoji)}')"><span class="quick-btn-emoji">${q.emoji}</span><span class="quick-btn-label">${esc(q.label)}</span></button>`).join('')}
+    <button class="quick-btn" onclick="openQuickAddEditor()" style="border-style:dashed;"><span class="quick-btn-emoji">✏️</span><span class="quick-btn-label">Edit</span></button>
+  </div>`;
+}
+function openQuickExpense(category,desc,label,emoji){
+  document.getElementById('quick-expense-title').textContent=emoji+' '+label;
+  document.getElementById('quick-exp-category').value=category;
+  document.getElementById('quick-exp-desc').value=desc;
+  document.getElementById('quick-exp-amount').value='';
+  document.getElementById('quick-exp-date').value=today();
+  document.getElementById('quick-exp-notes').value='';
+  openModal('quick-expense-modal');
+  setTimeout(()=>document.getElementById('quick-exp-amount').focus(),300);
+}
+async function saveQuickExpense(){
+  const amount=parseFloat(document.getElementById('quick-exp-amount').value);
+  if(!amount||amount<=0){toast('Enter a valid amount');return;}
+  const{error}=await sb.from('expenses').insert({user_id:currentUser.id,exp_date:document.getElementById('quick-exp-date').value,category:document.getElementById('quick-exp-category').value,description:document.getElementById('quick-exp-desc').value||null,amount,notes:document.getElementById('quick-exp-notes').value.trim()||null});
+  if(error){toast('Error: '+error.message);return;}
+  closeModal('quick-expense-modal');await loadExpenses();renderExpenses();renderDashboard();toast('Logged ✓');
+}
+async function repeatExpense(id){
+  const e=expenses.find(x=>x.id===id);
+  if(!e)return;
+  const{error}=await sb.from('expenses').insert({user_id:currentUser.id,exp_date:today(),category:e.category,description:e.description,amount:e.amount,notes:e.notes,pay_week_id:null});
+  if(error){toast('Error: '+error.message);return;}
+  await loadExpenses();renderExpenses();renderDashboard();toast('Expense repeated ✓');
+}
+function openQuickAddEditor(){
+  const qa=getQuickAdds();
+  const cats=['Groceries','Gas Station','Dining / DoorDash','Nicotine','Laundry','Medical / Pharmacy','Personal Care','Clothing','Entertainment','Household Supplies','Transportation / Rideshare','Subscriptions','Other'];
+  const rows=qa.map((q,i)=>`<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
+    <input type="text" value="${esc(q.emoji)}" id="qe-emoji-${i}" style="width:48px;background:var(--bg);border:1.5px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:18px;padding:8px;text-align:center;" maxlength="2"/>
+    <input type="text" value="${esc(q.label)}" id="qe-label-${i}" style="width:80px;background:var(--bg);border:1.5px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:14px;padding:8px;"/>
+    <select id="qe-cat-${i}" style="flex:1;background:var(--bg);border:1.5px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:13px;padding:8px;">${cats.map(c=>`<option value="${c}" ${c===q.category?'selected':''}>${c}</option>`).join('')}</select>
+  </div>`).join('');
+  const content=`<p class="text-muted mb8" style="font-size:13px;">Edit your quick-add shortcuts. Change the emoji, label, or category for each.</p>${rows}`;
+  document.getElementById('dash-detail-title').textContent='Edit Quick-Add Buttons';
+  document.getElementById('dash-detail-content').innerHTML=content;
+  dashDetailNavTarget=null;
+  document.getElementById('dash-detail-nav-btn').style.display='none';
+  // Override close to save
+  document.getElementById('dash-detail-nav-btn').style.display='block';
+  document.getElementById('dash-detail-nav-btn').textContent='Save';
+  document.getElementById('dash-detail-nav-btn').onclick=()=>{
+    const updated=qa.map((_,i)=>({emoji:document.getElementById(`qe-emoji-${i}`).value||'💰',label:document.getElementById(`qe-label-${i}`).value||'Other',category:document.getElementById(`qe-cat-${i}`).value,desc:''}));
+    saveQuickAdds(updated);closeModal('dash-detail-modal');renderQuickAddBar();toast('Quick-adds saved ✓');
+    // Restore nav button
+    document.getElementById('dash-detail-nav-btn').textContent='Go There →';
+    document.getElementById('dash-detail-nav-btn').onclick=dashDetailNav;
+  };
+  openModal('dash-detail-modal');
+}
 function renderExpenses(){
   const el=document.getElementById('expenses-list');
-  if(expenses.length===0){el.innerHTML=`<div class="empty"><div class="icon">🧾</div><p>No expenses yet. Tap <strong>+</strong> to track spending.</p></div>`;return;}
+  renderQuickAddBar();
+  if(expenses.length===0){el.innerHTML=`<div class="empty"><div class="icon">🧾</div><p>No expenses yet. Use the quick buttons above or tap <strong>+</strong> to log one.</p></div>`;return;}
   const groups={};expenses.forEach(e=>{const mo=(e.exp_date||'').slice(0,7);if(!groups[mo])groups[mo]=[];groups[mo].push(e);});
-  el.innerHTML=Object.entries(groups).map(([mo,list])=>{const moTotal=list.reduce((s,e)=>s+parseFloat(e.amount||0),0);return`<div class="card-title" style="margin-top:8px;">${fmtMonth(mo)} · ${fmt(moTotal)} spent</div><div class="card" style="padding:0 18px;">${list.map(e=>`<div class="expense-item"><div style="flex:1;min-width:0;"><div class="expense-cat">${esc(e.category)}</div><div class="expense-desc">${esc(e.description||'')}</div><div class="expense-meta">${fmtDate(e.exp_date)}${e.notes?' · '+esc(e.notes):''}</div></div><div style="display:flex;align-items:center;gap:6px;"><div class="expense-amount">-${fmt(e.amount)}</div><button class="del-btn" onclick="deleteExpense('${e.id}')">🗑️</button></div></div>`).join('')}</div>`;}).join('');
+  el.innerHTML=Object.entries(groups).map(([mo,list])=>{
+    const moTotal=list.reduce((s,e)=>s+parseFloat(e.amount||0),0);
+    return`<div class="card-title" style="margin-top:8px;">${fmtMonth(mo)} · ${fmt(moTotal)} spent</div>
+    <div class="card" style="padding:0 18px;">${list.map(e=>`<div class="expense-item">
+      <div style="flex:1;min-width:0;">
+        <div class="expense-cat">${esc(e.category)}</div>
+        <div class="expense-desc">${esc(e.description||'')}</div>
+        <div class="expense-meta">${fmtDate(e.exp_date)}${e.notes?' · '+esc(e.notes):''}</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:4px;">
+        <div class="expense-amount">-${fmt(e.amount)}</div>
+        <button class="del-btn" onclick="repeatExpense('${e.id}')" title="Repeat today">🔁</button>
+        <button class="del-btn" onclick="deleteExpense('${e.id}')">🗑️</button>
+      </div>
+    </div>`).join('')}</div>`;
+  }).join('');
 }
 function openExpenseModal(){document.getElementById('exp-date').value=today();document.getElementById('exp-amount').value='';document.getElementById('exp-desc').value='';document.getElementById('exp-notes').value='';delete document.getElementById('expense-modal').dataset.weekId;openModal('expense-modal');}
 async function saveExpense(){
