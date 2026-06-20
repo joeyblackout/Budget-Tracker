@@ -254,7 +254,7 @@ select option{background:var(--surface);color:var(--text);}
   <div class="topbar">
     <div style="display:flex;align-items:center;gap:12px;">
       <button class="hamburger-btn" onclick="openSidebar()" aria-label="Menu"><span style="position:relative;">☰<span id="more-dot" style="display:none;position:absolute;top:-3px;right:-5px;width:9px;height:9px;background:var(--danger);border-radius:50%;border:1.5px solid var(--surface);"></span></span></button>
-      <div class="topbar-title">💰 Budget Tracker</div>
+      <div class="topbar-title" onclick="switchView('dashboard',null)" style="cursor:pointer;">💰 Budget Tracker</div>
     </div>
     <div style="display:flex;align-items:center;gap:12px;">
       <button class="logout-btn" onclick="doLogout()">⏻</button>
@@ -354,11 +354,11 @@ select option{background:var(--surface);color:var(--text);}
     </div>
   </div>
   <nav class="nav">
-    <button class="nav-btn active" data-view="dashboard" onclick="switchView('dashboard',this)"><span class="icon">📊</span>Dashboard</button>
+    <button class="nav-btn" data-view="forecast" onclick="switchView('forecast',this)"><span class="icon">🔮</span>Forecast</button>
     <button class="nav-btn" data-view="debts" onclick="switchView('debts',this)"><span class="icon">💳</span>Debts</button>
     <button class="nav-btn" data-view="weekly" onclick="switchView('weekly',this)"><span class="icon">📅</span>Income</button>
     <button class="nav-btn" data-view="bills" onclick="switchView('bills',this)"><span class="icon" style="position:relative;">🏠<span id="bills-badge" style="display:none;position:absolute;top:-4px;right:-8px;min-width:16px;height:16px;background:var(--danger);border-radius:99px;border:1.5px solid var(--surface);font-size:9px;font-weight:800;color:#fff;align-items:center;justify-content:center;padding:0 3px;"></span></span>Bills</button>
-    <button class="nav-btn" data-view="savings" onclick="switchView('savings',this)"><span class="icon" style="position:relative;">🏦<span id="more-dot" style="display:none;position:absolute;top:-2px;right:-6px;width:9px;height:9px;background:var(--danger);border-radius:50%;border:1.5px solid var(--surface);"></span></span>Savings</button>
+    <button class="nav-btn" data-view="savings" onclick="switchView('savings',this)"><span class="icon" style="position:relative;">🏦<span id="more-dot-savings" style="display:none;position:absolute;top:-2px;right:-6px;width:9px;height:9px;background:var(--danger);border-radius:50%;border:1.5px solid var(--surface);"></span></span>Savings</button>
     <button class="nav-btn" data-view="expenses" onclick="switchView('expenses',this)"><span class="icon">🧾</span>Expenses</button>
   </nav>
 </div>
@@ -748,9 +748,6 @@ async function loadShared(){
 function updateNotificationDots(){
   const hasInvites=sharedInvites.length>0;
   ['more-dot','sidebar-dot','side-shared-dot'].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display=hasInvites?'block':'none';});
-  // Also show on the hamburger menu button
-  const menuBtn=document.querySelector('.nav-btn[onclick="openSidebar()"]');
-  if(menuBtn){const dot=menuBtn.querySelector('span[id="sidebar-dot"]');if(dot)dot.style.display=hasInvites?'block':'none';}
 }
 
 // FORECAST
