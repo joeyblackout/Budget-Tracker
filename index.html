@@ -1774,8 +1774,20 @@ function renderWeekly(){
     if(!aFuture&&!bFuture)return a.pay_date>b.pay_date?-1:1;
     return aFuture?-1:1;
   });
-  const periodNumber={};
-  [...weeks].sort((a,b)=>a.pay_date<b.pay_date?-1:1).forEach((w,idx)=>{periodNumber[w.id]=idx+1;});
+  // Per-source period numbering
+  const sourceCheckNum={};
+  const globalNum={};
+  [...weeks].sort((a,b)=>a.pay_date<b.pay_date?-1:1).forEach((w,idx)=>{
+    globalNum[w.id]=idx+1;
+    if(w.source_name){
+      if(!sourceCheckNum[w.source_name])sourceCheckNum[w.source_name]=0;
+      sourceCheckNum[w.source_name]++;
+      w._checkNum=sourceCheckNum[w.source_name];
+      w._checkLabel=`${esc(w.source_name)} · Check ${w._checkNum}`;
+    } else {
+      w._checkLabel=`Pay Period ${globalNum[w.id]}`;
+    }
+  });
   const buildCard=(w)=>{
     const isFuture=w.pay_date>todayStr;
     const isCurrent=w.pay_date<=todayStr&&!sorted.some(x=>x.pay_date>w.pay_date&&x.pay_date<=todayStr);
@@ -1784,7 +1796,6 @@ function renderWeekly(){
     const weekExpenses=expenses.filter(e=>e.pay_week_id===w.id);
     const totalIn=weekPaychecks.reduce((s,p)=>s+parseFloat(p.amount||0),0);
     const expected=parseFloat(w.expected_amount||0);
-    // Pending = date hasn't arrived yet AND no confirmed paycheck yet
     const isPending=isFuture&&weekPaychecks.length===0;
     const totalBills=parseFloat(w.bills_amount||0);
     const totalDebtPaid=weekPayments.reduce((s,p)=>s+parseFloat(p.amount||0),0);
@@ -1794,9 +1805,8 @@ function renderWeekly(){
     return`<div class="week-card ${isCurrent?'current-week':''}" style="${isPending?'border-style:dashed;':''}">
       <div class="week-card-header" onclick="toggleWeek('week-body-${w.id}')">
         <div>
-          <div class="week-num">Pay Period ${periodNumber[w.id]}${isCurrent?'<span class="current-badge">Current</span>':''}${isPending?'<span class="current-badge" style="background:rgba(247,201,72,0.2);color:var(--warning);">Pending</span>':''}</div>
+          <div class="week-num">${w._checkLabel}${isCurrent?'<span class="current-badge">Current</span>':''}${isPending?'<span class="current-badge" style="background:rgba(247,201,72,0.2);color:var(--warning);">Pending</span>':''}</div>
           <div class="week-date-label">${fmtDate(w.pay_date)}</div>
-          ${w.source_name?`<div style="font-size:12px;color:var(--muted);margin-top:3px;">🔁 ${esc(w.source_name)}</div>`:''}
           ${w.notes?`<div style="font-size:12px;color:var(--muted);margin-top:3px;">${esc(w.notes)}</div>`:''}
         </div>
         <div>
@@ -1830,13 +1840,35 @@ function renderWeekly(){
       </div>
     </div>`;
   };
+  // Build month-grouped collapsible sections
+  const buildMonthGroups=(list,startFirstOpen=true)=>{
+    if(list.length===0)return'';
+    const monthGroups={};
+    list.forEach(w=>{const mo=w.pay_date.slice(0,7);if(!monthGroups[mo])monthGroups[mo]=[];monthGroups[mo].push(w);});
+    return Object.entries(monthGroups).sort((a,b)=>a[0]<b[0]?-1:1).map(([mo,mw],idx)=>{
+      const moLabel=new Date(mo+'-02').toLocaleString('en-US',{month:'long',year:'numeric'});
+      const confirmed=mw.reduce((s,w)=>s+paychecks.filter(p=>p.pay_week_id===w.id).reduce((ss,p)=>ss+parseFloat(p.amount||0),0),0);
+      const expected=mw.reduce((s,w)=>s+parseFloat(w.expected_amount||0),0);
+      const domId='wk-mo-'+mo.replace('-','');
+      const open=startFirstOpen&&idx===0;
+      return`<div style="margin-bottom:8px;">
+        <div onclick="const b=document.getElementById('${domId}');const a=document.getElementById('a-${domId}');if(b.style.display==='none'){b.style.display='block';a.textContent='▼';}else{b.style.display='none';a.textContent='▶';}" style="display:flex;justify-content:space-between;align-items:center;padding:13px 18px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);cursor:pointer;">
+          <div>
+            <div style="font-size:14px;font-weight:700;">${moLabel}</div>
+            <div style="font-size:11px;color:var(--muted);">${mw.length} period${mw.length!==1?'s':''}${confirmed>0?` · ${fmt(confirmed)} confirmed`:''}${expected>0?` · ${fmt(expected)} expected`:''}</div>
+          </div>
+          <span id="a-${domId}" style="font-size:13px;color:var(--muted);">${open?'▼':'▶'}</span>
+        </div>
+        <div id="${domId}" style="display:${open?'block':'none'};margin-top:4px;">${mw.map(buildCard).join('')}</div>
+      </div>`;
+    }).join('');
+  };
   // Split: active = within 7 days, archived = older than 7 days
   const cutoff=new Date();cutoff.setDate(cutoff.getDate()-7);
   const cutoffStr=cutoff.toISOString().slice(0,10);
   // Income source filter
   const sources=['all',...new Set(weeks.filter(w=>w.source_name).map(w=>w.source_name))];
   const filterBar=sources.length>1?`<div class="toggle-row" style="flex-wrap:wrap;margin-bottom:14px;">${sources.map(s=>`<button class="toggle-btn ${incomeFilter===s?'active':''}" style="flex:0 0 auto;padding:7px 12px;font-size:11px;" onclick="setIncomeFilter('${esc(s)}')">${s==='all'?'All Sources':esc(s)}</button>`).join('')}</div>`:'';
-  const filterFn=w=>incomeFilter==='all'||(w.source_name===incomeFilter)||(incomeFilter==='all');
   const active=sorted.filter(w=>w.pay_date>=cutoffStr&&(incomeFilter==='all'||w.source_name===incomeFilter||!w.source_name));
   const archived=sorted.filter(w=>w.pay_date<cutoffStr&&(incomeFilter==='all'||w.source_name===incomeFilter||!w.source_name));
   // Totals bar
@@ -1862,10 +1894,10 @@ function renderWeekly(){
         <span style="font-size:14px;font-weight:700;color:var(--muted);">🗂️ Past Periods (${archived.length})</span>
         <span style="font-size:12px;color:var(--muted);">tap to expand</span>
       </button>
-      <div id="archived-periods" style="display:none;">${archived.map(buildCard).join('')}</div>
+      <div id="archived-periods" style="display:none;">${buildMonthGroups(archived,false)}</div>
     </div>`;
   }
-  html+=active.map(buildCard).join('');
+  html+=buildMonthGroups(active,true);
   el.innerHTML=html;
 }
 async function confirmExpected(weekId,amount,payDate){
