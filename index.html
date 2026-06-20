@@ -380,6 +380,7 @@ select option{background:var(--surface);color:var(--text);}
     </select>
   </div>
   <div class="field"><label>Next Pay Date</label><input type="date" id="rec-start"/></div>
+  <div class="field"><label>End Date — optional (leave blank for ongoing)</label><input type="date" id="rec-end"/></div>
   <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal('recurring-modal')">Close</button><button class="btn btn-primary" onclick="saveRecurring()">Add Source</button></div>
 </div></div>
 
@@ -1466,13 +1467,14 @@ function openRecurringModal(){
   document.getElementById('rec-amount').value='';
   document.getElementById('rec-frequency').value='biweekly';
   document.getElementById('rec-start').value=today();
+  document.getElementById('rec-end').value='';
   renderRecurringList();
   openModal('recurring-modal');
 }
 function renderRecurringList(){
   const el=document.getElementById('recurring-list');
   if(recurringSources.length===0){el.innerHTML=`<div style="text-align:center;padding:16px;color:var(--muted);font-size:13px;">No recurring sources yet. Add one below.</div>`;return;}
-  el.innerHTML=`<div class="card-title">Active Sources</div>`+recurringSources.map(r=>`<div class="paycheck-row"><div><div style="font-weight:700;">${esc(r.name)} · ${fmt(r.amount)}</div><div style="font-size:11px;color:var(--muted);">${capFirst(r.frequency)} · next ${fmtDate(r.next_date)}</div></div><button class="del-btn" onclick="deleteRecurring('${r.id}')">🗑️</button></div>`).join('');
+  el.innerHTML=`<div class="card-title">Active Sources</div>`+recurringSources.map(r=>`<div class="paycheck-row"><div><div style="font-weight:700;">${esc(r.name)} · ${fmt(r.amount)}</div><div style="font-size:11px;color:var(--muted);">${capFirst(r.frequency)} · next ${fmtDate(r.next_date)}${r.end_date?` · ends ${fmtDate(r.end_date)}`:' · ongoing'}</div></div><button class="del-btn" onclick="deleteRecurring('${r.id}')">🗑️</button></div>`).join('');
 }
 function addInterval(dateStr,freq,count){
   const d=new Date(dateStr+'T00:00:00');
@@ -1490,10 +1492,12 @@ async function saveRecurring(){
   const amount=parseFloat(document.getElementById('rec-amount').value);
   const frequency=document.getElementById('rec-frequency').value;
   const start=document.getElementById('rec-start').value;
+  const end=document.getElementById('rec-end').value||null;
   if(!name){toast('Enter a source name');return;}
   if(!amount||amount<=0){toast('Enter a valid amount');return;}
   if(!start){toast('Enter a start date');return;}
-  const{data:rec,error}=await sb.from('recurring_income').insert({user_id:currentUser.id,name,amount,frequency,next_date:start}).select().single();
+  if(end&&end<=start){toast('End date must be after start date');return;}
+  const{data:rec,error}=await sb.from('recurring_income').insert({user_id:currentUser.id,name,amount,frequency,next_date:start,end_date:end}).select().single();
   if(error){toast('Error: '+error.message);return;}
   await generatePeriods(rec);
   await Promise.all([loadRecurring(),loadWeeks(),loadPaychecks()]);
@@ -1501,15 +1505,18 @@ async function saveRecurring(){
   toast('Recurring source added ✓');
   document.getElementById('rec-name').value='';
   document.getElementById('rec-amount').value='';
+  document.getElementById('rec-end').value='';
 }
 async function generatePeriods(rec){
-  // Generate pay periods ~12 months out so the annual forecast has data
+  // Generate pay periods up to 12 months out (or end_date if set)
   const horizon=new Date();horizon.setMonth(horizon.getMonth()+12);
+  const endDate=rec.end_date?new Date(rec.end_date+'T00:00:00'):null;
+  const cutoff=endDate&&endDate<horizon?endDate:horizon;
   const existing=weeks.map(w=>w.pay_date);
   const newPeriods=[];
   for(let count=0;count<60;count++){
     const periodDate=count===0?rec.next_date:addInterval(rec.next_date,rec.frequency,count);
-    if(new Date(periodDate+'T00:00:00')>horizon)break;
+    if(new Date(periodDate+'T00:00:00')>cutoff)break;
     if(!existing.includes(periodDate)){
       newPeriods.push({user_id:currentUser.id,pay_date:periodDate,bills_amount:0,expected_amount:rec.amount,source_name:rec.name});
     }
