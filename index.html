@@ -674,6 +674,7 @@ let sharedPots=[],sharedMembers=[],sharedTxns=[],sharedInvites=[];
 let assets=[];
 let recurringSources=[];
 let dashSection='overview';
+let snapshotOpen=localStorage.getItem('bt-snapshot-open')!=='false';
 
 window.addEventListener('DOMContentLoaded',async()=>{
   const {data:{session}}=await sb.auth.getSession();
@@ -1089,8 +1090,11 @@ function renderDashboard(){
   if(dashSection==='overview'){
     sectionContent=`
       <div class="card">
-        <div class="card-title">Account Snapshot</div>
-        ${debts.map(d=>{const bal=parseFloat(d.balance||0);const lim=parseFloat(d.credit_limit||0);const u=lim>0?(bal/lim)*100:null;return`<div class="account-row"><div><div class="account-name">${esc(d.name)}</div><div class="account-detail">${esc(d.type)} · APR ${parseFloat(d.apr||0).toFixed(1)}% · Min ${fmt(d.min_payment||0)}</div>${u!==null?`<span class="util-badge ${u>100?'util-over':u>30?'util-high':'util-ok'}">${u.toFixed(0)}% util</span>`:''}</div><div class="account-balance ${bal>0?'text-danger':''}">${fmt(bal)}</div></div>`;}).join('')}
+        <div onclick="snapshotOpen=!snapshotOpen;localStorage.setItem('bt-snapshot-open',snapshotOpen);renderDashboard();" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none;${snapshotOpen?'margin-bottom:8px;':''}">
+          <div class="card-title" style="margin:0;">Account Snapshot</div>
+          <span style="font-size:14px;color:var(--muted);">${snapshotOpen?'▲':'▼'}</span>
+        </div>
+        ${snapshotOpen?debts.map(d=>{const bal=parseFloat(d.balance||0);const lim=parseFloat(d.credit_limit||0);const u=lim>0?(bal/lim)*100:null;return`<div class="account-row"><div><div class="account-name">${esc(d.name)}</div><div class="account-detail">${esc(d.type)} · APR ${parseFloat(d.apr||0).toFixed(1)}% · Min ${fmt(d.min_payment||0)}</div>${u!==null?`<span class="util-badge ${u>100?'util-over':u>30?'util-high':'util-ok'}">${u.toFixed(0)}% util</span>`:''}</div><div class="account-balance ${bal>0?'text-danger':''}">${fmt(bal)}</div></div>`;}).join(''):''}
       </div>`;
   } else if(dashSection==='savings'){
     // Shared pot balances
