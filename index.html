@@ -384,6 +384,7 @@ select option{background:var(--surface);color:var(--text);}
     </select>
   </div>
   <div class="field"><label>Goal Amount ($) — optional</label><input type="number" id="pot-goal" placeholder="0.00" step="0.01" min="0"/></div>
+  <div class="field"><label>Starting Balance ($) — money already in this account</label><input type="number" id="pot-starting" placeholder="0.00" step="0.01" min="0"/></div>
   <div class="field"><label>Notes (optional)</label><input type="text" id="pot-notes" placeholder="What is this pot for?"/></div>
   <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal('pot-modal')">Cancel</button><button class="btn btn-primary" onclick="savePot()">Save</button></div>
 </div></div>
@@ -612,9 +613,10 @@ function renderDashboard(){
   const totalIncome=paychecks.reduce((s,p)=>s+parseFloat(p.amount||0),0);
   const totalExpenses=expenses.reduce((s,e)=>s+parseFloat(e.amount||0),0);
   const totalBillsPaid=billPayments.reduce((s,b)=>s+parseFloat(b.amount||0),0);
-  const totalSaved=savingsTxns.filter(t=>t.type==='deposit').reduce((s,t)=>s+parseFloat(t.amount||0),0)-savingsTxns.filter(t=>t.type==='withdraw').reduce((s,t)=>s+parseFloat(t.amount||0),0);
+  const totalSaved=savingsTxns.filter(t=>t.type==='deposit'&&t.notes!=='__starting_balance__').reduce((s,t)=>s+parseFloat(t.amount||0),0)-savingsTxns.filter(t=>t.type==='withdraw').reduce((s,t)=>s+parseFloat(t.amount||0),0);
+  const startingCash=myProfile?.starting_cash?parseFloat(myProfile.starting_cash):0;
   const mySharedNet=sharedTxns.filter(t=>t.user_id===currentUser.id).reduce((s,t)=>s+(t.type==='deposit'?parseFloat(t.amount||0):-(parseFloat(t.amount||0))),0);
-  const runningBalance=totalIncome-totalPaid-totalExpenses-totalBillsPaid-totalSaved-mySharedNet;
+  const runningBalance=startingCash+totalIncome-totalPaid-totalExpenses-totalBillsPaid-totalSaved-mySharedNet;
   const ccDebts=debts.filter(d=>d.type==='Credit Card'&&d.credit_limit>0);
   const totalCC=ccDebts.reduce((s,d)=>s+parseFloat(d.balance||0),0);
   const totalLim=ccDebts.reduce((s,d)=>s+parseFloat(d.credit_limit||0),0);
@@ -661,6 +663,7 @@ function renderDashboard(){
       <div class="balance-label">💵 Running Balance</div>
       <div class="balance-amount ${runningBalance>=0?'text-success':'text-danger'}">${fmt(runningBalance)}</div>
       <div class="balance-breakdown">
+        ${startingCash>0?`<div class="balance-line"><span class="balance-line-label">Starting Cash</span><span class="balance-line-val text-success">+${fmt(startingCash)}</span></div>`:''}
         <div class="balance-line"><span class="balance-line-label">Raked In</span><span class="balance-line-val text-success">+${fmt(totalIncome)}</span></div>
         <div class="balance-line"><span class="balance-line-label">Debt Paid</span><span class="balance-line-val text-danger">-${fmt(totalPaid)}</span></div>
         <div class="balance-line"><span class="balance-line-label">Bills Paid</span><span class="balance-line-val text-danger">-${fmt(totalBillsPaid)}</span></div>
@@ -741,8 +744,14 @@ function renderSavings(){
 function openPotModal(id=null){
   document.getElementById('pot-modal-title').textContent=id?'Edit Pot':'New Savings Pot';
   document.getElementById('pot-edit-id').value=id||'';
-  if(id){const p=pots.find(x=>x.id===id);if(p){document.getElementById('pot-name').value=p.name||'';document.getElementById('pot-emoji').value=p.emoji||'💰';document.getElementById('pot-goal').value=p.goal_amount||'';document.getElementById('pot-notes').value=p.notes||'';}}
-  else{['pot-name','pot-goal','pot-notes'].forEach(i=>document.getElementById(i).value='');document.getElementById('pot-emoji').value='🛡️';}
+  const startingField=document.getElementById('pot-starting').closest('.field');
+  if(id){
+    const p=pots.find(x=>x.id===id);
+    if(p){document.getElementById('pot-name').value=p.name||'';document.getElementById('pot-emoji').value=p.emoji||'💰';document.getElementById('pot-goal').value=p.goal_amount||'';document.getElementById('pot-notes').value=p.notes||'';}
+    document.getElementById('pot-starting').value='';
+    startingField.style.display='none';
+  }
+  else{['pot-name','pot-goal','pot-notes','pot-starting'].forEach(i=>document.getElementById(i).value='');document.getElementById('pot-emoji').value='🛡️';startingField.style.display='block';}
   openModal('pot-modal');
 }
 function editPot(id){openPotModal(id);}
@@ -751,9 +760,16 @@ async function savePot(){
   const name=document.getElementById('pot-name').value.trim();
   if(!name){toast('Enter a pot name');return;}
   const payload={user_id:currentUser.id,name,emoji:document.getElementById('pot-emoji').value,goal_amount:parseFloat(document.getElementById('pot-goal').value)||null,notes:document.getElementById('pot-notes').value.trim()||null};
-  const res=id?await sb.from('savings_pots').update(payload).eq('id',id):await sb.from('savings_pots').insert(payload);
-  if(res.error){toast('Error: '+res.error.message);return;}
-  closeModal('pot-modal');await loadPots();renderSavings();renderDashboard();toast(id?'Pot updated ✓':'Pot created ✓');
+  if(id){
+    const res=await sb.from('savings_pots').update(payload).eq('id',id);
+    if(res.error){toast('Error: '+res.error.message);return;}
+  }else{
+    const res=await sb.from('savings_pots').insert(payload).select().single();
+    if(res.error){toast('Error: '+res.error.message);return;}
+    const starting=parseFloat(document.getElementById('pot-starting').value)||0;
+    if(starting>0){await sb.from('savings_transactions').insert({user_id:currentUser.id,pot_id:res.data.id,type:'deposit',amount:starting,txn_date:today(),notes:'__starting_balance__'});}
+  }
+  closeModal('pot-modal');await Promise.all([loadPots(),loadSavingsTxns()]);renderSavings();renderDashboard();toast(id?'Pot updated ✓':'Pot created ✓');
 }
 async function deletePot(id){
   if(!confirm('Delete this pot? All transaction history will be lost.'))return;
@@ -1290,6 +1306,12 @@ function renderSetup(){
       <button class="btn btn-primary" onclick="saveDisplayName()">Save Name</button>
     </div>
     <div class="card">
+      <div class="card-title">Starting Cash on Hand</div>
+      <p class="text-muted mb8">Set your current checking/cash balance. This is the foundation your running balance builds on.</p>
+      <div class="field"><label>Current Cash ($)</label><input type="number" id="setting-starting-cash" placeholder="0.00" step="0.01" value="${myProfile?.starting_cash?myProfile.starting_cash:''}"/></div>
+      <button class="btn btn-primary" onclick="saveStartingCash()">Save Cash</button>
+    </div>
+    <div class="card">
       <div class="card-title">Community Auto-Posts</div>
       <p class="text-muted mb8">Automatically share milestones (debts paid off, goals reached) to the community feed. Amounts are never shown.</p>
       <button class="btn ${autoOn?'btn-primary':'btn-ghost'}" onclick="toggleAutoPost()">${autoOn?'✓ Auto-Posts On':'Auto-Posts Off'}</button>
@@ -1305,14 +1327,21 @@ function renderSetup(){
 async function saveDisplayName(){
   const name=document.getElementById('setting-display-name').value.trim();
   if(!name){toast('Enter a name');return;}
-  const payload={user_id:currentUser.id,display_name:name,auto_post:myProfile?myProfile.auto_post:true};
+  const payload={user_id:currentUser.id,display_name:name,auto_post:myProfile?myProfile.auto_post:true,starting_cash:myProfile?.starting_cash||0};
   const{error}=await sb.from('profiles').upsert(payload,{onConflict:'user_id'});
   if(error){toast('Error: '+error.message);return;}
   await loadProfiles();renderSetup();renderDashboard();toast('Name saved ✓');
 }
+async function saveStartingCash(){
+  const cash=parseFloat(document.getElementById('setting-starting-cash').value)||0;
+  const payload={user_id:currentUser.id,display_name:myProfile?.display_name||null,auto_post:myProfile?myProfile.auto_post:true,starting_cash:cash};
+  const{error}=await sb.from('profiles').upsert(payload,{onConflict:'user_id'});
+  if(error){toast('Error: '+error.message);return;}
+  await loadProfiles();renderSetup();renderDashboard();toast('Starting cash saved ✓');
+}
 async function toggleAutoPost(){
   const newVal=!(myProfile?myProfile.auto_post!==false:true);
-  const payload={user_id:currentUser.id,display_name:myProfile?.display_name||null,auto_post:newVal};
+  const payload={user_id:currentUser.id,display_name:myProfile?.display_name||null,auto_post:newVal,starting_cash:myProfile?.starting_cash||0};
   const{error}=await sb.from('profiles').upsert(payload,{onConflict:'user_id'});
   if(error){toast('Error: '+error.message);return;}
   await loadProfiles();renderSetup();toast(newVal?'Auto-posts on':'Auto-posts off');
