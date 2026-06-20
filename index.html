@@ -289,7 +289,7 @@ select option{background:var(--surface);color:var(--text);}
     <button class="nav-btn" data-view="debts" onclick="switchView('debts',this)"><span class="icon">💳</span>Debts</button>
     <button class="nav-btn" data-view="bills" onclick="switchView('bills',this)"><span class="icon">🏠</span>Bills</button>
     <button class="nav-btn" data-view="savings" onclick="switchView('savings',this)"><span class="icon">🏦</span>Savings</button>
-    <button class="nav-btn" id="more-nav-btn" onclick="openMoreMenu()"><span class="icon">⋯</span>More</button>
+    <button class="nav-btn" id="more-nav-btn" onclick="openMoreMenu()"><span class="icon" style="position:relative;">⋯<span id="more-dot" style="display:none;position:absolute;top:-2px;right:-6px;width:9px;height:9px;background:var(--danger);border-radius:50%;border:1.5px solid var(--surface);"></span></span>More</button>
   </nav>
 </div>
 
@@ -299,7 +299,7 @@ select option{background:var(--surface);color:var(--text);}
   <div class="modal-title">More</div>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
     <button class="more-item" onclick="moreNav('payments')"><span style="font-size:24px;">✅</span><span>Debt Payments</span></button>
-    <button class="more-item" onclick="moreNav('shared')"><span style="font-size:24px;">🤝</span><span>Shared</span></button>
+    <button class="more-item" onclick="moreNav('shared')"><span style="font-size:24px;position:relative;">🤝<span id="shared-dot" style="display:none;position:absolute;top:-2px;right:-8px;width:10px;height:10px;background:var(--danger);border-radius:50%;border:2px solid var(--surface2);"></span></span><span>Shared</span></button>
     <button class="more-item" onclick="moreNav('community')"><span style="font-size:24px;">🎉</span><span>Community</span></button>
     <button class="more-item" onclick="moreNav('expenses')"><span style="font-size:24px;">🧾</span><span>Expenses</span></button>
     <button class="more-item" onclick="moreNav('setup')"><span style="font-size:24px;">⚙️</span><span>Settings</span></button>
@@ -590,6 +590,14 @@ async function loadShared(){
     const{data:inviteRows}=await sb.from('shared_invites').select('*').eq('invitee_id',currentUser.id).eq('status','pending');
     sharedInvites=inviteRows||[];
   }catch(e){sharedPots=[];sharedMembers=[];sharedTxns=[];sharedInvites=[];}
+  updateNotificationDots();
+}
+function updateNotificationDots(){
+  const hasInvites=sharedInvites.length>0;
+  const moreDot=document.getElementById('more-dot');
+  const sharedDot=document.getElementById('shared-dot');
+  if(moreDot)moreDot.style.display=hasInvites?'block':'none';
+  if(sharedDot)sharedDot.style.display=hasInvites?'block':'none';
 }
 
 // DASHBOARD
@@ -641,6 +649,14 @@ function renderDashboard(){
       <div style="font-size:13px;color:var(--muted);font-weight:600;">${greeting()},</div>
       <div style="font-size:26px;font-weight:800;letter-spacing:-0.03em;">${myProfile?.display_name?esc(myProfile.display_name):'Welcome'} 👋</div>
     </div>
+    ${sharedInvites.map(inv=>`<div class="card" style="border-color:var(--accent);background:rgba(79,142,247,0.06);margin-bottom:14px;">
+      <div style="font-size:15px;font-weight:700;margin-bottom:6px;">🤝 ${esc(displayName(inv.inviter_id))} invited you!</div>
+      <div class="text-muted mb8">Join "${esc(inv.pot_name)}" shared savings pot</div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-primary" style="padding:10px;" onclick="acceptInvite('${inv.id}','${inv.pot_id}')">Accept</button>
+        <button class="btn btn-ghost" style="padding:10px;" onclick="declineInvite('${inv.id}')">Decline</button>
+      </div>
+    </div>`).join('')}
     <div class="balance-card">
       <div class="balance-label">💵 Running Balance</div>
       <div class="balance-amount ${runningBalance>=0?'text-success':'text-danger'}">${fmt(runningBalance)}</div>
@@ -939,7 +955,7 @@ async function acceptInvite(inviteId,potId){
 }
 async function declineInvite(inviteId){
   await sb.from('shared_invites').update({status:'declined'}).eq('id',inviteId);
-  await loadShared();renderShared();toast('Invite declined');
+  await loadShared();renderShared();renderDashboard();toast('Invite declined');
 }
 
 function openSharedTxnModal(potId,type,potName){
