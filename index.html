@@ -1187,8 +1187,17 @@ function renderWeekly(){
   const el=document.getElementById('weekly-list');
   if(weeks.length===0){el.innerHTML=`<div class="empty"><div class="icon">📅</div><p>No pay periods yet. Set up <strong>🔁 Recurring</strong> income, or tap <strong>+</strong> to add one manually.</p></div>`;return;}
   const todayStr=today();
-  el.innerHTML=weeks.map((w,i)=>{
-    const isCurrent=w.pay_date<=todayStr&&(i===0||weeks[i-1].pay_date>todayStr);
+  // Order: current & upcoming periods first (soonest first), then past periods (most recent first)
+  const sorted=[...weeks].sort((a,b)=>{
+    const aFuture=a.pay_date>=todayStr, bFuture=b.pay_date>=todayStr;
+    if(aFuture&&bFuture)return a.pay_date<b.pay_date?-1:1;
+    if(!aFuture&&!bFuture)return a.pay_date>b.pay_date?-1:1;
+    return aFuture?-1:1;
+  });
+  const periodNumber={};
+  [...weeks].sort((a,b)=>a.pay_date<b.pay_date?-1:1).forEach((w,idx)=>{periodNumber[w.id]=idx+1;});
+  el.innerHTML=sorted.map((w)=>{
+    const isCurrent=w.pay_date<=todayStr&&!sorted.some(x=>x.pay_date>w.pay_date&&x.pay_date<=todayStr);
     const weekPaychecks=paychecks.filter(p=>p.pay_week_id===w.id);
     const weekPayments=payments.filter(p=>p.pay_week_id===w.id);
     const weekExpenses=expenses.filter(e=>e.pay_week_id===w.id);
@@ -1203,7 +1212,7 @@ function renderWeekly(){
     return`<div class="week-card ${isCurrent?'current-week':''}" style="${isPending?'border-style:dashed;':''}">
       <div class="week-card-header" onclick="toggleWeek('week-body-${w.id}')">
         <div>
-          <div class="week-num">Pay Period ${weeks.length-i}${isCurrent?'<span class="current-badge">Current</span>':''}${isPending?'<span class="current-badge" style="background:rgba(247,201,72,0.2);color:var(--warning);">Pending</span>':''}</div>
+          <div class="week-num">Pay Period ${periodNumber[w.id]}${isCurrent?'<span class="current-badge">Current</span>':''}${isPending?'<span class="current-badge" style="background:rgba(247,201,72,0.2);color:var(--warning);">Pending</span>':''}</div>
           <div class="week-date-label">${fmtDate(w.pay_date)}</div>
           ${w.source_name?`<div style="font-size:12px;color:var(--muted);margin-top:3px;">🔁 ${esc(w.source_name)}</div>`:''}
           ${w.notes?`<div style="font-size:12px;color:var(--muted);margin-top:3px;">${esc(w.notes)}</div>`:''}
