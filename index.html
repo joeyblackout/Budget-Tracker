@@ -301,6 +301,7 @@ select option{background:var(--surface);color:var(--text);}
       <button class="side-item" data-sview="expenses" onclick="sideNav('expenses')"><span class="side-icon">🧾</span>Expenses</button>
       <button class="side-item" data-sview="setup" onclick="sideNav('setup')"><span class="side-icon">⚙️</span>Settings</button>
       <button class="side-item" data-sview="instructions" onclick="sideNav('instructions')"><span class="side-icon">📖</span>How to Use</button>
+      <button class="side-item" data-sview="paycalc" onclick="sideNav('paycalc')"><span class="side-icon">🧮</span>Paycheck Calculator</button>
     </nav>
     <div class="sidebar-footer">
       <button class="btn btn-danger" onclick="doLogout()">Sign Out</button>
@@ -375,6 +376,10 @@ select option{background:var(--surface);color:var(--text);}
     <div id="view-instructions" class="view">
       <div class="section-head"><div class="section-title">📖 How to Use</div></div>
       <div id="instructions-content"></div>
+    </div>
+    <div id="view-paycalc" class="view">
+      <div class="section-head"><div class="section-title">🧮 Paycheck Calculator</div></div>
+      <div id="paycalc-content" style="padding:0 16px 100px;"></div>
     </div>
   </div>
   <nav class="nav">
@@ -741,6 +746,7 @@ function switchView(name,btn){
   if(name==='expenses')renderExpenses();
   if(name==='setup')renderSetup();
   if(name==='instructions')renderInstructions();
+  if(name==='paycalc')renderPaycalc();
 }
 function openSidebar(){document.getElementById('sidebar').classList.add('open');document.getElementById('sidebar-overlay').classList.add('open');}
 function closeSidebar(){document.getElementById('sidebar').classList.remove('open');document.getElementById('sidebar-overlay').classList.remove('open');}
@@ -2099,7 +2105,7 @@ async function deleteRecurring(id){
   renderRecurringList();renderWeekly();renderDashboard();
   toast('Source deleted');
 }
-function openPaycheckModal(weekId){document.getElementById('paycheck-week-id').value=weekId;document.getElementById('paycheck-amount').value='';document.getElementById('paycheck-date').value=today();document.getElementById('paycheck-notes').value='';openModal('paycheck-modal');}
+function openPaycheckModal(weekId){document.getElementById('paycheck-week-id').value=weekId;document.getElementById('paycheck-amount').value=paycalcPrefill||'';paycalcPrefill=null;document.getElementById('paycheck-date').value=today();document.getElementById('paycheck-notes').value='';openModal('paycheck-modal');}
 async function savePaycheck(){
   const weekId=document.getElementById('paycheck-week-id').value;
   const amount=parseFloat(document.getElementById('paycheck-amount').value);
@@ -2979,6 +2985,106 @@ let incomeFilter='all';
 function setIncomeFilter(f){incomeFilter=f;renderWeekly();}
 
 // INSTRUCTIONS
+// PAYCHECK CALCULATOR
+const STATE_TAX_RATES={
+  'Texas':0,'Florida':0,'Washington':0,
+  'California':0.0495,'New York':0.045,'Oregon':0.08,
+  'Georgia':0.055,'Illinois':0.0495,'Pennsylvania':0.0307,
+  'Ohio':0.04,'North Carolina':0.0475
+};
+const STATES=Object.keys(STATE_TAX_RATES).sort();
+let paycalcPrefill=null;
+
+function calcFederalTax(gross){
+  // 2024 single filer marginal brackets (annual)
+  const brackets=[
+    [11600,0.10],[44725,0.12],[95375,0.22],[201050,0.24],
+    [383900,0.32],[487450,0.35],[Infinity,0.37]
+  ];
+  let tax=0,prev=0;
+  for(const[limit,rate]of brackets){
+    if(gross<=prev)break;
+    tax+=(Math.min(gross,limit)-prev)*rate;
+    prev=limit;
+  }
+  return tax;
+}
+
+function renderPaycalc(){
+  const el=document.getElementById('paycalc-content');
+  const regWage=parseFloat(document.getElementById('pc-reg-wage')?.value||0)||0;
+  const regHours=parseFloat(document.getElementById('pc-reg-hours')?.value||0)||0;
+  const otHours=parseFloat(document.getElementById('pc-ot-hours')?.value||0)||0;
+  const otWage=parseFloat(document.getElementById('pc-ot-wage')?.value||0)||(regWage*1.5);
+  const state=document.getElementById('pc-state')?.value||'Texas';
+
+  const grossReg=regHours*regWage;
+  const grossOT=otHours*otWage;
+  const gross=grossReg+grossOT;
+
+  // Annualize to apply brackets, then de-annualize (assume 26 pay periods biweekly)
+  const periods=26;
+  const annualGross=gross*periods;
+  const federalTax=gross>0?calcFederalTax(annualGross)/periods:0;
+  const socialSecurity=Math.min(gross,168600/periods)*0.062;
+  const medicare=gross*0.0145;
+  const stateTax=gross*(STATE_TAX_RATES[state]||0);
+  const totalDeductions=federalTax+socialSecurity+medicare+stateTax;
+  const netPay=gross-totalDeductions;
+
+  const row=(label,val,color)=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--border);">
+    <span style="font-size:13px;color:var(--muted);">${label}</span>
+    <span style="font-size:14px;font-weight:700;color:${color||'var(--text)'};">${fmt(val)}</span>
+  </div>`;
+
+  const stateOptions=STATES.map(s=>`<option value="${s}"${s===state?' selected':''}>${s}</option>`).join('');
+
+  el.innerHTML=`
+    <div class="card" style="margin-bottom:14px;">
+      <div style="font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:12px;">Pay Info</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+        <div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">Regular Hours</div>
+          <input id="pc-reg-hours" type="number" min="0" step="0.5" placeholder="40" value="${regHours||''}" oninput="renderPaycalc()" style="width:100%;box-sizing:border-box;padding:9px 10px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:14px;">
+        </div>
+        <div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">Regular Wage ($/hr)</div>
+          <input id="pc-reg-wage" type="number" min="0" step="0.01" placeholder="20.00" value="${regWage||''}" oninput="renderPaycalc()" style="width:100%;box-sizing:border-box;padding:9px 10px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:14px;">
+        </div>
+        <div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">Overtime Hours</div>
+          <input id="pc-ot-hours" type="number" min="0" step="0.5" placeholder="0" value="${otHours||''}" oninput="renderPaycalc()" style="width:100%;box-sizing:border-box;padding:9px 10px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:14px;">
+        </div>
+        <div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">OT Wage ($/hr)</div>
+          <input id="pc-ot-wage" type="number" min="0" step="0.01" placeholder="${(regWage*1.5).toFixed(2)||'30.00'}" value="${otHours>0||document.getElementById('pc-ot-wage')?.dataset.edited?otWage:''}" oninput="this.dataset.edited='1';renderPaycalc()" style="width:100%;box-sizing:border-box;padding:9px 10px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:14px;">
+        </div>
+      </div>
+      <div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">State</div>
+        <select id="pc-state" onchange="renderPaycalc()" style="width:100%;box-sizing:border-box;padding:9px 10px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:14px;">${stateOptions}</select>
+      </div>
+    </div>
+    ${gross>0?`
+    <div class="card" style="margin-bottom:14px;">
+      <div style="font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:4px;">Breakdown</div>
+      ${row('Regular Pay ('+regHours+'h × '+fmt(regWage)+')',grossReg,'var(--success)')}
+      ${otHours>0?row('Overtime Pay ('+otHours+'h × '+fmt(otWage)+')',grossOT,'var(--success)'):''}
+      ${row('Gross Pay',gross,'var(--success)')}
+      <div style="margin-top:8px;margin-bottom:4px;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;">Deductions</div>
+      ${row('Federal Income Tax',federalTax,'var(--danger)')}
+      ${row('Social Security (6.2%)',socialSecurity,'var(--danger)')}
+      ${row('Medicare (1.45%)',medicare,'var(--danger)')}
+      ${stateTax>0?row(`${state} State Tax (${((STATE_TAX_RATES[state]||0)*100).toFixed(2)}%)`,stateTax,'var(--danger)'):`<div style="padding:9px 0;border-bottom:1px solid var(--border);font-size:13px;color:var(--muted);">${state} — No state income tax</div>`}
+      ${row('Total Deductions',totalDeductions,'var(--danger)')}
+    </div>
+    <div class="card" style="background:rgba(45,212,160,0.08);border-color:rgba(45,212,160,0.3);margin-bottom:14px;">
+      <div style="font-size:13px;color:var(--muted);margin-bottom:4px;">Take-Home Pay</div>
+      <div style="font-size:32px;font-weight:800;color:var(--success);letter-spacing:-0.02em;">${fmt(netPay)}</div>
+      <div style="font-size:12px;color:var(--muted);margin-top:4px;">${((netPay/gross)*100).toFixed(1)}% of gross</div>
+      <button onclick="paycalcPrefill=${netPay.toFixed(2)};switchView('weekly',null);toast('Amount pre-filled — open any pay period to log it');" style="margin-top:14px;width:100%;padding:12px;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;border:none;border-radius:99px;font-size:14px;font-weight:700;cursor:pointer;">Use this amount →</button>
+    </div>`:'<div class="card" style="text-align:center;padding:24px;color:var(--muted);">Enter your hours and wage above to see your take-home pay.</div>'}`;
+}
 function renderInstructions(){
   const el=document.getElementById('instructions-content');
   const section=(emoji,title,items)=>`
