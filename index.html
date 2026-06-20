@@ -368,7 +368,8 @@ select option{background:var(--surface);color:var(--text);}
   <div class="modal-handle"></div><div class="modal-title">Recurring Income</div>
   <div id="recurring-list" style="margin-bottom:16px;"></div>
   <div class="divider"></div>
-  <div class="card-title">Add a Recurring Source</div>
+  <input type="hidden" id="rec-edit-id"/>
+  <div class="card-title" id="rec-form-title">Add a Recurring Source</div>
   <div class="field"><label>Source Name</label><input type="text" id="rec-name" placeholder="e.g. Salary, Main Job"/></div>
   <div class="field"><label>Amount ($)</label><input type="number" id="rec-amount" placeholder="0.00" step="0.01" min="0"/></div>
   <div class="field"><label>Frequency</label>
@@ -381,7 +382,7 @@ select option{background:var(--surface);color:var(--text);}
   </div>
   <div class="field"><label>Next Pay Date</label><input type="date" id="rec-start"/></div>
   <div class="field"><label>End Date — optional (leave blank for ongoing)</label><input type="date" id="rec-end"/></div>
-  <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal('recurring-modal')">Close</button><button class="btn btn-primary" onclick="saveRecurring()">Add Source</button></div>
+  <div class="modal-actions"><button class="btn btn-ghost" onclick="cancelRecurringEdit()">Cancel</button><button class="btn btn-primary" id="rec-save-btn" onclick="saveRecurring()">Add Source</button></div>
 </div></div>
 
 <!-- PAYCHECK MODAL -->
@@ -1463,18 +1464,37 @@ async function deleteWeek(id){if(!confirm('Delete this pay period?'))return;awai
 
 // RECURRING INCOME
 function openRecurringModal(){
+  cancelRecurringEdit();
+  renderRecurringList();
+  openModal('recurring-modal');
+}
+function cancelRecurringEdit(){
+  document.getElementById('rec-edit-id').value='';
+  document.getElementById('rec-form-title').textContent='Add a Recurring Source';
+  document.getElementById('rec-save-btn').textContent='Add Source';
   document.getElementById('rec-name').value='';
   document.getElementById('rec-amount').value='';
   document.getElementById('rec-frequency').value='biweekly';
   document.getElementById('rec-start').value=today();
   document.getElementById('rec-end').value='';
-  renderRecurringList();
-  openModal('recurring-modal');
 }
 function renderRecurringList(){
   const el=document.getElementById('recurring-list');
   if(recurringSources.length===0){el.innerHTML=`<div style="text-align:center;padding:16px;color:var(--muted);font-size:13px;">No recurring sources yet. Add one below.</div>`;return;}
-  el.innerHTML=`<div class="card-title">Active Sources</div>`+recurringSources.map(r=>`<div class="paycheck-row"><div><div style="font-weight:700;">${esc(r.name)} · ${fmt(r.amount)}</div><div style="font-size:11px;color:var(--muted);">${capFirst(r.frequency)} · next ${fmtDate(r.next_date)}${r.end_date?` · ends ${fmtDate(r.end_date)}`:' · ongoing'}</div></div><button class="del-btn" onclick="deleteRecurring('${r.id}')">🗑️</button></div>`).join('');
+  el.innerHTML=`<div class="card-title">Active Sources</div>`+recurringSources.map(r=>`<div class="paycheck-row"><div><div style="font-weight:700;">${esc(r.name)} · ${fmt(r.amount)}</div><div style="font-size:11px;color:var(--muted);">${capFirst(r.frequency)} · next ${fmtDate(r.next_date)}${r.end_date?` · ends ${fmtDate(r.end_date)}`:' · ongoing'}</div></div><div style="display:flex;gap:4px;"><button class="del-btn" onclick="editRecurring('${r.id}')">✏️</button><button class="del-btn" onclick="deleteRecurring('${r.id}')">🗑️</button></div></div>`).join('');
+}
+function editRecurring(id){
+  const r=recurringSources.find(x=>x.id===id);
+  if(!r)return;
+  document.getElementById('rec-edit-id').value=id;
+  document.getElementById('rec-form-title').textContent='Edit Recurring Source';
+  document.getElementById('rec-save-btn').textContent='Save Changes';
+  document.getElementById('rec-name').value=r.name||'';
+  document.getElementById('rec-amount').value=r.amount||'';
+  document.getElementById('rec-frequency').value=r.frequency||'biweekly';
+  document.getElementById('rec-start').value=r.next_date||today();
+  document.getElementById('rec-end').value=r.end_date||'';
+  document.getElementById('rec-form-title').scrollIntoView({behavior:'smooth',block:'start'});
 }
 function addInterval(dateStr,freq,count){
   const d=new Date(dateStr+'T00:00:00');
@@ -1488,6 +1508,7 @@ function addInterval(dateStr,freq,count){
   return d.toISOString().slice(0,10);
 }
 async function saveRecurring(){
+  const editId=document.getElementById('rec-edit-id').value;
   const name=document.getElementById('rec-name').value.trim();
   const amount=parseFloat(document.getElementById('rec-amount').value);
   const frequency=document.getElementById('rec-frequency').value;
@@ -1497,15 +1518,27 @@ async function saveRecurring(){
   if(!amount||amount<=0){toast('Enter a valid amount');return;}
   if(!start){toast('Enter a start date');return;}
   if(end&&end<=start){toast('End date must be after start date');return;}
-  const{data:rec,error}=await sb.from('recurring_income').insert({user_id:currentUser.id,name,amount,frequency,next_date:start,end_date:end}).select().single();
-  if(error){toast('Error: '+error.message);return;}
-  await generatePeriods(rec);
+  if(editId){
+    const{error}=await sb.from('recurring_income').update({name,amount,frequency,next_date:start,end_date:end}).eq('id',editId);
+    if(error){toast('Error: '+error.message);return;}
+    const oldRec=recurringSources.find(r=>r.id===editId);
+    if(oldRec){
+      const todayStr=today();
+      const toDelete=weeks.filter(w=>w.source_name===oldRec.name&&w.pay_date>todayStr&&paychecks.filter(p=>p.pay_week_id===w.id).length===0);
+      for(const w of toDelete){await sb.from('pay_weeks').delete().eq('id',w.id);}
+    }
+    await Promise.all([loadRecurring(),loadWeeks(),loadPaychecks()]);
+    await generatePeriods({user_id:currentUser.id,name,amount,frequency,next_date:start,end_date:end});
+    toast('Source updated ✓');
+  }else{
+    const{data:rec,error}=await sb.from('recurring_income').insert({user_id:currentUser.id,name,amount,frequency,next_date:start,end_date:end}).select().single();
+    if(error){toast('Error: '+error.message);return;}
+    await generatePeriods(rec);
+    toast('Recurring source added ✓');
+  }
   await Promise.all([loadRecurring(),loadWeeks(),loadPaychecks()]);
+  cancelRecurringEdit();
   renderRecurringList();renderWeekly();renderDashboard();
-  toast('Recurring source added ✓');
-  document.getElementById('rec-name').value='';
-  document.getElementById('rec-amount').value='';
-  document.getElementById('rec-end').value='';
 }
 async function generatePeriods(rec){
   // Generate pay periods up to 12 months out (or end_date if set)
@@ -1526,14 +1559,15 @@ async function generatePeriods(rec){
 async function deleteRecurring(id){
   if(!confirm('Delete this recurring source? Future unconfirmed periods from it will be removed.'))return;
   const rec=recurringSources.find(r=>r.id===id);
-  await sb.from('recurring_income').delete().eq('id',id);
-  // Remove future pending periods from this source that have no paychecks
+  const{error}=await sb.from('recurring_income').delete().eq('id',id);
+  if(error){toast('Error deleting: '+error.message);return;}
   if(rec){
     const todayStr=today();
     const toDelete=weeks.filter(w=>w.source_name===rec.name&&w.pay_date>=todayStr&&paychecks.filter(p=>p.pay_week_id===w.id).length===0);
-    for(const w of toDelete){await sb.from('pay_weeks').delete().eq('id',w.id);}
+    for(const w of toDelete){const{error:we}=await sb.from('pay_weeks').delete().eq('id',w.id);if(we)console.warn('Could not delete period',w.id,we.message);}
   }
   await Promise.all([loadRecurring(),loadWeeks(),loadPaychecks()]);
+  cancelRecurringEdit();
   renderRecurringList();renderWeekly();renderDashboard();
   toast('Source deleted');
 }
