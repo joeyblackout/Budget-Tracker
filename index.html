@@ -385,6 +385,16 @@ select option{background:var(--surface);color:var(--text);}
   <div class="modal-actions"><button class="btn btn-ghost" onclick="cancelRecurringEdit()">Cancel</button><button class="btn btn-primary" id="rec-save-btn" onclick="saveRecurring()">Add Source</button></div>
 </div></div>
 
+<!-- EDIT PAYCHECK MODAL -->
+<div class="modal-overlay" id="edit-paycheck-modal"><div class="modal">
+  <div class="modal-handle"></div><div class="modal-title">Edit Paycheck</div>
+  <input type="hidden" id="edit-paycheck-id"/>
+  <div class="field"><label>Amount ($)</label><input type="number" id="edit-paycheck-amount" placeholder="0.00" step="0.01" min="0"/></div>
+  <div class="field"><label>Pay Date</label><input type="date" id="edit-paycheck-date"/></div>
+  <div class="field"><label>Notes (optional)</label><input type="text" id="edit-paycheck-notes" placeholder="e.g. Short week, holiday"/></div>
+  <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal('edit-paycheck-modal')">Cancel</button><button class="btn btn-primary" onclick="saveEditPaycheck()">Save</button></div>
+</div></div>
+
 <!-- PAYCHECK MODAL -->
 <div class="modal-overlay" id="paycheck-modal"><div class="modal">
   <div class="modal-handle"></div><div class="modal-title">Log Paycheck</div>
@@ -1468,7 +1478,7 @@ function renderWeekly(){
           <div class="week-row-item"><span class="week-row-label">🧾 Expenses</span><span class="week-row-value text-danger">-${fmt(totalSpent)}</span></div>
           <div class="week-row-item" style="border-top:2px solid var(--border);margin-top:4px;padding-top:12px;"><span style="font-weight:700;">Net Remaining</span><span style="font-size:18px;font-weight:800;" class="${net>=0?'text-success':'text-danger'}">${fmt(net)}</span></div>
         </div>`}
-        ${weekPaychecks.length>0?`<div style="margin-bottom:10px;"><div class="card-title">Paychecks</div>${weekPaychecks.map(p=>`<div class="paycheck-row"><div><div style="font-weight:600;">${fmt(p.amount)}</div><div style="font-size:11px;color:var(--muted);">${fmtDate(p.pay_date)}${p.notes?' · '+esc(p.notes):''}</div></div><button class="del-btn" onclick="deletePaycheck('${p.id}')">🗑️</button></div>`).join('')}</div>`:''}
+        ${weekPaychecks.length>0?`<div style="margin-bottom:10px;"><div class="card-title">Paychecks</div>${weekPaychecks.map(p=>`<div class="paycheck-row"><div><div style="font-weight:600;">${fmt(p.amount)}</div><div style="font-size:11px;color:var(--muted);">${fmtDate(p.pay_date)}${p.notes?' · '+esc(p.notes):''}</div></div><div style="display:flex;gap:4px;"><button class="del-btn" onclick="editPaycheck('${p.id}',${p.amount},'${p.pay_date}','${esc(p.notes||'')}')">✏️</button><button class="del-btn" onclick="deletePaycheck('${p.id}')">🗑️</button></div></div>`).join('')}</div>`:''}
         ${weekPayments.length>0?`<div style="margin-bottom:10px;"><div class="card-title">Debt Payments</div>${weekPayments.map(p=>{const d=debts.find(x=>x.id===p.debt_id);return`<div class="paycheck-row"><div><div style="font-weight:600;">${d?esc(d.name):'Unknown'} · -${fmt(p.amount)}</div><div style="font-size:11px;color:var(--muted);">${fmtDate(p.pay_date)}${p.notes?' · '+esc(p.notes):''}</div></div><button class="del-btn" onclick="deletePayment('${p.id}')">🗑️</button></div>`;}).join('')}</div>`:''}
         ${weekExpenses.length>0?`<div style="margin-bottom:10px;"><div class="card-title">Expenses</div>${weekExpenses.map(e=>`<div class="paycheck-row"><div><div style="font-weight:600;">${esc(e.category)} · -${fmt(e.amount)}</div><div style="font-size:11px;color:var(--muted);">${esc(e.description||'')}${e.description?' · ':''}${fmtDate(e.exp_date)}</div></div><button class="del-btn" onclick="deleteExpense('${e.id}')">🗑️</button></div>`).join('')}</div>`:''}
         <div class="week-actions">
@@ -1624,6 +1634,24 @@ async function savePaycheck(){
   closeModal('paycheck-modal');await loadPaychecks();renderWeekly();renderDashboard();toast('Paycheck logged ✓');
 }
 async function deletePaycheck(id){if(!confirm('Delete this paycheck?'))return;await sb.from('paychecks').delete().eq('id',id);await loadPaychecks();renderWeekly();renderDashboard();toast('Paycheck deleted');}
+function editPaycheck(id,amount,date,notes){
+  document.getElementById('edit-paycheck-id').value=id;
+  document.getElementById('edit-paycheck-amount').value=amount;
+  document.getElementById('edit-paycheck-date').value=date;
+  document.getElementById('edit-paycheck-notes').value=notes||'';
+  openModal('edit-paycheck-modal');
+}
+async function saveEditPaycheck(){
+  const id=document.getElementById('edit-paycheck-id').value;
+  const amount=parseFloat(document.getElementById('edit-paycheck-amount').value);
+  const pay_date=document.getElementById('edit-paycheck-date').value;
+  const notes=document.getElementById('edit-paycheck-notes').value.trim()||null;
+  if(!amount||amount<=0){toast('Enter a valid amount');return;}
+  const{error}=await sb.from('paychecks').update({amount,pay_date,notes}).eq('id',id);
+  if(error){toast('Error: '+error.message);return;}
+  closeModal('edit-paycheck-modal');
+  await loadPaychecks();renderWeekly();renderDashboard();toast('Paycheck updated ✓');
+}
 function openPaymentModalForWeek(weekId){document.getElementById('pay-date').value=today();document.getElementById('pay-amount').value='';document.getElementById('pay-notes').value='';const sel=document.getElementById('pay-account');sel.innerHTML='<option value="">— Select account —</option>'+debts.map(d=>`<option value="${d.id}">${esc(d.name)}</option>`).join('');document.getElementById('payment-modal').dataset.weekId=weekId;openModal('payment-modal');}
 function openExpenseModalForWeek(weekId){document.getElementById('exp-date').value=today();document.getElementById('exp-amount').value='';document.getElementById('exp-desc').value='';document.getElementById('exp-notes').value='';document.getElementById('expense-modal').dataset.weekId=weekId;openModal('expense-modal');}
 
