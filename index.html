@@ -1314,7 +1314,10 @@ function renderBills(){
   const monthly=bills.filter(b=>b.recurring==='monthly');
   const other=bills.filter(b=>b.recurring!=='monthly');
   const monthlyTotal=monthly.reduce((s,b)=>s+parseFloat(b.amount||0),0);
-  const totalBillsPaid=billPayments.reduce((s,b)=>s+parseFloat(b.amount||0),0);
+  const monthlyPaidThisMonth=billPayments.filter(p=>(p.paid_date||'').startsWith(thisMonth)).reduce((s,b)=>s+parseFloat(b.amount||0),0);
+  const monthlyPaidCount=monthly.filter(b=>billPayments.some(p=>p.bill_id===b.id&&(p.paid_date||'').startsWith(thisMonth))).length;
+  const monthlyRemaining=Math.max(0,monthlyTotal-monthlyPaidThisMonth);
+  const progress=monthlyTotal>0?Math.min((monthlyPaidThisMonth/monthlyTotal)*100,100):0;
   const billCard=(b)=>{
     const dueDay=parseInt(b.due_day||0);
     const dueSoon=dueDay>0&&(dueDay-todayDay)>=0&&(dueDay-todayDay)<=5;
@@ -1345,10 +1348,15 @@ function renderBills(){
     </div>`;
   };
   el.innerHTML=`
-    <div class="card" style="margin-bottom:14px;">
-      <div style="display:flex;justify-content:space-between;align-items:center;">
-        <div><div class="stat-label">Paid This Month</div><div style="font-size:20px;font-weight:800;color:var(--success);">${fmt(totalBillsPaid)}</div></div>
-        <div style="text-align:right;"><div class="stat-label">Monthly Total</div><div style="font-size:20px;font-weight:800;color:var(--danger);">${fmt(monthlyTotal)}/mo</div></div>
+        <div><div class="stat-label">Paid This Month</div><div style="font-size:20px;font-weight:800;color:var(--success);">${fmt(monthlyPaidThisMonth)}</div></div>
+        <div style="text-align:right;"><div class="stat-label">Remaining</div><div style="font-size:20px;font-weight:800;color:${monthlyRemaining>0?'var(--danger)':'var(--success)'};">${fmt(monthlyRemaining)}</div></div>
+      </div>
+      <div class="progress-bar" style="height:10px;margin-bottom:8px;">
+        <div class="progress-fill" style="width:${progress}%;background:${progress>=100?'var(--success)':'linear-gradient(90deg,var(--accent),var(--success))'}"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted);">
+        <span>${monthlyPaidCount} of ${monthly.length} bills paid</span>
+        <span style="font-weight:700;color:${progress>=100?'var(--success)':'var(--muted)'};">${progress.toFixed(0)}% complete · ${fmt(monthlyTotal)}/mo total</span>
       </div>
     </div>
     ${monthly.length>0?`<div class="card-title">Monthly</div><div class="card" style="padding:0 18px;">${monthly.map(billCard).join('')}</div>`:''}
