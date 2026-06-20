@@ -717,7 +717,20 @@ function updateNotificationDots(){
 
 // FORECAST
 let forecastWindow='3month';
-function setForecastWindow(w){forecastWindow=w;renderForecast();}
+let forecastCustomStart='',forecastCustomEnd='';
+function setForecastWindow(w){
+  forecastWindow=w;
+  const customRow=document.getElementById('forecast-custom-row');
+  if(customRow)customRow.style.display=w==='custom'?'flex':'none';
+  renderForecast();
+}
+function applyCustomForecast(){
+  forecastCustomStart=document.getElementById('forecast-start').value;
+  forecastCustomEnd=document.getElementById('forecast-end').value;
+  if(!forecastCustomStart||!forecastCustomEnd){toast('Enter both a start and end date');return;}
+  if(forecastCustomEnd<=forecastCustomStart){toast('End date must be after start date');return;}
+  renderForecast();
+}
 function recentAvgSpendingPerDay(){
   // Average daily variable spending over the last 60 days
   const cutoff=new Date();cutoff.setDate(cutoff.getDate()-60);
@@ -733,10 +746,32 @@ function recentAvgSpendingPerDay(){
 }
 function renderForecast(){
   const el=document.getElementById('forecast-content');
-  const windows={biweekly:{label:'Biweekly',days:14},monthly:{label:'Monthly',days:30},'3month':{label:'3 Months',days:90},'6month':{label:'6 Months',days:180},annual:{label:'Annual',days:365}};
-  const win=windows[forecastWindow];
+  const windows={biweekly:{label:'Biweekly',days:14},monthly:{label:'Monthly',days:30},'3month':{label:'3 Months',days:90},'6month':{label:'6 Months',days:180},annual:{label:'Annual',days:365},custom:{label:'Custom',days:0}};
   const todayDate=new Date();todayDate.setHours(0,0,0,0);
-  const endDate=new Date(todayDate);endDate.setDate(endDate.getDate()+win.days);
+  let endDate,winLabel;
+  if(forecastWindow==='custom'&&forecastCustomStart&&forecastCustomEnd){
+    endDate=new Date(forecastCustomEnd+'T00:00:00');
+    const diffDays=Math.round((endDate-todayDate)/(1000*60*60*24));
+    winLabel=`${fmtDate(forecastCustomStart)} → ${fmtDate(forecastCustomEnd)}`;
+  } else if(forecastWindow==='custom'){
+    // Custom selected but dates not set yet — show placeholder
+    el.innerHTML=`
+      <div class="toggle-row" style="flex-wrap:wrap;">
+        ${Object.entries(windows).map(([k,v])=>`<button class="toggle-btn ${forecastWindow===k?'active':''}" style="flex:0 0 auto;padding:8px 12px;" onclick="setForecastWindow('${k}')">${v.label}</button>`).join('')}
+      </div>
+      <div id="forecast-custom-row" style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-bottom:14px;">
+        <div class="field" style="margin:0;flex:1;min-width:130px;"><label>From</label><input type="date" id="forecast-start" value="${forecastCustomStart}" style="width:100%;background:var(--bg);border:1.5px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:14px;padding:10px 12px;"/></div>
+        <div class="field" style="margin:0;flex:1;min-width:130px;"><label>To</label><input type="date" id="forecast-end" value="${forecastCustomEnd}" style="width:100%;background:var(--bg);border:1.5px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:14px;padding:10px 12px;"/></div>
+        <button class="btn btn-primary" style="padding:11px 18px;width:auto;" onclick="applyCustomForecast()">Apply</button>
+      </div>
+      <div class="empty"><div class="icon">📅</div><p>Pick a date range above and tap Apply to see your forecast.</p></div>`;
+    return;
+  } else {
+    const win=windows[forecastWindow];
+    endDate=new Date(todayDate);endDate.setDate(endDate.getDate()+win.days);
+    winLabel=win.label;
+  }
+  const totalDays=Math.max(1,Math.round((endDate-todayDate)/(1000*60*60*24)));
 
   // Starting point = current running balance (only confirmed, past/today income)
   const totalIncome=paychecks.filter(p=>(p.pay_date||'')<=today()).reduce((s,p)=>s+parseFloat(p.amount||0),0);
@@ -802,7 +837,6 @@ function renderForecast(){
 
   // Walk through time, accumulating
   let runningSpend=0;
-  const totalDays=win.days;
   const incomeSum=events.filter(e=>e.type==='income').reduce((s,e)=>s+e.amount,0);
   const billSum=events.filter(e=>e.type==='bill').reduce((s,e)=>s+Math.abs(e.amount),0);
   const debtSum=events.filter(e=>e.type==='debt').reduce((s,e)=>s+Math.abs(e.amount),0);
@@ -834,8 +868,13 @@ function renderForecast(){
     <div class="toggle-row" style="flex-wrap:wrap;">
       ${Object.entries(windows).map(([k,v])=>`<button class="toggle-btn ${forecastWindow===k?'active':''}" style="flex:0 0 auto;padding:8px 12px;" onclick="setForecastWindow('${k}')">${v.label}</button>`).join('')}
     </div>
+    ${forecastWindow==='custom'?`<div id="forecast-custom-row" style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-bottom:14px;">
+      <div class="field" style="margin:0;flex:1;min-width:130px;"><label>From</label><input type="date" id="forecast-start" value="${forecastCustomStart}" style="width:100%;background:var(--bg);border:1.5px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:14px;padding:10px 12px;"/></div>
+      <div class="field" style="margin:0;flex:1;min-width:130px;"><label>To</label><input type="date" id="forecast-end" value="${forecastCustomEnd}" style="width:100%;background:var(--bg);border:1.5px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:14px;padding:10px 12px;"/></div>
+      <button class="btn btn-primary" style="padding:11px 18px;width:auto;" onclick="applyCustomForecast()">Apply</button>
+    </div>`:''}
     <div class="balance-card">
-      <div class="balance-label">🔮 Projected Balance · ${win.label}</div>
+      <div class="balance-label">🔮 Projected Balance · ${winLabel}</div>
       <div class="balance-amount ${endBalance>=0?'text-success':'text-danger'}">${fmt(endBalance)}</div>
       <div style="font-size:12px;color:var(--muted);margin-bottom:14px;">Starting from ${fmt(startBalance)} cash on hand today</div>
       <div class="balance-breakdown">
