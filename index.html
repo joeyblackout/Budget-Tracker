@@ -273,7 +273,6 @@ select option{background:var(--surface);color:var(--text);}
       <button class="side-item" data-sview="forecast" onclick="sideNav('forecast')"><span class="side-icon">🔮</span>Forecast</button>
       <button class="side-item" data-sview="weekly" onclick="sideNav('weekly')"><span class="side-icon">📅</span>Income</button>
       <button class="side-item" data-sview="debts" onclick="sideNav('debts')"><span class="side-icon">💳</span>Debts</button>
-      <button class="side-item" data-sview="payments" onclick="sideNav('payments')"><span class="side-icon">✅</span>Debt Payments</button>
       <button class="side-item" data-sview="bills" onclick="sideNav('bills')"><span class="side-icon">🏠</span>Bills</button>
       <button class="side-item" data-sview="savings" onclick="sideNav('savings')"><span class="side-icon" style="position:relative;">🏦<span id="side-shared-dot" style="display:none;position:absolute;top:-2px;right:-8px;width:9px;height:9px;background:var(--danger);border-radius:50%;border:1.5px solid var(--surface);"></span></span>Savings</button>
       <button class="side-item" data-sview="community" onclick="sideNav('community')"><span class="side-icon">🎉</span>Community</button>
@@ -439,11 +438,14 @@ select option{background:var(--surface);color:var(--text);}
 
 <!-- PAYMENT MODAL -->
 <div class="modal-overlay" id="payment-modal"><div class="modal">
-  <div class="modal-handle"></div><div class="modal-title">Log Debt Payment</div>
+  <div class="modal-handle"></div>
+  <div class="modal-title" id="payment-modal-title">Log Payment</div>
+  <input type="hidden" id="pay-debt-id"/>
   <div class="field"><label>Date</label><input type="date" id="pay-date"/></div>
-  <div class="field"><label>Account</label><select id="pay-account"><option value="">— Select account —</option></select></div>
+  <div id="pay-account-field" class="field"><label>Account</label><select id="pay-account"><option value="">— Select account —</option></select></div>
+  <div class="field" id="pay-min-hint" style="display:none;"><div style="background:rgba(79,142,247,0.1);border-radius:var(--radius-sm);padding:10px 12px;font-size:13px;color:var(--muted);">Minimum payment: <strong id="pay-min-amount" style="color:var(--text);"></strong> <button onclick="useMinPayment()" style="background:none;border:none;color:var(--accent);font-size:12px;font-weight:700;cursor:pointer;padding:0 4px;">Use this</button></div></div>
   <div class="field"><label>Amount Paid ($)</label><input type="number" id="pay-amount" placeholder="0.00" step="0.01" min="0"/></div>
-  <div class="field"><label>Notes</label><textarea id="pay-notes" placeholder="Optional notes…"></textarea></div>
+  <div class="field"><label>Notes (optional)</label><input type="text" id="pay-notes" placeholder="Optional notes…"/></div>
   <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal('payment-modal')">Cancel</button><button class="btn btn-primary" onclick="savePayment()">Save</button></div>
 </div></div>
 
@@ -1900,7 +1902,37 @@ function openExpenseModalForWeek(weekId){document.getElementById('exp-date').val
 function renderDebts(){
   const el=document.getElementById('debts-list');
   if(debts.length===0){el.innerHTML=`<div class="empty"><div class="icon">💳</div><p>No accounts yet. Tap <strong>+</strong> to add one.</p></div>`;return;}
-  el.innerHTML=debts.map(d=>{const bal=parseFloat(d.balance||0);const lim=parseFloat(d.credit_limit||0);const u=lim>0?(bal/lim)*100:null;return`<div class="card"><div style="display:flex;justify-content:space-between;align-items:flex-start;"><div><div style="font-size:17px;font-weight:800;letter-spacing:-0.02em;">${esc(d.name)}</div><div class="text-muted mt8">${esc(d.type)}</div></div><div style="display:flex;gap:6px;"><button class="del-btn" onclick="showDebtDetail('${d.id}')">📋</button><button class="del-btn" onclick="editDebt('${d.id}')">✏️</button><button class="del-btn" onclick="deleteDebt('${d.id}')">🗑️</button></div></div><div class="divider"></div><div class="stat-grid" style="grid-template-columns:1fr 1fr 1fr;gap:8px;"><div><div class="pill-label">Balance</div><div style="font-size:16px;font-weight:800;color:var(--danger);">${fmt(bal)}</div></div>${lim>0?`<div><div class="pill-label">Limit</div><div style="font-size:16px;font-weight:700;">${fmt(lim)}</div></div>`:`<div></div>`}<div><div class="pill-label">APR</div><div style="font-size:16px;font-weight:700;">${parseFloat(d.apr||0).toFixed(1)}%</div></div></div>${u!==null?`<div class="progress-wrap mt8"><div class="progress-label"><span>Utilization</span><span class="${u>100?'text-danger':u>30?'text-warning':'text-success'}">${u.toFixed(1)}%</span></div><div class="progress-bar"><div class="progress-fill" style="width:${Math.min(u,100)}%;background:${u>100?'var(--danger)':u>30?'var(--warning)':'var(--success)'}"></div></div></div>`:''}<div class="divider"></div><div style="display:flex;gap:16px;"><div><div class="pill-label">Min Payment</div><div style="font-weight:700;">${fmt(d.min_payment||0)}</div></div><div><div class="pill-label">Due</div><div style="font-weight:700;">Day ${d.due_date||'—'}</div></div></div></div>`;}).join('');
+  el.innerHTML=debts.map(d=>{
+    const bal=parseFloat(d.balance||0);
+    const lim=parseFloat(d.credit_limit||0);
+    const u=lim>0?(bal/lim)*100:null;
+    const debtPaid=payments.filter(p=>p.debt_id===d.id).reduce((s,p)=>s+parseFloat(p.amount||0),0);
+    return`<div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+        <div><div style="font-size:17px;font-weight:800;letter-spacing:-0.02em;">${esc(d.name)}</div><div class="text-muted mt8">${esc(d.type)}</div></div>
+        <div style="display:flex;gap:6px;">
+          <button class="del-btn" onclick="showDebtDetail('${d.id}')">📋</button>
+          <button class="del-btn" onclick="editDebt('${d.id}')">✏️</button>
+          <button class="del-btn" onclick="deleteDebt('${d.id}')">🗑️</button>
+        </div>
+      </div>
+      <div class="divider"></div>
+      <div class="stat-grid" style="grid-template-columns:1fr 1fr 1fr;gap:8px;">
+        <div><div class="pill-label">Balance</div><div style="font-size:16px;font-weight:800;color:var(--danger);">${fmt(bal)}</div></div>
+        ${lim>0?`<div><div class="pill-label">Limit</div><div style="font-size:16px;font-weight:700;">${fmt(lim)}</div></div>`:`<div><div class="pill-label">Total Paid</div><div style="font-size:16px;font-weight:700;color:var(--success);">${fmt(debtPaid)}</div></div>`}
+        <div><div class="pill-label">APR</div><div style="font-size:16px;font-weight:700;">${parseFloat(d.apr||0).toFixed(1)}%</div></div>
+      </div>
+      ${u!==null?`<div class="progress-wrap mt8"><div class="progress-label"><span>Utilization</span><span class="${u>100?'text-danger':u>30?'text-warning':'text-success'}">${u.toFixed(1)}%</span></div><div class="progress-bar"><div class="progress-fill" style="width:${Math.min(u,100)}%;background:${u>100?'var(--danger)':u>30?'var(--warning)':'var(--success)'}"></div></div></div>`:''}
+      <div class="divider"></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div style="display:flex;gap:16px;">
+          <div><div class="pill-label">Min Payment</div><div style="font-weight:700;">${fmt(d.min_payment||0)}</div></div>
+          <div><div class="pill-label">Due</div><div style="font-weight:700;">Day ${d.due_date||'—'}</div></div>
+        </div>
+        ${bal>0?`<button onclick="openPaymentForDebt('${d.id}')" style="background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;border:none;border-radius:99px;padding:10px 18px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;">💳 Log Payment</button>`:`<span style="font-size:12px;color:var(--success);font-weight:700;">✓ Paid off!</span>`}
+      </div>
+    </div>`;
+  }).join('');
 }
 function openDebtModal(id=null){document.getElementById('debt-modal-title').textContent=id?'Edit Account':'Add Debt Account';document.getElementById('debt-edit-id').value=id||'';if(id){const d=debts.find(x=>x.id===id);if(d){document.getElementById('debt-name').value=d.name||'';document.getElementById('debt-type').value=d.type||'Credit Card';document.getElementById('debt-balance').value=d.balance||'';document.getElementById('debt-limit').value=d.credit_limit||'';document.getElementById('debt-apr').value=d.apr||'';document.getElementById('debt-minpay').value=d.min_payment||'';document.getElementById('debt-due').value=d.due_date||'';}}else{['debt-name','debt-balance','debt-limit','debt-apr','debt-minpay','debt-due'].forEach(i=>document.getElementById(i).value='');document.getElementById('debt-type').value='Credit Card';}openModal('debt-modal');}
 function editDebt(id){openDebtModal(id);}
@@ -1922,9 +1954,49 @@ function renderPayments(){
   const groups={};payments.forEach(p=>{const mo=(p.pay_date||'').slice(0,7);if(!groups[mo])groups[mo]=[];groups[mo].push(p);});
   el.innerHTML=Object.entries(groups).map(([mo,list])=>{const moTotal=list.reduce((s,p)=>s+parseFloat(p.amount||0),0);return`<div class="card-title" style="margin-top:8px;">${fmtMonth(mo)} · ${fmt(moTotal)} paid</div>${list.map(p=>{const debt=debts.find(d=>d.id===p.debt_id);return`<div class="card" style="margin-bottom:8px;"><div style="display:flex;justify-content:space-between;align-items:flex-start;"><div><div style="font-size:15px;font-weight:700;">${debt?esc(debt.name):'Unknown'}</div><div class="text-muted">${fmtDate(p.pay_date)}</div>${p.notes?`<div class="text-muted mt8">${esc(p.notes)}</div>`:''}</div><div style="display:flex;align-items:center;gap:8px;"><div style="font-size:18px;font-weight:800;color:var(--success);">-${fmt(p.amount)}</div><button class="del-btn" onclick="deletePayment('${p.id}')">🗑️</button></div></div></div>`;}).join('')}`;}).join('');
 }
-function openPaymentModal(){document.getElementById('pay-date').value=today();document.getElementById('pay-amount').value='';document.getElementById('pay-notes').value='';const sel=document.getElementById('pay-account');sel.innerHTML='<option value="">— Select account —</option>'+debts.map(d=>`<option value="${d.id}">${esc(d.name)}</option>`).join('');delete document.getElementById('payment-modal').dataset.weekId;openModal('payment-modal');}
+function openPaymentForDebt(debtId){
+  const debt=debts.find(d=>d.id===debtId);
+  if(!debt)return;
+  document.getElementById('payment-modal-title').textContent=`Pay ${debt.name}`;
+  document.getElementById('pay-debt-id').value=debtId;
+  document.getElementById('pay-date').value=today();
+  document.getElementById('pay-amount').value='';
+  document.getElementById('pay-notes').value='';
+  // Hide the account selector since debt is pre-selected
+  document.getElementById('pay-account-field').style.display='none';
+  // Show min payment hint
+  const min=parseFloat(debt.min_payment||0);
+  if(min>0){
+    document.getElementById('pay-min-hint').style.display='block';
+    document.getElementById('pay-min-amount').textContent=fmt(min);
+  } else {
+    document.getElementById('pay-min-hint').style.display='none';
+  }
+  delete document.getElementById('payment-modal').dataset.weekId;
+  openModal('payment-modal');
+}
+function useMinPayment(){
+  const debtId=document.getElementById('pay-debt-id').value;
+  const debt=debts.find(d=>d.id===debtId);
+  if(debt)document.getElementById('pay-amount').value=debt.min_payment||0;
+}
+function openPaymentModal(){
+  document.getElementById('payment-modal-title').textContent='Log Debt Payment';
+  document.getElementById('pay-debt-id').value='';
+  document.getElementById('pay-date').value=today();
+  document.getElementById('pay-amount').value='';
+  document.getElementById('pay-notes').value='';
+  document.getElementById('pay-min-hint').style.display='none';
+  document.getElementById('pay-account-field').style.display='block';
+  const sel=document.getElementById('pay-account');
+  sel.innerHTML='<option value="">— Select account —</option>'+debts.map(d=>`<option value="${d.id}">${esc(d.name)}</option>`).join('');
+  delete document.getElementById('payment-modal').dataset.weekId;
+  openModal('payment-modal');
+}
 async function savePayment(){
-  const debt_id=document.getElementById('pay-account').value;
+  // Support both pre-filled (from debt card) and dropdown (from week/general)
+  const prefilledId=document.getElementById('pay-debt-id').value;
+  const debt_id=prefilledId||document.getElementById('pay-account').value;
   const amount=parseFloat(document.getElementById('pay-amount').value);
   const pay_date=document.getElementById('pay-date').value;
   if(!debt_id){toast('Select an account');return;}
@@ -1937,18 +2009,15 @@ async function savePayment(){
     const oldBal=parseFloat(debt.balance||0);
     const lim=parseFloat(debt.credit_limit||0);
     const name=myProfile?.display_name||'Someone';
-    // Debt paid off
     if(oldBal>0&&newBal===0){await autoPost(`🎉 ${name} paid off ${debt.name}!`);}
-    // Crossed under 30% utilization
     else if(lim>0){const oldUtil=(oldBal/lim)*100;const newUtil=(newBal/lim)*100;if(oldUtil>=30&&newUtil<30){await autoPost(`📉 ${name} got ${debt.name} under 30% utilization!`);}}
-    // Debt-free milestone (all debts now zero)
     const allOthers=debts.filter(d=>d.id!==debt_id);
     if(newBal===0&&allOthers.every(d=>parseFloat(d.balance||0)===0)){await autoPost(`🏆 ${name} is officially DEBT FREE! 🎊`);}
   }
   if(debt&&parseFloat(debt.min_payment||0)>0&&amount>=parseFloat(debt.min_payment||0)){const linkedBill=bills.find(b=>b.debt_id===debt_id);if(linkedBill){const thisMonth=pay_date.slice(0,7);const alreadyPaid=billPayments.find(p=>p.bill_id===linkedBill.id&&(p.paid_date||'').startsWith(thisMonth));if(!alreadyPaid){await sb.from('bill_payments').insert({user_id:currentUser.id,bill_id:linkedBill.id,amount,paid_date:pay_date,notes:`Auto: ${debt.name} payment`});}}}
   closeModal('payment-modal');
   await Promise.all([loadPayments(),loadDebts(),loadBillPayments()]);
-  renderPayments();renderDashboard();
+  renderDebts();renderPayments();renderDashboard();updateBillBadge();
   if(weekId)renderWeekly();
   toast('Payment logged ✓');
 }
