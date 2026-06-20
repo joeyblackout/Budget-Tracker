@@ -66,6 +66,17 @@ select option{background:var(--surface);color:var(--text);}
 .nav-btn .icon{font-size:20px;line-height:1;}
 .nav-btn.active{color:var(--accent);}
 .quick-add-bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;}
+/* INSIGHTS */
+.insights-tab{flex:1;padding:8px 4px;border:none;background:transparent;color:var(--muted);font-size:12px;font-weight:700;border-bottom:2px solid transparent;cursor:pointer;transition:all 0.15s;text-align:center;}
+.insights-tab.active{color:var(--accent);border-bottom-color:var(--accent);}
+.bar-wrap{margin-bottom:10px;}
+.bar-label-row{display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;}
+.bar-track{height:8px;background:var(--border);border-radius:99px;overflow:hidden;}
+.bar-fill{height:100%;border-radius:99px;transition:width 0.5s ease;}
+.svg-chart{width:100%;overflow:visible;}
+.chart-bar{transition:opacity 0.15s;}
+.chart-bar:hover{opacity:0.8;}
+.sparkline{fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
 .quick-btn{display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);cursor:pointer;transition:all 0.15s;min-width:70px;flex:1;}
 .quick-btn:active{border-color:var(--accent);transform:scale(0.96);}
 .quick-btn-emoji{font-size:22px;line-height:1;}
@@ -356,6 +367,7 @@ select option{background:var(--surface);color:var(--text);}
     <div id="view-expenses" class="view">
       <div class="section-head"><div class="section-title">Expenses</div><button class="add-btn" onclick="openExpenseModal()">+</button></div>
       <div id="quick-add-bar"></div>
+      <div id="expense-insights"></div>
       <div id="expenses-list"></div>
     </div>
     <div id="view-setup" class="view">
@@ -2135,6 +2147,176 @@ async function deletePayment(id){
 }
 
 // EXPENSES
+// EXPENSE INSIGHTS
+let insightsOpen=localStorage.getItem('bt-insights-open')!=='false';
+let insightsTab='categories';
+let insightsTimeframe='monthly';
+let activeFilter=null;
+
+const CAT_COLORS=['#4f8ef7','#2dd4a0','#f7c948','#f75a5a','#b07fff','#f7a94f','#64748b','#22c55e','#e879f9','#38bdf8','#fb923c','#a3e635'];
+
+function toggleInsights(){insightsOpen=!insightsOpen;localStorage.setItem('bt-insights-open',insightsOpen);renderExpenses();}
+function setInsightsTab(t){insightsTab=t;renderInsights();}
+function setInsightsTimeframe(t){insightsTimeframe=t;renderInsights();}
+function setExpenseFilter(cat){activeFilter=activeFilter===cat?null:cat;renderExpenses();}
+
+function getWeekKey(dateStr){
+  const d=new Date(dateStr+'T00:00:00');
+  const startOfWeek=new Date(d);
+  startOfWeek.setDate(d.getDate()-d.getDay());
+  return startOfWeek.toISOString().slice(0,10);
+}
+function getMonthKey(dateStr){return(dateStr||'').slice(0,7);}
+
+function renderInsights(){
+  const el=document.getElementById('expense-insights');
+  if(!el)return;
+  if(!insightsOpen){
+    el.innerHTML=`<div onclick="toggleInsights()" style="display:flex;justify-content:space-between;align-items:center;padding:14px 18px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);cursor:pointer;margin-bottom:14px;">
+      <div style="font-size:15px;font-weight:700;">📊 Spending Insights</div>
+      <span style="font-size:18px;color:var(--muted);">+</span>
+    </div>`;
+    return;
+  }
+  const tabs=`<div style="display:flex;border-bottom:1px solid var(--border);margin-bottom:16px;">
+    <button class="insights-tab ${insightsTab==='categories'?'active':''}" onclick="setInsightsTab('categories')">Categories</button>
+    <button class="insights-tab ${insightsTab==='overtime'?'active':''}" onclick="setInsightsTab('overtime')">Over Time</button>
+    <button class="insights-tab ${insightsTab==='trends'?'active':''}" onclick="setInsightsTab('trends')">Trends</button>
+  </div>`;
+  let content='';
+  if(insightsTab==='categories') content=renderCategoryInsights();
+  else if(insightsTab==='overtime') content=renderOverTimeInsights();
+  else content=renderTrendsInsights();
+  el.innerHTML=`<div class="card" style="margin-bottom:14px;">
+    <div onclick="toggleInsights()" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;margin-bottom:14px;">
+      <div style="font-size:15px;font-weight:700;">📊 Spending Insights</div>
+      <span style="font-size:18px;color:var(--muted);">−</span>
+    </div>
+    ${tabs}
+    ${content}
+  </div>`;
+}
+
+function renderCategoryInsights(){
+  const thisMonth=new Date().toISOString().slice(0,7);
+  const monthExp=expenses.filter(e=>(e.exp_date||'').startsWith(thisMonth));
+  if(monthExp.length===0)return`<div class="empty" style="padding:20px 0;"><p>No expenses this month yet.</p></div>`;
+  const bycat={};
+  monthExp.forEach(e=>{if(!bycat[e.category])bycat[e.category]=0;bycat[e.category]+=parseFloat(e.amount||0);});
+  const sorted=Object.entries(bycat).sort((a,b)=>b[1]-a[1]);
+  const total=sorted.reduce((s,[,v])=>s+v,0);
+  const bars=sorted.map(([cat,amt],i)=>{
+    const pct=(amt/total)*100;
+    const col=CAT_COLORS[i%CAT_COLORS.length];
+    const isActive=activeFilter===cat;
+    return`<div class="bar-wrap" onclick="setExpenseFilter('${esc(cat)}')" style="cursor:pointer;opacity:${activeFilter&&!isActive?'0.4':'1'};transition:opacity 0.2s;">
+      <div class="bar-label-row">
+        <span style="font-weight:${isActive?'800':'600'};color:${isActive?col:'var(--text)'};">${esc(cat)}</span>
+        <span style="color:var(--muted);">${fmt(amt)} <span style="color:${col};font-weight:700;">${pct.toFixed(1)}%</span></span>
+      </div>
+      <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${col};"></div></div>
+    </div>`;
+  }).join('');
+  // SVG donut-style summary
+  const topCat=sorted[0];
+  return`
+    <div style="margin-bottom:6px;display:flex;justify-content:space-between;align-items:baseline;">
+      <span style="font-size:12px;color:var(--muted);">This month · ${fmt(total)} total</span>
+      ${activeFilter?`<button onclick="setExpenseFilter(null)" style="background:none;border:none;color:var(--accent);font-size:11px;cursor:pointer;font-weight:700;">Clear filter ×</button>`:'<span style="font-size:11px;color:var(--muted);">Tap to filter</span>'}
+    </div>
+    ${bars}`;
+}
+
+function renderOverTimeInsights(){
+  const toggle=`<div style="display:flex;gap:6px;margin-bottom:14px;">
+    <button class="toggle-btn ${insightsTimeframe==='weekly'?'active':''}" style="flex:1;padding:7px;" onclick="setInsightsTimeframe('weekly')">Weekly</button>
+    <button class="toggle-btn ${insightsTimeframe==='monthly'?'active':''}" style="flex:1;padding:7px;" onclick="setInsightsTimeframe('monthly')">Monthly</button>
+  </div>`;
+  if(insightsTimeframe==='weekly'){
+    const weeks={};
+    expenses.forEach(e=>{const k=getWeekKey(e.exp_date||'');if(!weeks[k])weeks[k]=0;weeks[k]+=parseFloat(e.amount||0);});
+    const sorted=Object.entries(weeks).sort((a,b)=>a[0]<b[0]?-1:1).slice(-8);
+    return toggle+renderBarChart(sorted,'week');
+  } else {
+    const months={};
+    expenses.forEach(e=>{const k=getMonthKey(e.exp_date||'');if(!months[k])months[k]=0;months[k]+=parseFloat(e.amount||0);});
+    const sorted=Object.entries(months).sort((a,b)=>a[0]<b[0]?-1:1).slice(-6);
+    return toggle+renderBarChart(sorted,'month');
+  }
+}
+
+function renderBarChart(data,type){
+  if(data.length===0)return`<div class="empty" style="padding:20px 0;"><p>Not enough data yet.</p></div>`;
+  const vals=data.map(([,v])=>v);
+  const max=Math.max(...vals)||1;
+  const chartH=120,barW=Math.min(40,Math.floor(300/data.length)),gap=8;
+  const totalW=data.length*(barW+gap);
+  const labels=data.map(([k])=>{
+    if(type==='month'){const[y,m]=k.split('-');const mo=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][parseInt(m)-1];return mo;}
+    const d=new Date(k+'T00:00:00');return`${d.getMonth()+1}/${d.getDate()}`;
+  });
+  const bars=data.map(([k,v],i)=>{
+    const h=Math.max(4,(v/max)*chartH);
+    const x=i*(barW+gap);
+    const y=chartH-h;
+    const isThisMonth=k===new Date().toISOString().slice(0,type==='month'?7:10).slice(0,type==='month'?7:10);
+    return`<g>
+      <rect x="${x}" y="${y}" width="${barW}" height="${h}" rx="4" fill="${isThisMonth?'var(--accent)':'var(--surface2)'}" stroke="${isThisMonth?'var(--accent)':'var(--border)'}" stroke-width="1" class="chart-bar"/>
+      <text x="${x+barW/2}" y="${y-4}" text-anchor="middle" font-size="9" fill="var(--muted)">${v>=1000?'$'+(v/1000).toFixed(1)+'k':'$'+v.toFixed(0)}</text>
+      <text x="${x+barW/2}" y="${chartH+14}" text-anchor="middle" font-size="9" fill="var(--muted)">${labels[i]}</text>
+    </g>`;
+  }).join('');
+  return`<svg class="svg-chart" height="${chartH+30}" viewBox="-4 0 ${totalW+8} ${chartH+30}">${bars}</svg>`;
+}
+
+function renderTrendsInsights(){
+  const now=new Date();
+  const months=[-2,-1,0].map(offset=>{const d=new Date(now.getFullYear(),now.getMonth()+offset,1);return d.toISOString().slice(0,7);});
+  const labels=['2mo ago','Last month','This month'];
+  const cats=[...new Set(expenses.map(e=>e.category))];
+  if(cats.length===0)return`<div class="empty" style="padding:20px 0;"><p>No expenses yet.</p></div>`;
+  // Projected spend this month
+  const dayOfMonth=now.getDate();
+  const daysInMonth=new Date(now.getFullYear(),now.getMonth()+1,0).getDate();
+  const thisMonthSpend=expenses.filter(e=>(e.exp_date||'').startsWith(months[2])).reduce((s,e)=>s+parseFloat(e.amount||0),0);
+  const dailyRate=thisMonthSpend/dayOfMonth;
+  const projected=dailyRate*daysInMonth;
+  const lastMonthSpend=expenses.filter(e=>(e.exp_date||'').startsWith(months[1])).reduce((s,e)=>s+parseFloat(e.amount||0),0);
+  const pctChange=lastMonthSpend>0?((projected-lastMonthSpend)/lastMonthSpend)*100:0;
+  const paceColor=pctChange>10?'var(--danger)':pctChange<-10?'var(--success)':'var(--warning)';
+  const paceLabel=pctChange>10?'⚠️ Over pace':pctChange<-10?'✅ Under pace':'➡️ On pace';
+  // Per-category sparklines
+  const catRows=cats.map((cat,ci)=>{
+    const vals=months.map(m=>expenses.filter(e=>e.category===cat&&(e.exp_date||'').startsWith(m)).reduce((s,e)=>s+parseFloat(e.amount||0),0));
+    const maxV=Math.max(...vals,1);
+    const pts=vals.map((v,i)=>`${i*50},${30-(v/maxV)*28}`).join(' ');
+    const trend=vals[2]-vals[1];
+    const trendIcon=trend>5?'↑':trend<-5?'↓':'→';
+    const trendColor=trend>5?'var(--danger)':trend<-5?'var(--success)':'var(--muted)';
+    const col=CAT_COLORS[ci%CAT_COLORS.length];
+    return`<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);">
+      <div style="width:8px;height:8px;border-radius:50%;background:${col};flex-shrink:0;"></div>
+      <div style="flex:1;min-width:0;"><div style="font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(cat)}</div><div style="font-size:11px;color:var(--muted);">${fmt(vals[2])} this mo</div></div>
+      <svg width="100" height="32" style="flex-shrink:0;overflow:visible;">
+        <polyline points="${pts}" class="sparkline" stroke="${col}" fill="none"/>
+        ${vals.map((v,i)=>`<circle cx="${i*50}" cy="${30-(v/maxV)*28}" r="2.5" fill="${col}"/>`).join('')}
+      </svg>
+      <span style="font-size:16px;font-weight:800;color:${trendColor};width:16px;text-align:center;">${trendIcon}</span>
+    </div>`;
+  }).join('');
+  return`
+    <div style="background:rgba(79,142,247,0.08);border:1px solid rgba(79,142,247,0.2);border-radius:var(--radius-sm);padding:14px;margin-bottom:14px;">
+      <div style="font-size:12px;color:var(--muted);margin-bottom:4px;">Projected spend this month</div>
+      <div style="font-size:22px;font-weight:800;">${fmt(projected)}</div>
+      <div style="font-size:12px;font-weight:700;color:${paceColor};margin-top:4px;">${paceLabel} vs last month (${pctChange>=0?'+':''}${pctChange.toFixed(0)}%)</div>
+    </div>
+    <div style="font-size:11px;font-weight:700;letter-spacing:0.08em;color:var(--muted);text-transform:uppercase;margin-bottom:8px;">Category Trends (3 months)</div>
+    <div style="display:flex;justify-content:flex-end;gap:16px;font-size:10px;color:var(--muted);margin-bottom:4px;">
+      ${labels.map(l=>`<span>${l}</span>`).join('')}
+    </div>
+    ${catRows}`;
+}
+
 const DEFAULT_QUICK_ADDS=[
   {emoji:'⛽',label:'Gas',category:'Gas Station',desc:''},
   {emoji:'🛒',label:'Groceries',category:'Groceries',desc:''},
@@ -2206,9 +2388,11 @@ function openQuickAddEditor(){
 function renderExpenses(){
   const el=document.getElementById('expenses-list');
   renderQuickAddBar();
+  renderInsights();
+  const filtered=activeFilter?expenses.filter(e=>e.category===activeFilter):expenses;
   if(expenses.length===0){el.innerHTML=renderBudgetTargets()+`<div class="empty"><div class="icon">🧾</div><p>No expenses yet. Use the quick buttons above or tap <strong>+</strong> to log one.</p></div>`;return;}
-  const groups={};expenses.forEach(e=>{const mo=(e.exp_date||'').slice(0,7);if(!groups[mo])groups[mo]=[];groups[mo].push(e);});
-  el.innerHTML=renderBudgetTargets()+Object.entries(groups).map(([mo,list])=>{
+  const groups={};filtered.forEach(e=>{const mo=(e.exp_date||'').slice(0,7);if(!groups[mo])groups[mo]=[];groups[mo].push(e);});
+  el.innerHTML=renderBudgetTargets()+(Object.keys(groups).length===0?`<div style="text-align:center;padding:20px;color:var(--muted);">No expenses in this category. <button onclick="setExpenseFilter(null)" style="background:none;border:none;color:var(--accent);cursor:pointer;font-weight:700;">Clear filter</button></div>`:Object.entries(groups).map(([mo,list])=>{
     const moTotal=list.reduce((s,e)=>s+parseFloat(e.amount||0),0);
     return`<div class="card-title" style="margin-top:8px;">${fmtMonth(mo)} · ${fmt(moTotal)} spent</div>
     <div class="card" style="padding:0 18px;">${list.map(e=>`<div class="expense-item">
@@ -2224,7 +2408,7 @@ function renderExpenses(){
         <button class="del-btn" onclick="deleteExpense('${e.id}')">Delete</button>
       </div>
     </div>`).join('')}</div>`;
-  }).join('');
+  }).join(''));
 }
 function openExpenseModal(){document.getElementById('exp-date').value=today();document.getElementById('exp-amount').value='';document.getElementById('exp-desc').value='';document.getElementById('exp-notes').value='';delete document.getElementById('expense-modal').dataset.weekId;openModal('expense-modal');}
 async function saveExpense(){
