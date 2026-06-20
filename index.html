@@ -1127,7 +1127,9 @@ function renderShared(){
           <div>
             <div class="pot-name">${esc(p.name)}</div>
             ${goal>0?`<div class="pot-goal">Goal: ${fmt(goal)} · ${prog.toFixed(0)}% there</div>`:''}
-            <div class="pot-goal">${members.length} member${members.length!==1?'s':''}</div>
+            <div class="pot-goal" style="margin-top:4px;">
+              👥 ${members.length===1?'Just you so far':`With: ${members.filter(m=>m.user_id!==currentUser.id).map(m=>esc(displayName(m.user_id))).join(', ')}`}
+            </div>
           </div>
         </div>
         <div style="text-align:right;">
