@@ -1747,9 +1747,9 @@ function renderBills(){
       </div>`).join('');
       return`<div class="card" style="margin-bottom:12px;">
         <div style="font-size:11px;font-weight:700;letter-spacing:0.08em;color:var(--muted);text-transform:uppercase;margin-bottom:12px;">Breakdown by Category</div>
-        <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
-          <svg width="180" height="180" viewBox="0 0 180 180" style="flex-shrink:0;">${paths}</svg>
-          <div style="flex:1;min-width:140px;">${legend}</div>
+        <div style="display:flex;align-items:center;gap:16px;">
+          <svg width="140" height="140" viewBox="0 0 180 180" style="flex-shrink:0;">${paths}</svg>
+          <div style="flex:1;min-width:0;">${legend}</div>
         </div>
       </div>`;
     })()}
