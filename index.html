@@ -961,22 +961,22 @@ function renderDashboard(){
       <div class="balance-amount ${runningBalance>=0?'text-success':'text-danger'}">${fmt(runningBalance)}</div>
       <div class="balance-breakdown">
         ${startingCash>0?`<div class="balance-line"><span class="balance-line-label">Starting Cash</span><span class="balance-line-val text-success">+${fmt(startingCash)}</span></div>`:''}
-        <div class="balance-line" onclick="showIncomeBreakdown()"><span class="balance-line-label">Raked In 👆</span><span class="balance-line-val text-success">+${fmt(totalIncome)}</span></div>
-        <div class="balance-line" onclick="showDebtPaidBreakdown()"><span class="balance-line-label">Debt Paid 👆</span><span class="balance-line-val text-danger">-${fmt(totalPaid)}</span></div>
-        <div class="balance-line" onclick="showBillsPaidBreakdown()"><span class="balance-line-label">Bills Paid 👆</span><span class="balance-line-val text-danger">-${fmt(totalBillsPaid)}</span></div>
-        <div class="balance-line" onclick="showExpensesBreakdown()"><span class="balance-line-label">Expenses 👆</span><span class="balance-line-val text-danger">-${fmt(totalExpenses)}</span></div>
+        <div class="balance-line" onclick="showIncomeBreakdown()"><span class="balance-line-label">Raked In</span><span class="balance-line-val text-success">+${fmt(totalIncome)}</span></div>
+        <div class="balance-line" onclick="showDebtPaidBreakdown()"><span class="balance-line-label">Debt Paid</span><span class="balance-line-val text-danger">-${fmt(totalPaid)}</span></div>
+        <div class="balance-line" onclick="showBillsPaidBreakdown()"><span class="balance-line-label">Bills Paid</span><span class="balance-line-val text-danger">-${fmt(totalBillsPaid)}</span></div>
+        <div class="balance-line" onclick="showExpensesBreakdown()"><span class="balance-line-label">Expenses</span><span class="balance-line-val text-danger">-${fmt(totalExpenses)}</span></div>
         <div class="balance-line"><span class="balance-line-label">In Savings</span><span class="balance-line-val text-warning">-${fmt(totalSaved)}</span></div>
-        <div class="balance-line" onclick="switchView('savings',null)"><span class="balance-line-label">Saved Total 👆</span><span class="balance-line-val text-success">${fmt(totalInPots)}</span></div>
+        <div class="balance-line" onclick="switchView('savings',null)"><span class="balance-line-label">Saved Total</span><span class="balance-line-val text-success">${fmt(totalInPots)}</span></div>
       </div>
     </div>
     <div class="stat-grid">
-      <div class="stat" onclick="showDebtBreakdown()"><div class="stat-label">Total Debt 👆</div><div class="stat-value danger">${fmt(totalDebt)}</div></div>
+      <div class="stat" onclick="showDebtBreakdown()"><div class="stat-label">Total Debt</div><div class="stat-value danger">${fmt(totalDebt)}</div></div>
       <div class="stat" onclick="showIncomeBreakdown()"><div class="stat-label">Total Raked In 💵</div><div class="stat-value success">${fmt(totalIncome)}</div></div>
-      <div class="stat" onclick="showUtilBreakdown()"><div class="stat-label">CC Utilization 👆</div><div class="stat-value ${util>100?'danger':util>30?'warning':'success'}">${util.toFixed(1)}%</div></div>
-      <div class="stat" onclick="switchView('savings',null)"><div class="stat-label">🏦 Total Saved 👆</div><div class="stat-value accent">${fmt(totalInPots)}</div></div>
+      <div class="stat" onclick="showUtilBreakdown()"><div class="stat-label">CC Utilization</div><div class="stat-value ${util>100?'danger':util>30?'warning':'success'}">${util.toFixed(1)}%</div></div>
+      <div class="stat" onclick="switchView('savings',null)"><div class="stat-label">🏦 Total Saved</div><div class="stat-value accent">${fmt(totalInPots)}</div></div>
     </div>
     <div class="card" onclick="showDebtPaidBreakdown()" style="cursor:pointer;">
-      <div class="card-title">Payoff Progress 👆</div>
+      <div class="card-title">Payoff Progress</div>
       <div class="progress-wrap">
         <div class="progress-label"><span>${fmt(totalPaid)} paid</span><span>${fmt(totalDebt)} remaining</span></div>
         <div class="progress-bar"><div class="progress-fill" style="width:${progress}%"></div></div>
