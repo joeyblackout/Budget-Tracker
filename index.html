@@ -1715,6 +1715,44 @@ function renderBills(){
       </div>
     </div>
     ${groupToggle}
+    ${(()=>{
+      if(billsGroupBy!=='category')return'';
+      const allCats=[...new Set(bills.map(b=>b.category||'Uncategorized'))].sort();
+      const grandTotal=bills.reduce((s,b)=>s+parseFloat(b.amount||0),0);
+      if(grandTotal===0)return'';
+      const slices=allCats.map((cat,i)=>{
+        const amt=bills.filter(b=>(b.category||'Uncategorized')===cat).reduce((s,b)=>s+parseFloat(b.amount||0),0);
+        return{cat,amt,pct:amt/grandTotal,col:CAT_COLORS[i%CAT_COLORS.length]};
+      });
+      // SVG donut: cx=90,cy=90,r=70
+      const cx=90,cy=90,r=70,ri=44;
+      let angle=-Math.PI/2;
+      const paths=slices.map(s=>{
+        if(s.pct===0)return'';
+        const sweep=s.pct*2*Math.PI;
+        const x1=cx+r*Math.cos(angle),y1=cy+r*Math.sin(angle);
+        const x2=cx+r*Math.cos(angle+sweep),y2=cy+r*Math.sin(angle+sweep);
+        const xi1=cx+ri*Math.cos(angle),yi1=cy+ri*Math.sin(angle);
+        const xi2=cx+ri*Math.cos(angle+sweep),yi2=cy+ri*Math.sin(angle+sweep);
+        const large=sweep>Math.PI?1:0;
+        const d=`M${x1.toFixed(2)},${y1.toFixed(2)} A${r},${r} 0 ${large},1 ${x2.toFixed(2)},${y2.toFixed(2)} L${xi2.toFixed(2)},${yi2.toFixed(2)} A${ri},${ri} 0 ${large},0 ${xi1.toFixed(2)},${yi1.toFixed(2)} Z`;
+        angle+=sweep;
+        return`<path d="${d}" fill="${s.col}" stroke="var(--bg)" stroke-width="2"/>`;
+      }).join('');
+      const legend=slices.map(s=>`<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+        <div style="width:10px;height:10px;border-radius:2px;background:${s.col};flex-shrink:0;"></div>
+        <div style="flex:1;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(s.cat)}</div>
+        <div style="font-size:12px;font-weight:700;color:var(--muted);">${(s.pct*100).toFixed(1)}%</div>
+        <div style="font-size:12px;color:var(--muted);width:56px;text-align:right;">${fmt(s.amt)}</div>
+      </div>`).join('');
+      return`<div class="card" style="margin-bottom:12px;">
+        <div style="font-size:11px;font-weight:700;letter-spacing:0.08em;color:var(--muted);text-transform:uppercase;margin-bottom:12px;">Breakdown by Category</div>
+        <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+          <svg width="180" height="180" viewBox="0 0 180 180" style="flex-shrink:0;">${paths}</svg>
+          <div style="flex:1;min-width:140px;">${legend}</div>
+        </div>
+      </div>`;
+    })()}
     ${groupedHTML}`;
 }
 function openBillModal(id=null){
