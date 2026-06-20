@@ -1193,10 +1193,13 @@ function openPotModal(id=null){
   if(id){
     const p=pots.find(x=>x.id===id);
     if(p){document.getElementById('pot-name').value=p.name||'';document.getElementById('pot-emoji').value=p.emoji||'💰';document.getElementById('pot-goal').value=p.goal_amount||'';document.getElementById('pot-notes').value=p.notes||'';}
-    document.getElementById('pot-starting').value='';
-    startingField.style.display='none';
+    // Show current starting balance if one exists, so user can see/update it
+    const existing=savingsTxns.find(t=>t.pot_id===id&&t.notes==='__starting_balance__');
+    document.getElementById('pot-starting').value=existing?existing.amount:'';
+    startingField.querySelector('label').textContent=existing?'Starting Balance ($) — tap to update':'Starting Balance ($) — money already in this account';
+    startingField.style.display='block';
   }
-  else{['pot-name','pot-goal','pot-notes','pot-starting'].forEach(i=>document.getElementById(i).value='');document.getElementById('pot-emoji').value='🛡️';startingField.style.display='block';}
+  else{['pot-name','pot-goal','pot-notes','pot-starting'].forEach(i=>document.getElementById(i).value='');document.getElementById('pot-emoji').value='🛡️';startingField.querySelector('label').textContent='Starting Balance ($) — money already in this account';startingField.style.display='block';}
   openModal('pot-modal');
 }
 function editPot(id){openPotModal(id);}
@@ -1208,6 +1211,12 @@ async function savePot(){
   if(id){
     const res=await sb.from('savings_pots').update(payload).eq('id',id);
     if(res.error){toast('Error: '+res.error.message);return;}
+    // Update or create starting balance transaction
+    const newStarting=parseFloat(document.getElementById('pot-starting').value)||0;
+    const existing=savingsTxns.find(t=>t.pot_id===id&&t.notes==='__starting_balance__');
+    if(existing&&newStarting>0){await sb.from('savings_transactions').update({amount:newStarting}).eq('id',existing.id);}
+    else if(existing&&newStarting===0){await sb.from('savings_transactions').delete().eq('id',existing.id);}
+    else if(!existing&&newStarting>0){await sb.from('savings_transactions').insert({user_id:currentUser.id,pot_id:id,type:'deposit',amount:newStarting,txn_date:today(),notes:'__starting_balance__'});}
   }else{
     const res=await sb.from('savings_pots').insert(payload).select().single();
     if(res.error){toast('Error: '+res.error.message);return;}
