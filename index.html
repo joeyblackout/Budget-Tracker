@@ -1388,13 +1388,15 @@ function renderWeekly(){
   const periodNumber={};
   [...weeks].sort((a,b)=>a.pay_date<b.pay_date?-1:1).forEach((w,idx)=>{periodNumber[w.id]=idx+1;});
   el.innerHTML=sorted.map((w)=>{
+    const isFuture=w.pay_date>todayStr;
     const isCurrent=w.pay_date<=todayStr&&!sorted.some(x=>x.pay_date>w.pay_date&&x.pay_date<=todayStr);
     const weekPaychecks=paychecks.filter(p=>p.pay_week_id===w.id);
     const weekPayments=payments.filter(p=>p.pay_week_id===w.id);
     const weekExpenses=expenses.filter(e=>e.pay_week_id===w.id);
     const totalIn=weekPaychecks.reduce((s,p)=>s+parseFloat(p.amount||0),0);
     const expected=parseFloat(w.expected_amount||0);
-    const isPending=expected>0&&weekPaychecks.length===0;
+    // Pending = date hasn't arrived yet AND no confirmed paycheck yet
+    const isPending=isFuture&&weekPaychecks.length===0;
     const totalBills=parseFloat(w.bills_amount||0);
     const totalDebtPaid=weekPayments.reduce((s,p)=>s+parseFloat(p.amount||0),0);
     const totalSpent=weekExpenses.reduce((s,e)=>s+parseFloat(e.amount||0),0);
@@ -1414,12 +1416,13 @@ function renderWeekly(){
       </div>
       <div class="week-body" id="week-body-${w.id}" style="display:none;">
         ${isPending?`<div style="background:rgba(247,201,72,0.08);border:1px solid rgba(247,201,72,0.3);border-radius:var(--radius-sm);padding:14px;margin-bottom:14px;text-align:center;">
-          <div style="font-size:13px;color:var(--muted);margin-bottom:4px;">Expected paycheck</div>
+          ${expected>0?`<div style="font-size:13px;color:var(--muted);margin-bottom:4px;">Expected paycheck</div>
           <div style="font-size:22px;font-weight:800;color:var(--warning);margin-bottom:12px;">${fmt(expected)}</div>
           <div style="display:flex;gap:8px;">
             <button class="btn btn-success" style="padding:11px;" onclick="confirmExpected('${w.id}',${expected},'${w.pay_date}')">✓ Received ${fmt(expected)}</button>
             <button class="btn btn-ghost" style="padding:11px;" onclick="openPaycheckModal('${w.id}')">Different amount</button>
-          </div>
+          </div>`:`<div style="font-size:13px;color:var(--muted);margin-bottom:12px;">Paycheck not logged yet — check back on ${fmtDate(w.pay_date)}</div>
+          <button class="btn btn-ghost" style="padding:11px;" onclick="openPaycheckModal('${w.id}')">+ Log Early</button>`}
         </div>`:`<div style="margin-bottom:14px;">
           <div class="week-row-item"><span class="week-row-label">💵 Paycheck</span><span class="week-row-value ${hasPaycheck?'text-success':'text-warning'}">${hasPaycheck?fmt(totalIn):'Not logged yet'}</span></div>
           <div class="week-row-item"><span class="week-row-label">💳 Debt Payments</span><span class="week-row-value text-danger">-${fmt(totalDebtPaid)}</span></div>
