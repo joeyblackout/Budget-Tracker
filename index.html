@@ -1359,8 +1359,46 @@ async function saveBill(){
   closeModal('bill-modal');await loadBills();renderBills();renderDashboard();toast(id?'Bill updated ✓':'Bill added ✓');
 }
 async function deleteBill(id){if(!confirm('Delete this bill?'))return;await sb.from('bills').delete().eq('id',id);await loadBills();renderBills();renderDashboard();toast('Bill deleted');}
-async function markBillPaid(billId,billName,amount){const{error}=await sb.from('bill_payments').insert({user_id:currentUser.id,bill_id:billId,amount:parseFloat(amount),paid_date:today(),notes:billName});if(error){toast('Error: '+error.message);return;}await loadBillPayments();renderBills();renderDashboard();toast(`${billName} marked as paid ✓`);}
-async function undoBillPayment(billId){const thisMonth=new Date().toISOString().slice(0,7);const recent=billPayments.find(p=>p.bill_id===billId&&(p.paid_date||'').startsWith(thisMonth));if(!recent)return;if(!confirm('Undo this bill payment?'))return;await sb.from('bill_payments').delete().eq('id',recent.id);await loadBillPayments();renderBills();renderDashboard();toast('Payment undone');}
+async function markBillPaid(billId,billName,amount){
+  const{error}=await sb.from('bill_payments').insert({user_id:currentUser.id,bill_id:billId,amount:parseFloat(amount),paid_date:today(),notes:billName});
+  if(error){toast('Error: '+error.message);return;}
+  // If this bill is linked to a debt, log a payment and decrement the balance
+  const bill=bills.find(b=>b.id===billId);
+  if(bill?.debt_id){
+    const debt=debts.find(d=>d.id===bill.debt_id);
+    if(debt){
+      const newBal=Math.max(0,parseFloat(debt.balance||0)-parseFloat(amount));
+      await sb.from('debts').update({balance:newBal}).eq('id',debt.id);
+      await sb.from('payments').insert({user_id:currentUser.id,debt_id:debt.id,amount:parseFloat(amount),pay_date:today(),notes:`Min payment via ${billName}`});
+      await Promise.all([loadDebts(),loadPayments()]);
+    }
+  }
+  await loadBillPayments();renderBills();renderDebts();renderDashboard();
+  toast(`${billName} marked as paid ✓`);
+}
+async function undoBillPayment(billId){
+  const thisMonth=new Date().toISOString().slice(0,7);
+  const recent=billPayments.find(p=>p.bill_id===billId&&(p.paid_date||'').startsWith(thisMonth));
+  if(!recent)return;
+  if(!confirm('Undo this bill payment?'))return;
+  await sb.from('bill_payments').delete().eq('id',recent.id);
+  // If linked to a debt, also remove the matching payment and restore balance
+  const bill=bills.find(b=>b.id===billId);
+  if(bill?.debt_id){
+    const debt=debts.find(d=>d.id===bill.debt_id);
+    if(debt){
+      // Find and remove the auto-logged payment for this month
+      const matchingPayment=payments.find(p=>p.debt_id===bill.debt_id&&(p.pay_date||'').startsWith(thisMonth)&&(p.notes||'').startsWith('Min payment via'));
+      if(matchingPayment){
+        await sb.from('payments').delete().eq('id',matchingPayment.id);
+        const restoredBal=parseFloat(debt.balance||0)+parseFloat(recent.amount||0);
+        await sb.from('debts').update({balance:restoredBal}).eq('id',debt.id);
+        await Promise.all([loadDebts(),loadPayments()]);
+      }
+    }
+  }
+  await loadBillPayments();renderBills();renderDebts();renderDashboard();toast('Payment undone');
+}
 async function syncDebtMinimums(){
   const debtsWithMin=debts.filter(d=>parseFloat(d.min_payment||0)>0);
   if(debtsWithMin.length===0){toast('No debts with minimum payments set');return;}
