@@ -2132,6 +2132,8 @@ function openPaymentModalForWeek(weekId){document.getElementById('pay-date').val
 function openExpenseModalForWeek(weekId){document.getElementById('exp-date').value=today();document.getElementById('exp-amount').value='';document.getElementById('exp-desc').value='';document.getElementById('exp-notes').value='';document.getElementById('expense-modal').dataset.weekId=weekId;openModal('expense-modal');}
 
 // DEBTS
+const debtCollapsed=new Set();
+function toggleDebtCard(id){debtCollapsed.has(id)?debtCollapsed.delete(id):debtCollapsed.add(id);renderDebts();}
 function renderDebts(){
   const el=document.getElementById('debts-list');
   if(debts.length===0){el.innerHTML=`<div class="empty"><div class="icon">💳</div><p>No accounts yet. Tap <strong>+</strong> to add one.</p></div>`;return;}
@@ -2140,16 +2142,24 @@ function renderDebts(){
     const lim=parseFloat(d.credit_limit||0);
     const u=lim>0?(bal/lim)*100:null;
     const debtPaid=payments.filter(p=>p.debt_id===d.id).reduce((s,p)=>s+parseFloat(p.amount||0),0);
+    const collapsed=debtCollapsed.has(d.id);
     return`<div class="card">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;">
-        <div><div style="font-size:17px;font-weight:800;letter-spacing:-0.02em;">${esc(d.name)}</div><div class="text-muted mt8">${esc(d.type)}</div></div>
-        <div style="display:flex;gap:6px;">
-          <button class="del-btn" onclick="showDebtDetail('${d.id}')">History</button>
-          <button class="del-btn" onclick="editDebt('${d.id}')">Edit</button>
-          <button class="del-btn" onclick="deleteDebt('${d.id}')">Delete</button>
+      <div onclick="toggleDebtCard('${d.id}')" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none;">
+        <div>
+          <div style="font-size:17px;font-weight:800;letter-spacing:-0.02em;">${esc(d.name)}</div>
+          <div class="text-muted mt8">${esc(d.type)} · ${fmt(bal)}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:14px;color:var(--muted);">${collapsed?'▼':'▲'}</span>
         </div>
       </div>
+      ${collapsed?'':`<div>
       <div class="divider"></div>
+      <div style="display:flex;justify-content:flex-end;gap:6px;margin-bottom:8px;">
+        <button class="del-btn" onclick="event.stopPropagation();showDebtDetail('${d.id}')">History</button>
+        <button class="del-btn" onclick="event.stopPropagation();editDebt('${d.id}')">Edit</button>
+        <button class="del-btn" onclick="event.stopPropagation();deleteDebt('${d.id}')">Delete</button>
+      </div>
       <div class="stat-grid" style="grid-template-columns:1fr 1fr 1fr;gap:8px;">
         <div><div class="pill-label">Balance</div><div style="font-size:16px;font-weight:800;color:var(--danger);">${fmt(bal)}</div></div>
         ${lim>0?`<div><div class="pill-label">Limit</div><div style="font-size:16px;font-weight:700;">${fmt(lim)}</div></div>`:`<div><div class="pill-label">Total Paid</div><div style="font-size:16px;font-weight:700;color:var(--success);">${fmt(debtPaid)}</div></div>`}
@@ -2162,8 +2172,9 @@ function renderDebts(){
           <div><div class="pill-label">Min Payment</div><div style="font-weight:700;">${fmt(d.min_payment||0)}</div></div>
           <div><div class="pill-label">Due</div><div style="font-weight:700;">Day ${d.due_date||'—'}</div></div>
         </div>
-        ${bal>0?`<button onclick="openPaymentForDebt('${d.id}')" style="background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;border:none;border-radius:99px;padding:10px 18px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;">💳 Log Payment</button>`:`<span style="font-size:12px;color:var(--success);font-weight:700;">✓ Paid off!</span>`}
+        ${bal>0?`<button onclick="event.stopPropagation();openPaymentForDebt('${d.id}')" style="background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;border:none;border-radius:99px;padding:10px 18px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;">💳 Log Payment</button>`:`<span style="font-size:12px;color:var(--success);font-weight:700;">✓ Paid off!</span>`}
       </div>
+      </div>`}
     </div>`;
   }).join('');
 }
