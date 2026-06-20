@@ -270,8 +270,7 @@ select option{background:var(--surface);color:var(--text);}
       <button class="side-item" data-sview="debts" onclick="sideNav('debts')"><span class="side-icon">💳</span>Debts</button>
       <button class="side-item" data-sview="payments" onclick="sideNav('payments')"><span class="side-icon">✅</span>Debt Payments</button>
       <button class="side-item" data-sview="bills" onclick="sideNav('bills')"><span class="side-icon">🏠</span>Bills</button>
-      <button class="side-item" data-sview="savings" onclick="sideNav('savings')"><span class="side-icon">🏦</span>Savings</button>
-      <button class="side-item" data-sview="shared" onclick="sideNav('shared')"><span class="side-icon" style="position:relative;">🤝<span id="side-shared-dot" style="display:none;position:absolute;top:-2px;right:-8px;width:9px;height:9px;background:var(--danger);border-radius:50%;border:1.5px solid var(--surface);"></span></span>Shared</button>
+      <button class="side-item" data-sview="savings" onclick="sideNav('savings')"><span class="side-icon" style="position:relative;">🏦<span id="side-shared-dot" style="display:none;position:absolute;top:-2px;right:-8px;width:9px;height:9px;background:var(--danger);border-radius:50%;border:1.5px solid var(--surface);"></span></span>Savings</button>
       <button class="side-item" data-sview="community" onclick="sideNav('community')"><span class="side-icon">🎉</span>Community</button>
       <button class="side-item" data-sview="expenses" onclick="sideNav('expenses')"><span class="side-icon">🧾</span>Expenses</button>
       <button class="side-item" data-sview="setup" onclick="sideNav('setup')"><span class="side-icon">⚙️</span>Settings</button>
@@ -322,15 +321,14 @@ select option{background:var(--surface);color:var(--text);}
       <div id="bills-list"></div>
     </div>
     <div id="view-savings" class="view">
-      <div class="section-head"><div class="section-title">Savings</div><button class="add-btn" onclick="openPotModal()">+</button></div>
-      <div id="savings-list"></div>
-    </div>
-    <div id="view-shared" class="view">
       <div class="section-head">
-        <div class="section-title">Shared</div>
-        <button class="add-btn" onclick="openSharedPotModal()">+</button>
+        <div class="section-title">Savings</div>
+        <div style="display:flex;gap:8px;">
+          <button onclick="openSharedPotModal()" style="background:var(--surface2);border:1px solid var(--border);color:var(--accent);border-radius:99px;padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer;">🤝 Shared</button>
+          <button class="add-btn" onclick="openPotModal()">+</button>
+        </div>
       </div>
-      <div id="shared-list"></div>
+      <div id="savings-list"></div>
     </div>
     <div id="view-community" class="view">
       <div class="section-head"><div class="section-title">Community</div><button class="add-btn" onclick="openPostModal()">+</button></div>
@@ -350,7 +348,7 @@ select option{background:var(--surface);color:var(--text);}
     <button class="nav-btn" data-view="forecast" onclick="switchView('forecast',this)"><span class="icon">🔮</span>Forecast</button>
     <button class="nav-btn" data-view="weekly" onclick="switchView('weekly',this)"><span class="icon">📅</span>Income</button>
     <button class="nav-btn" data-view="bills" onclick="switchView('bills',this)"><span class="icon">🏠</span>Bills</button>
-    <button class="nav-btn" data-view="savings" onclick="switchView('savings',this)"><span class="icon">🏦</span>Savings</button>
+    <button class="nav-btn" data-view="savings" onclick="switchView('savings',this)"><span class="icon" style="position:relative;">🏦<span id="more-dot" style="display:none;position:absolute;top:-2px;right:-6px;width:9px;height:9px;background:var(--danger);border-radius:50%;border:1.5px solid var(--surface);"></span></span>Savings</button>
     <button class="nav-btn" onclick="openSidebar()"><span class="icon" style="position:relative;">☰<span id="more-dot" style="display:none;position:absolute;top:-2px;right:-6px;width:9px;height:9px;background:var(--danger);border-radius:50%;border:1.5px solid var(--surface);"></span></span>Menu</button>
   </nav>
 </div>
@@ -653,7 +651,6 @@ function switchView(name,btn){
   if(name==='payments')renderPayments();
   if(name==='bills')renderBills();
   if(name==='savings')renderSavings();
-  if(name==='shared')renderShared();
   if(name==='community')renderCommunity();
   if(name==='expenses')renderExpenses();
   if(name==='setup')renderSetup();
@@ -713,6 +710,9 @@ async function loadShared(){
 function updateNotificationDots(){
   const hasInvites=sharedInvites.length>0;
   ['more-dot','sidebar-dot','side-shared-dot'].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display=hasInvites?'block':'none';});
+  // Also show on the hamburger menu button
+  const menuBtn=document.querySelector('.nav-btn[onclick="openSidebar()"]');
+  if(menuBtn){const dot=menuBtn.querySelector('span[id="sidebar-dot"]');if(dot)dot.style.display=hasInvites?'block':'none';}
 }
 
 // FORECAST
@@ -992,7 +992,7 @@ function renderDashboard(){
           const prog=goal>0?Math.min((bal/goal)*100,100):null;
           const members=sharedMembers.filter(m=>m.pot_id===p.id);
           const others=members.filter(m=>m.user_id!==currentUser.id).map(m=>displayName(m.user_id));
-          return`<div class="account-row" onclick="switchView('shared',null)" style="cursor:pointer;"><div><div class="account-name">${p.emoji||'🤝'} ${esc(p.name)}</div><div class="account-detail">${others.length>0?'With: '+others.join(', '):'Just you'} · Your share: ${fmt(mine)}</div>${prog!==null?`<div style="margin-top:6px;"><div class="progress-bar" style="width:120px;"><div class="progress-fill" style="width:${prog}%"></div></div></div>`:''}</div><div class="account-balance text-success">${fmt(bal)}</div></div>`;
+          return`<div class="account-row" onclick="switchView('savings',null)" style="cursor:pointer;"><div><div class="account-name">${p.emoji||'🤝'} ${esc(p.name)}</div><div class="account-detail">${others.length>0?'With: '+others.join(', '):'Just you'} · Your share: ${fmt(mine)}</div>${prog!==null?`<div style="margin-top:6px;"><div class="progress-bar" style="width:120px;"><div class="progress-fill" style="width:${prog}%"></div></div></div>`:''}</div><div class="account-balance text-success">${fmt(bal)}</div></div>`;
         }).join('')}
       </div>`:''}`;
   }
@@ -1047,19 +1047,24 @@ function renderDashboard(){
 // SAVINGS
 function renderSavings(){
   const el=document.getElementById('savings-list');
-  if(pots.length===0){el.innerHTML=`<div class="empty"><div class="icon">🏦</div><p>No savings pots yet. Tap <strong>+</strong> to create your first one.</p></div>`;return;}
   const potTotals={};
   savingsTxns.forEach(t=>{if(!potTotals[t.pot_id])potTotals[t.pot_id]=0;potTotals[t.pot_id]+=(t.type==='deposit'||t.type==='transfer_in')?parseFloat(t.amount||0):-(parseFloat(t.amount||0));});
   const totalAcrossPots=pots.reduce((s,p)=>s+Math.max(0,potTotals[p.id]||0),0);
-
-  el.innerHTML=`
-    <div class="card" style="margin-bottom:14px;">
-      <div style="display:flex;justify-content:space-between;align-items:center;">
-        <div><div class="stat-label">Total Saved</div><div style="font-size:24px;font-weight:800;color:var(--success);">${fmt(totalAcrossPots)}</div></div>
-        <div style="text-align:right;"><div class="stat-label">Pots</div><div style="font-size:24px;font-weight:800;color:var(--accent);">${pots.length}</div></div>
-      </div>
+  // Shared pot totals
+  const sharedPotTotals={};
+  sharedTxns.forEach(t=>{if(!sharedPotTotals[t.pot_id])sharedPotTotals[t.pot_id]=0;sharedPotTotals[t.pot_id]+=(t.type==='deposit'?parseFloat(t.amount||0):-(parseFloat(t.amount||0)));});
+  const totalShared=sharedPots.reduce((s,p)=>s+Math.max(0,sharedPotTotals[p.id]||0),0);
+  // Pending invite banners
+  const inviteBanners=sharedInvites.map(inv=>`<div class="card" style="border-color:var(--accent);background:rgba(79,142,247,0.06);margin-bottom:12px;">
+    <div style="font-size:15px;font-weight:700;margin-bottom:6px;">🤝 ${esc(displayName(inv.inviter_id))} invited you</div>
+    <div class="text-muted mb8">Join "${esc(inv.pot_name)}" shared savings pot</div>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-primary" style="padding:10px;" onclick="acceptInvite('${inv.id}','${inv.pot_id}')">Accept</button>
+      <button class="btn btn-ghost" style="padding:10px;" onclick="declineInvite('${inv.id}')">Decline</button>
     </div>
-    ${pots.map(p=>{
+  </div>`).join('');
+  const personalPots=pots.length===0?`<div class="empty" style="padding:24px 0;"><div class="icon">💰</div><p>No pots yet. Tap <strong>+</strong> to create one.</p></div>`:
+    pots.map(p=>{
       const bal=Math.max(0,potTotals[p.id]||0);
       const goal=parseFloat(p.goal_amount||0);
       const prog=goal>0?Math.min((bal/goal)*100,100):null;
@@ -1089,7 +1094,59 @@ function renderSavings(){
           <button class="pot-btn-history" onclick="openHistoryModal('${p.id}','${esc(p.name)}')">History</button>
         </div>
       </div>`;
-    }).join('')}`;
+    }).join('');
+  const sharedPotsHtml=sharedPots.length===0?`<div style="text-align:center;padding:20px;color:var(--muted);font-size:14px;">No shared pots yet. Tap <strong>🤝 Shared</strong> to create one.</div>`:
+    sharedPots.map(p=>{
+      const bal=Math.max(0,sharedPotTotals[p.id]||0);
+      const mine=Math.max(0,sharedTxns.filter(t=>t.pot_id===p.id&&t.user_id===currentUser.id).reduce((s,t)=>s+(t.type==='deposit'?parseFloat(t.amount||0):-(parseFloat(t.amount||0))),0));
+      const goal=parseFloat(p.goal_amount||0);
+      const prog=goal>0?Math.min((bal/goal)*100,100):null;
+      const members=sharedMembers.filter(m=>m.pot_id===p.id);
+      const others=members.filter(m=>m.user_id!==currentUser.id).map(m=>displayName(m.user_id));
+      const contributors={};
+      sharedTxns.filter(t=>t.pot_id===p.id).forEach(t=>{if(!contributors[t.user_id])contributors[t.user_id]=0;contributors[t.user_id]+=(t.type==='deposit'?parseFloat(t.amount||0):-(parseFloat(t.amount||0)));});
+      return`<div class="savings-pot" style="border-color:rgba(79,142,247,0.3);">
+        <div class="savings-pot-header">
+          <div style="display:flex;align-items:center;">
+            <span class="pot-emoji">${p.emoji||'🤝'}</span>
+            <div>
+              <div class="pot-name">${esc(p.name)}</div>
+              ${goal>0?`<div class="pot-goal">Goal: ${fmt(goal)} · ${prog.toFixed(0)}% there</div>`:''}
+              <div class="pot-goal">👥 ${others.length>0?'With: '+others.join(', '):'Just you so far'}</div>
+            </div>
+          </div>
+          <div style="text-align:right;">
+            <div class="pot-balance">${fmt(bal)}</div>
+            <div class="pot-goal">You: ${fmt(mine)}</div>
+            ${p.owner_id===currentUser.id?`<div style="display:flex;gap:4px;margin-top:4px;justify-content:flex-end;"><button class="del-btn" onclick="deleteSharedPot('${p.id}')">🗑️</button></div>`:''}
+          </div>
+        </div>
+        ${prog!==null?`<div class="progress-wrap" style="margin:0 0 12px;"><div class="progress-bar"><div class="progress-fill" style="width:${prog}%"></div></div></div>`:''}
+        <div style="background:var(--surface2);border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:12px;">
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);margin-bottom:8px;">Contributions</div>
+          ${Object.entries(contributors).map(([uid,amt])=>`<div style="display:flex;justify-content:space-between;font-size:13px;padding:3px 0;"><span>${uid===currentUser.id?'You':esc(displayName(uid))}</span><span style="font-weight:700;color:var(--success);">${fmt(Math.max(0,amt))}</span></div>`).join('')}
+        </div>
+        <div class="pot-actions">
+          <button class="pot-btn-deposit" onclick="openSharedTxnModal('${p.id}','deposit','${esc(p.name)}')">+ Deposit</button>
+          <button class="pot-btn-withdraw" onclick="openSharedTxnModal('${p.id}','withdraw','${esc(p.name)}')">- Withdraw</button>
+          <button class="pot-btn-history" onclick="openSharedHistory('${p.id}','${esc(p.name)}')">History</button>
+          ${p.owner_id===currentUser.id?`<button class="pot-btn-transfer" onclick="openInviteModal('${p.id}')">+ Invite</button>`:''}
+        </div>
+      </div>`;
+    }).join('');
+  el.innerHTML=`
+    ${inviteBanners}
+    <div class="card" style="margin-bottom:14px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div><div class="stat-label">Personal</div><div style="font-size:22px;font-weight:800;color:var(--success);">${fmt(totalAcrossPots)}</div></div>
+        <div style="text-align:right;"><div class="stat-label">Shared</div><div style="font-size:22px;font-weight:800;color:var(--accent);">${fmt(totalShared)}</div></div>
+      </div>
+    </div>
+    <div class="card-title">Personal Pots</div>
+    ${personalPots}
+    <div class="divider" style="margin:20px 0;"></div>
+    <div class="card-title">Shared Pots</div>
+    ${sharedPotsHtml}`;
 }
 
 function openPotModal(id=null){
@@ -1291,7 +1348,7 @@ async function saveSharedPot(){
 async function deleteSharedPot(id){
   if(!confirm('Delete this shared pot? All members lose access and history is erased.'))return;
   await sb.from('shared_pots').delete().eq('id',id);
-  await loadShared();renderShared();renderDashboard();toast('Shared pot deleted');
+  await loadShared();renderSavings();renderDashboard();toast('Shared pot deleted');
 }
 
 function openInviteModal(potId){
@@ -1320,11 +1377,11 @@ async function tryInvite(potId,potName,inviteName){
 async function acceptInvite(inviteId,potId){
   await sb.from('shared_members').insert({pot_id:potId,user_id:currentUser.id});
   await sb.from('shared_invites').update({status:'accepted'}).eq('id',inviteId);
-  await loadShared();renderShared();renderDashboard();toast('Joined pot ✓');
+  await loadShared();renderSavings();renderDashboard();toast('Joined pot ✓');
 }
 async function declineInvite(inviteId){
   await sb.from('shared_invites').update({status:'declined'}).eq('id',inviteId);
-  await loadShared();renderShared();renderDashboard();toast('Invite declined');
+  await loadShared();renderSavings();renderDashboard();toast('Invite declined');
 }
 
 function openSharedTxnModal(potId,type,potName){
@@ -1351,7 +1408,7 @@ async function saveSharedTxn(){
   const{error}=await sb.from('shared_transactions').insert({user_id:currentUser.id,pot_id:potId,type,amount,txn_date:document.getElementById('shared-txn-date').value,notes:document.getElementById('shared-txn-notes').value.trim()||null});
   if(error){toast('Error: '+error.message);return;}
   closeModal('shared-txn-modal');
-  await loadShared();renderShared();renderDashboard();
+  await loadShared();renderSavings();renderDashboard();
   toast(type==='deposit'?'Deposit saved ✓':'Withdrawal saved ✓');
 }
 
