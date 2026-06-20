@@ -330,6 +330,7 @@ select option{background:var(--surface);color:var(--text);}
         <div class="section-title">Savings</div>
         <div style="display:flex;gap:8px;">
           <button onclick="openSharedPotModal()" style="background:var(--surface2);border:1px solid var(--border);color:var(--accent);border-radius:99px;padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer;">🤝 Shared</button>
+          <button onclick="openAssetModal()" style="background:var(--surface2);border:1px solid var(--border);color:var(--warning);border-radius:99px;padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer;">🏠 Asset</button>
           <button class="add-btn" onclick="openPotModal()">+</button>
         </div>
       </div>
@@ -518,6 +519,27 @@ select option{background:var(--surface);color:var(--text);}
   <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal('savings-history-modal')">Close</button></div>
 </div></div>
 
+<!-- ASSET MODAL -->
+<div class="modal-overlay" id="asset-modal"><div class="modal">
+  <div class="modal-handle"></div><div class="modal-title" id="asset-modal-title">Add Asset</div>
+  <input type="hidden" id="asset-edit-id"/>
+  <div class="field"><label>Asset Name</label><input type="text" id="asset-name" placeholder="e.g. 2022 Honda Civic, Checking Account"/></div>
+  <div class="field"><label>Category</label>
+    <select id="asset-category">
+      <option value="Vehicle">🚗 Vehicle</option>
+      <option value="Real Estate">🏠 Real Estate</option>
+      <option value="Checking / Savings">🏦 Checking / Savings</option>
+      <option value="Investment">📈 Investment</option>
+      <option value="Electronics">💻 Electronics</option>
+      <option value="Jewelry">💍 Jewelry</option>
+      <option value="Other">📦 Other</option>
+    </select>
+  </div>
+  <div class="field"><label>Estimated Value ($)</label><input type="number" id="asset-value" placeholder="0.00" step="0.01" min="0"/></div>
+  <div class="field"><label>Notes (optional)</label><input type="text" id="asset-notes" placeholder="e.g. KBB value, last updated date"/></div>
+  <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal('asset-modal')">Cancel</button><button class="btn btn-primary" onclick="saveAsset()">Save</button></div>
+</div></div>
+
 <!-- SHARED POT MODAL -->
 <div class="modal-overlay" id="shared-pot-modal"><div class="modal">
   <div class="modal-handle"></div><div class="modal-title" id="shared-pot-title">New Shared Pot</div>
@@ -624,6 +646,7 @@ let currentUser=null;
 let debts=[],payments=[],expenses=[],weeks=[],paychecks=[],bills=[],billPayments=[],pots=[],savingsTxns=[];
 let posts=[],reactions=[],profiles=[],myProfile=null;
 let sharedPots=[],sharedMembers=[],sharedTxns=[],sharedInvites=[];
+let assets=[];
 let recurringSources=[];
 let dashSection='overview';
 
@@ -698,7 +721,7 @@ function closeSidebar(){document.getElementById('sidebar').classList.remove('ope
 function sideNav(name){closeSidebar();switchView(name,null);}
 
 // DATA
-async function loadAll(){await Promise.all([loadDebts(),loadPayments(),loadExpenses(),loadWeeks(),loadPaychecks(),loadBills(),loadBillPayments(),loadPots(),loadSavingsTxns(),loadProfiles(),loadPosts(),loadReactions(),loadShared(),loadRecurring()]);await topUpPeriods();renderDashboard();updateBillBadge();startPolling();}
+async function loadAll(){await Promise.all([loadDebts(),loadPayments(),loadExpenses(),loadWeeks(),loadPaychecks(),loadBills(),loadBillPayments(),loadPots(),loadSavingsTxns(),loadProfiles(),loadPosts(),loadReactions(),loadShared(),loadRecurring(),loadAssets()]);await topUpPeriods();renderDashboard();updateBillBadge();startPolling();}
 async function topUpPeriods(){
   // Only extend recurring sources if the furthest period is within 10 months out
   if(recurringSources.length===0)return;
@@ -724,6 +747,7 @@ async function loadBills(){const{data}=await sb.from('bills').select('*').eq('us
 async function loadBillPayments(){const{data}=await sb.from('bill_payments').select('*').eq('user_id',currentUser.id).order('paid_date',{ascending:false});billPayments=data||[];}
 async function loadPots(){const{data}=await sb.from('savings_pots').select('*').eq('user_id',currentUser.id).order('created_at');pots=data||[];}
 async function loadSavingsTxns(){const{data}=await sb.from('savings_transactions').select('*').eq('user_id',currentUser.id).order('txn_date',{ascending:false});savingsTxns=data||[];}
+async function loadAssets(){try{const{data,error}=await sb.from('user_assets').select('*').eq('user_id',currentUser.id).order('created_at');if(error)throw error;assets=data||[];}catch(e){assets=[];}}
 async function loadProfiles(){try{const{data,error}=await sb.from('profiles').select('*');if(error)throw error;profiles=data||[];myProfile=profiles.find(p=>p.user_id===currentUser.id)||null;}catch(e){profiles=[];myProfile=null;}}
 async function loadPosts(){try{const{data,error}=await sb.from('community_posts').select('*').order('created_at',{ascending:false}).limit(100);if(error)throw error;posts=data||[];}catch(e){posts=[];}}
 async function loadReactions(){try{const{data,error}=await sb.from('post_reactions').select('*');if(error)throw error;reactions=data||[];}catch(e){reactions=[];}}
@@ -1175,15 +1199,38 @@ function renderSavings(){
     ${inviteBanners}
     <div class="card" style="margin-bottom:14px;">
       <div style="display:flex;justify-content:space-between;align-items:center;">
-        <div><div class="stat-label">Personal</div><div style="font-size:22px;font-weight:800;color:var(--success);">${fmt(totalAcrossPots)}</div></div>
-        <div style="text-align:right;"><div class="stat-label">Shared</div><div style="font-size:22px;font-weight:800;color:var(--accent);">${fmt(totalShared)}</div></div>
+        <div><div class="stat-label">Savings</div><div style="font-size:22px;font-weight:800;color:var(--success);">${fmt(totalAcrossPots)}</div></div>
+        <div><div class="stat-label">Shared</div><div style="font-size:22px;font-weight:800;color:var(--accent);">${fmt(totalShared)}</div></div>
+        <div style="text-align:right;"><div class="stat-label">Assets</div><div style="font-size:22px;font-weight:800;color:var(--warning);">${fmt(assets.reduce((s,a)=>s+parseFloat(a.value||0),0))}</div></div>
       </div>
     </div>
     <div class="card-title">Personal Pots</div>
     ${personalPots}
     <div class="divider" style="margin:20px 0;"></div>
     <div class="card-title">Shared Pots</div>
-    ${sharedPotsHtml}`;
+    ${sharedPotsHtml}
+    <div class="divider" style="margin:20px 0;"></div>
+    <div class="card-title">Assets</div>
+    ${assets.length===0?`<div style="text-align:center;padding:20px;color:var(--muted);font-size:14px;">No assets yet. Tap <strong>🏠 Asset</strong> to add one.</div>`:
+    assets.map(a=>`<div class="savings-pot" style="border-color:rgba(247,201,72,0.3);">
+      <div class="savings-pot-header">
+        <div style="display:flex;align-items:center;">
+          <span class="pot-emoji">${ASSET_EMOJIS[a.category]||'📦'}</span>
+          <div>
+            <div class="pot-name">${esc(a.name)}</div>
+            <div class="pot-goal">${esc(a.category)}</div>
+            ${a.notes?`<div class="pot-goal">${esc(a.notes)}</div>`:''}
+          </div>
+        </div>
+        <div style="text-align:right;">
+          <div class="pot-balance" style="color:var(--warning);">${fmt(a.value)}</div>
+          <div style="display:flex;gap:4px;margin-top:4px;justify-content:flex-end;">
+            <button class="del-btn" onclick="openAssetModal('${a.id}')">Edit</button>
+            <button class="del-btn" onclick="deleteAsset('${a.id}')">Delete</button>
+          </div>
+        </div>
+      </div>
+    </div>`).join('')}`;
 }
 
 function openPotModal(id=null){
@@ -2255,6 +2302,37 @@ document.addEventListener('click',e=>{document.querySelectorAll('.tooltip-wrap.o
 let toastTimer;
 function toast(msg){const el=document.getElementById('toast');el.textContent=msg;el.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.classList.remove('show'),2500);}
 
+// ASSETS (#B)
+const ASSET_EMOJIS={'Vehicle':'🚗','Real Estate':'🏠','Checking / Savings':'🏦','Investment':'📈','Electronics':'💻','Jewelry':'💍','Other':'📦'};
+function openAssetModal(id=null){
+  document.getElementById('asset-modal-title').textContent=id?'Edit Asset':'Add Asset';
+  document.getElementById('asset-edit-id').value=id||'';
+  if(id){
+    const a=assets.find(x=>x.id===id);
+    if(a){document.getElementById('asset-name').value=a.name||'';document.getElementById('asset-category').value=a.category||'Other';document.getElementById('asset-value').value=a.value||'';document.getElementById('asset-notes').value=a.notes||'';}
+  }else{
+    ['asset-name','asset-value','asset-notes'].forEach(i=>document.getElementById(i).value='');
+    document.getElementById('asset-category').value='Vehicle';
+  }
+  openModal('asset-modal');
+}
+async function saveAsset(){
+  const id=document.getElementById('asset-edit-id').value;
+  const name=document.getElementById('asset-name').value.trim();
+  if(!name){toast('Enter an asset name');return;}
+  const value=parseFloat(document.getElementById('asset-value').value)||0;
+  if(!value||value<=0){toast('Enter a valid value');return;}
+  const payload={user_id:currentUser.id,name,category:document.getElementById('asset-category').value,value,notes:document.getElementById('asset-notes').value.trim()||null};
+  const res=id?await sb.from('user_assets').update(payload).eq('id',id):await sb.from('user_assets').insert(payload);
+  if(res.error){toast('Error: '+res.error.message);return;}
+  closeModal('asset-modal');await loadAssets();renderSavings();renderDashboard();toast(id?'Asset updated ✓':'Asset added ✓');
+}
+async function deleteAsset(id){
+  if(!confirm('Delete this asset?'))return;
+  await sb.from('user_assets').delete().eq('id',id);
+  await loadAssets();renderSavings();renderDashboard();toast('Asset deleted');
+}
+
 // POLLING (#8 — live shared updates)
 let pollingInterval=null;
 function startPolling(){
@@ -2276,7 +2354,8 @@ function renderNetWorth(){
   const sharedPotTotals={};
   sharedTxns.filter(t=>t.user_id===currentUser.id).forEach(t=>{if(!sharedPotTotals[t.pot_id])sharedPotTotals[t.pot_id]=0;sharedPotTotals[t.pot_id]+=(t.type==='deposit'?parseFloat(t.amount||0):-(parseFloat(t.amount||0)));});
   const myShared=Object.values(sharedPotTotals).reduce((s,v)=>s+Math.max(0,v),0);
-  const totalAssets=totalSaved+myShared;
+  const totalAssetValue=assets.reduce((s,a)=>s+parseFloat(a.value||0),0);
+  const totalAssets=totalSaved+myShared+totalAssetValue;
   const totalDebt=debts.reduce((s,d)=>s+parseFloat(d.balance||0),0);
   const netWorth=totalAssets-totalDebt;
   return`<div class="card" style="margin-bottom:14px;border-color:${netWorth>=0?'var(--success)':'var(--danger)'};">
@@ -2287,6 +2366,7 @@ function renderNetWorth(){
       <div class="balance-line"><span class="balance-line-label">Total Debt</span><span class="balance-line-val text-danger">-${fmt(totalDebt)}</span></div>
       <div class="balance-line"><span class="balance-line-label">In Savings</span><span class="balance-line-val text-accent">${fmt(totalSaved)}</span></div>
       <div class="balance-line"><span class="balance-line-label">Shared Pots</span><span class="balance-line-val text-accent">${fmt(myShared)}</span></div>
+      ${totalAssetValue>0?`<div class="balance-line" onclick="switchView('savings',null)" style="cursor:pointer;"><span class="balance-line-label">Physical Assets</span><span class="balance-line-val text-warning">${fmt(totalAssetValue)}</span></div>`:''}
     </div>
   </div>`;
 }
