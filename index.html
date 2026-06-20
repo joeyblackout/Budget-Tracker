@@ -76,7 +76,8 @@ select option{background:var(--surface);color:var(--text);}
 .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px;margin-bottom:14px;}
 .card-title{font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);margin-bottom:14px;}
 .stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;}
-.stat{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px 14px;}
+.stat{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px 14px;cursor:pointer;transition:border-color 0.15s;}
+.stat:active{border-color:var(--accent);}
 .stat-label{font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);margin-bottom:6px;}
 .stat-value{font-size:20px;font-weight:800;letter-spacing:-0.03em;line-height:1;}
 .stat-value.danger{color:var(--danger);}
@@ -88,7 +89,8 @@ select option{background:var(--surface);color:var(--text);}
 .balance-label{font-size:11px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:var(--accent);margin-bottom:8px;}
 .balance-amount{font-size:36px;font-weight:800;letter-spacing:-0.04em;line-height:1;margin-bottom:16px;}
 .balance-breakdown{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
-.balance-line{display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:var(--surface2);border-radius:var(--radius-sm);}
+.balance-line{display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:var(--surface2);border-radius:var(--radius-sm);cursor:pointer;transition:background 0.15s;}
+.balance-line:active{background:var(--border);}
 .balance-line-label{font-size:12px;color:var(--muted);font-weight:500;}
 .balance-line-val{font-size:13px;font-weight:700;}
 .progress-wrap{margin:6px 0 14px;}
@@ -549,6 +551,17 @@ select option{background:var(--surface);color:var(--text);}
   <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal('shared-history-modal')">Close</button></div>
 </div></div>
 
+<!-- DASH DETAIL MODAL -->
+<div class="modal-overlay" id="dash-detail-modal"><div class="modal">
+  <div class="modal-handle"></div>
+  <div class="modal-title" id="dash-detail-title">Detail</div>
+  <div id="dash-detail-content"></div>
+  <div class="modal-actions">
+    <button class="btn btn-ghost" onclick="closeModal('dash-detail-modal')">Close</button>
+    <button class="btn btn-primary" id="dash-detail-nav-btn" style="display:none;" onclick="dashDetailNav()">Go There →</button>
+  </div>
+</div></div>
+
 <!-- COMMUNITY POST MODAL -->
 <div class="modal-overlay" id="post-modal"><div class="modal">
   <div class="modal-handle"></div><div class="modal-title">Share an Update</div>
@@ -847,7 +860,44 @@ function renderForecast(){
     </div>`:`<div class="empty"><div class="icon">📭</div><p>No upcoming income or bills in this window. Set up recurring income and bills to see a projection.</p></div>`}`;
 }
 
-// DASHBOARD
+// DASH DETAIL MODAL
+let dashDetailNavTarget=null;
+function dashDetailNav(){closeModal('dash-detail-modal');if(dashDetailNavTarget)switchView(dashDetailNavTarget,null);}
+function openDashModal(title,content,navTarget=null){
+  document.getElementById('dash-detail-title').textContent=title;
+  document.getElementById('dash-detail-content').innerHTML=content;
+  dashDetailNavTarget=navTarget;
+  const navBtn=document.getElementById('dash-detail-nav-btn');
+  navBtn.style.display=navTarget?'block':'none';
+  openModal('dash-detail-modal');
+}
+function showDebtBreakdown(){
+  const rows=debts.map(d=>`<div class="account-row"><div><div class="account-name">${esc(d.name)}</div><div class="account-detail">${esc(d.type)} · APR ${parseFloat(d.apr||0).toFixed(1)}%</div></div><div class="account-balance text-danger">${fmt(d.balance)}</div></div>`).join('');
+  openDashModal('Total Debt',rows||'<div class="empty"><p>No debts yet.</p></div>','debts');
+}
+function showIncomeBreakdown(){
+  const todayStr=today();
+  const confirmed=paychecks.filter(p=>(p.pay_date||'')<=todayStr).sort((a,b)=>b.pay_date<a.pay_date?-1:1);
+  const rows=confirmed.map(p=>{const w=weeks.find(x=>x.id===p.pay_week_id);return`<div class="account-row"><div><div class="account-name">${fmt(p.amount)}</div><div class="account-detail">${fmtDate(p.pay_date)}${w?.source_name?' · '+esc(w.source_name):''}${p.notes&&p.notes!=='Recurring income'?' · '+esc(p.notes):''}</div></div></div>`;}).join('');
+  openDashModal('Income Received',rows||'<div class="empty"><p>No paychecks logged yet.</p></div>','weekly');
+}
+function showDebtPaidBreakdown(){
+  const rows=payments.slice(0,30).map(p=>{const d=debts.find(x=>x.id===p.debt_id);return`<div class="account-row"><div><div class="account-name">${d?esc(d.name):'Unknown'}</div><div class="account-detail">${fmtDate(p.pay_date)}${p.notes?' · '+esc(p.notes):''}</div></div><div class="account-balance text-success">-${fmt(p.amount)}</div></div>`;}).join('');
+  openDashModal('Debt Payment History',rows||'<div class="empty"><p>No payments logged yet.</p></div>','payments');
+}
+function showBillsPaidBreakdown(){
+  const rows=billPayments.slice(0,30).map(p=>{const b=bills.find(x=>x.id===p.bill_id);return`<div class="account-row"><div><div class="account-name">${b?esc(b.name):esc(p.notes||'Bill')}</div><div class="account-detail">${fmtDate(p.paid_date)}</div></div><div class="account-balance text-danger">-${fmt(p.amount)}</div></div>`;}).join('');
+  openDashModal('Bills Paid',rows||'<div class="empty"><p>No bills marked paid yet.</p></div>','bills');
+}
+function showExpensesBreakdown(){
+  const rows=expenses.slice(0,30).map(e=>`<div class="account-row"><div><div class="account-name">${esc(e.category)}</div><div class="account-detail">${esc(e.description||'')}${e.description?' · ':''}${fmtDate(e.exp_date)}</div></div><div class="account-balance text-danger">-${fmt(e.amount)}</div></div>`).join('');
+  openDashModal('Recent Expenses',rows||'<div class="empty"><p>No expenses logged yet.</p></div>','expenses');
+}
+function showUtilBreakdown(){
+  const ccDebts=debts.filter(d=>d.type==='Credit Card'&&d.credit_limit>0);
+  const rows=ccDebts.map(d=>{const u=(parseFloat(d.balance||0)/parseFloat(d.credit_limit||1))*100;return`<div class="account-row"><div><div class="account-name">${esc(d.name)}</div><div class="account-detail">${fmt(d.balance)} of ${fmt(d.credit_limit)} limit</div><div class="progress-bar" style="width:100px;margin-top:4px;"><div class="progress-fill" style="width:${Math.min(u,100)}%;background:${u>100?'var(--danger)':u>30?'var(--warning)':'var(--success)'}"></div></div></div><div class="account-balance ${u>100?'text-danger':u>30?'text-warning':'text-success'}">${u.toFixed(1)}%</div></div>`;}).join('');
+  openDashModal('CC Utilization',rows||'<div class="empty"><p>No credit cards added yet.</p></div>','debts');
+}
 function setDashSection(s){dashSection=s;renderDashboard();}
 function renderDashboard(){
   const el=document.getElementById('dashboard-content');
@@ -911,22 +961,22 @@ function renderDashboard(){
       <div class="balance-amount ${runningBalance>=0?'text-success':'text-danger'}">${fmt(runningBalance)}</div>
       <div class="balance-breakdown">
         ${startingCash>0?`<div class="balance-line"><span class="balance-line-label">Starting Cash</span><span class="balance-line-val text-success">+${fmt(startingCash)}</span></div>`:''}
-        <div class="balance-line"><span class="balance-line-label">Raked In</span><span class="balance-line-val text-success">+${fmt(totalIncome)}</span></div>
-        <div class="balance-line"><span class="balance-line-label">Debt Paid</span><span class="balance-line-val text-danger">-${fmt(totalPaid)}</span></div>
-        <div class="balance-line"><span class="balance-line-label">Bills Paid</span><span class="balance-line-val text-danger">-${fmt(totalBillsPaid)}</span></div>
-        <div class="balance-line"><span class="balance-line-label">Expenses</span><span class="balance-line-val text-danger">-${fmt(totalExpenses)}</span></div>
+        <div class="balance-line" onclick="showIncomeBreakdown()"><span class="balance-line-label">Raked In 👆</span><span class="balance-line-val text-success">+${fmt(totalIncome)}</span></div>
+        <div class="balance-line" onclick="showDebtPaidBreakdown()"><span class="balance-line-label">Debt Paid 👆</span><span class="balance-line-val text-danger">-${fmt(totalPaid)}</span></div>
+        <div class="balance-line" onclick="showBillsPaidBreakdown()"><span class="balance-line-label">Bills Paid 👆</span><span class="balance-line-val text-danger">-${fmt(totalBillsPaid)}</span></div>
+        <div class="balance-line" onclick="showExpensesBreakdown()"><span class="balance-line-label">Expenses 👆</span><span class="balance-line-val text-danger">-${fmt(totalExpenses)}</span></div>
         <div class="balance-line"><span class="balance-line-label">In Savings</span><span class="balance-line-val text-warning">-${fmt(totalSaved)}</span></div>
-        <div class="balance-line"><span class="balance-line-label">Saved Total</span><span class="balance-line-val text-success">${fmt(totalInPots)}</span></div>
+        <div class="balance-line" onclick="switchView('savings',null)"><span class="balance-line-label">Saved Total 👆</span><span class="balance-line-val text-success">${fmt(totalInPots)}</span></div>
       </div>
     </div>
     <div class="stat-grid">
-      <div class="stat"><div class="stat-label">Total Debt</div><div class="stat-value danger">${fmt(totalDebt)}</div></div>
-      <div class="stat"><div class="stat-label">Total Raked In 💵</div><div class="stat-value success">${fmt(totalIncome)}</div></div>
-      <div class="stat"><div class="stat-label">CC Utilization</div><div class="stat-value ${util>100?'danger':util>30?'warning':'success'}">${util.toFixed(1)}%</div></div>
-      <div class="stat"><div class="stat-label">🏦 Total Saved</div><div class="stat-value accent">${fmt(totalInPots)}</div></div>
+      <div class="stat" onclick="showDebtBreakdown()"><div class="stat-label">Total Debt 👆</div><div class="stat-value danger">${fmt(totalDebt)}</div></div>
+      <div class="stat" onclick="showIncomeBreakdown()"><div class="stat-label">Total Raked In 💵</div><div class="stat-value success">${fmt(totalIncome)}</div></div>
+      <div class="stat" onclick="showUtilBreakdown()"><div class="stat-label">CC Utilization 👆</div><div class="stat-value ${util>100?'danger':util>30?'warning':'success'}">${util.toFixed(1)}%</div></div>
+      <div class="stat" onclick="switchView('savings',null)"><div class="stat-label">🏦 Total Saved 👆</div><div class="stat-value accent">${fmt(totalInPots)}</div></div>
     </div>
-    <div class="card">
-      <div class="card-title">Payoff Progress</div>
+    <div class="card" onclick="showDebtPaidBreakdown()" style="cursor:pointer;">
+      <div class="card-title">Payoff Progress 👆</div>
       <div class="progress-wrap">
         <div class="progress-label"><span>${fmt(totalPaid)} paid</span><span>${fmt(totalDebt)} remaining</span></div>
         <div class="progress-bar"><div class="progress-fill" style="width:${progress}%"></div></div>
