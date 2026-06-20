@@ -238,7 +238,13 @@ select option{background:var(--surface);color:var(--text);}
       <div id="dashboard-content"><div class="empty"><div class="icon">📊</div><p>Loading…</p></div></div>
     </div>
     <div id="view-weekly" class="view">
-      <div class="section-head"><div class="section-title">Income</div><button class="add-btn" onclick="openWeekModal()">+</button></div>
+      <div class="section-head">
+        <div class="section-title">Income</div>
+        <div style="display:flex;gap:8px;">
+          <button onclick="openRecurringModal()" style="background:var(--surface2);border:1px solid var(--border);color:var(--accent);border-radius:99px;padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer;">🔁 Recurring</button>
+          <button class="add-btn" onclick="openWeekModal()">+</button>
+        </div>
+      </div>
       <div id="weekly-list"></div>
     </div>
     <div id="view-debts" class="view">
@@ -312,9 +318,35 @@ select option{background:var(--surface);color:var(--text);}
 <div class="modal-overlay" id="week-modal"><div class="modal">
   <div class="modal-handle"></div><div class="modal-title">Add Pay Period</div>
   <div class="field"><label>Pay Date</label><input type="date" id="week-date"/></div>
-  <div class="field"><label>Actual Paycheck Amount ($)</label><input type="number" id="week-paycheck" placeholder="0.00" step="0.01" min="0"/></div>
+  <div class="field"><label>Income Type</label>
+    <select id="week-income-type" onchange="onWeekIncomeTypeChange()">
+      <option value="known">I know the amount</option>
+      <option value="pending">Don't know yet (log later)</option>
+    </select>
+  </div>
+  <div class="field" id="week-paycheck-field"><label>Paycheck Amount ($)</label><input type="number" id="week-paycheck" placeholder="0.00" step="0.01" min="0"/></div>
   <div class="field"><label>Notes</label><textarea id="week-notes" placeholder="Optional notes…"></textarea></div>
   <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal('week-modal')">Cancel</button><button class="btn btn-primary" onclick="saveWeek()">Save</button></div>
+</div></div>
+
+<!-- RECURRING INCOME MODAL -->
+<div class="modal-overlay" id="recurring-modal"><div class="modal">
+  <div class="modal-handle"></div><div class="modal-title">Recurring Income</div>
+  <div id="recurring-list" style="margin-bottom:16px;"></div>
+  <div class="divider"></div>
+  <div class="card-title">Add a Recurring Source</div>
+  <div class="field"><label>Source Name</label><input type="text" id="rec-name" placeholder="e.g. Salary, Main Job"/></div>
+  <div class="field"><label>Amount ($)</label><input type="number" id="rec-amount" placeholder="0.00" step="0.01" min="0"/></div>
+  <div class="field"><label>Frequency</label>
+    <select id="rec-frequency">
+      <option value="weekly">Weekly</option>
+      <option value="biweekly">Every 2 weeks</option>
+      <option value="semimonthly">Twice a month (1st & 15th)</option>
+      <option value="monthly">Monthly</option>
+    </select>
+  </div>
+  <div class="field"><label>Next Pay Date</label><input type="date" id="rec-start"/></div>
+  <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal('recurring-modal')">Close</button><button class="btn btn-primary" onclick="saveRecurring()">Add Source</button></div>
 </div></div>
 
 <!-- PAYCHECK MODAL -->
@@ -491,6 +523,7 @@ let currentUser=null;
 let debts=[],payments=[],expenses=[],weeks=[],paychecks=[],bills=[],billPayments=[],pots=[],savingsTxns=[];
 let posts=[],reactions=[],profiles=[],myProfile=null;
 let sharedPots=[],sharedMembers=[],sharedTxns=[],sharedInvites=[];
+let recurringSources=[];
 let dashSection='overview';
 
 window.addEventListener('DOMContentLoaded',async()=>{
@@ -562,12 +595,13 @@ function openMoreMenu(){openModal('more-menu');}
 function moreNav(name){closeModal('more-menu');switchView(name,null);}
 
 // DATA
-async function loadAll(){await Promise.all([loadDebts(),loadPayments(),loadExpenses(),loadWeeks(),loadPaychecks(),loadBills(),loadBillPayments(),loadPots(),loadSavingsTxns(),loadProfiles(),loadPosts(),loadReactions(),loadShared()]);renderDashboard();}
+async function loadAll(){await Promise.all([loadDebts(),loadPayments(),loadExpenses(),loadWeeks(),loadPaychecks(),loadBills(),loadBillPayments(),loadPots(),loadSavingsTxns(),loadProfiles(),loadPosts(),loadReactions(),loadShared(),loadRecurring()]);renderDashboard();}
 async function loadDebts(){const{data}=await sb.from('debts').select('*').eq('user_id',currentUser.id).order('created_at');debts=data||[];}
 async function loadPayments(){const{data}=await sb.from('payments').select('*').eq('user_id',currentUser.id).order('pay_date',{ascending:false});payments=data||[];}
 async function loadExpenses(){const{data}=await sb.from('expenses').select('*').eq('user_id',currentUser.id).order('exp_date',{ascending:false});expenses=data||[];}
 async function loadWeeks(){const{data}=await sb.from('pay_weeks').select('*').eq('user_id',currentUser.id).order('pay_date',{ascending:false});weeks=data||[];}
 async function loadPaychecks(){const{data}=await sb.from('paychecks').select('*').eq('user_id',currentUser.id).order('pay_date',{ascending:false});paychecks=data||[];}
+async function loadRecurring(){try{const{data,error}=await sb.from('recurring_income').select('*').eq('user_id',currentUser.id).order('created_at');if(error)throw error;recurringSources=data||[];}catch(e){recurringSources=[];}}
 async function loadBills(){const{data}=await sb.from('bills').select('*').eq('user_id',currentUser.id).order('due_day');bills=data||[];}
 async function loadBillPayments(){const{data}=await sb.from('bill_payments').select('*').eq('user_id',currentUser.id).order('paid_date',{ascending:false});billPayments=data||[];}
 async function loadPots(){const{data}=await sb.from('savings_pots').select('*').eq('user_id',currentUser.id).order('created_at');pots=data||[];}
@@ -1151,7 +1185,7 @@ async function syncDebtMinimums(){
 // WEEKLY
 function renderWeekly(){
   const el=document.getElementById('weekly-list');
-  if(weeks.length===0){el.innerHTML=`<div class="empty"><div class="icon">📅</div><p>No pay periods yet. Tap <strong>+</strong> to add your first one.</p></div>`;return;}
+  if(weeks.length===0){el.innerHTML=`<div class="empty"><div class="icon">📅</div><p>No pay periods yet. Set up <strong>🔁 Recurring</strong> income, or tap <strong>+</strong> to add one manually.</p></div>`;return;}
   const todayStr=today();
   el.innerHTML=weeks.map((w,i)=>{
     const isCurrent=w.pay_date<=todayStr&&(i===0||weeks[i-1].pay_date>todayStr);
@@ -1159,23 +1193,39 @@ function renderWeekly(){
     const weekPayments=payments.filter(p=>p.pay_week_id===w.id);
     const weekExpenses=expenses.filter(e=>e.pay_week_id===w.id);
     const totalIn=weekPaychecks.reduce((s,p)=>s+parseFloat(p.amount||0),0);
+    const expected=parseFloat(w.expected_amount||0);
+    const isPending=expected>0&&weekPaychecks.length===0;
     const totalBills=parseFloat(w.bills_amount||0);
     const totalDebtPaid=weekPayments.reduce((s,p)=>s+parseFloat(p.amount||0),0);
     const totalSpent=weekExpenses.reduce((s,e)=>s+parseFloat(e.amount||0),0);
     const net=totalIn-totalBills-totalDebtPaid-totalSpent;
     const hasPaycheck=weekPaychecks.length>0;
-    return`<div class="week-card ${isCurrent?'current-week':''}">
+    return`<div class="week-card ${isCurrent?'current-week':''}" style="${isPending?'border-style:dashed;':''}">
       <div class="week-card-header" onclick="toggleWeek('week-body-${w.id}')">
-        <div><div class="week-num">Pay Period ${weeks.length-i}${isCurrent?'<span class="current-badge">Current</span>':''}</div><div class="week-date-label">${fmtDate(w.pay_date)}</div>${w.notes?`<div style="font-size:12px;color:var(--muted);margin-top:3px;">${esc(w.notes)}</div>`:''}</div>
-        <div><div class="week-net-label">Net Cash</div><div class="week-net ${net>=0?'text-success':'text-danger'}">${fmt(net)}</div></div>
+        <div>
+          <div class="week-num">Pay Period ${weeks.length-i}${isCurrent?'<span class="current-badge">Current</span>':''}${isPending?'<span class="current-badge" style="background:rgba(247,201,72,0.2);color:var(--warning);">Pending</span>':''}</div>
+          <div class="week-date-label">${fmtDate(w.pay_date)}</div>
+          ${w.source_name?`<div style="font-size:12px;color:var(--muted);margin-top:3px;">🔁 ${esc(w.source_name)}</div>`:''}
+          ${w.notes?`<div style="font-size:12px;color:var(--muted);margin-top:3px;">${esc(w.notes)}</div>`:''}
+        </div>
+        <div>
+          ${isPending?`<div class="week-net-label">Expected</div><div class="week-net text-warning">${fmt(expected)}</div>`:`<div class="week-net-label">Net Cash</div><div class="week-net ${net>=0?'text-success':'text-danger'}">${fmt(net)}</div>`}
+        </div>
       </div>
       <div class="week-body" id="week-body-${w.id}" style="display:none;">
-        <div style="margin-bottom:14px;">
+        ${isPending?`<div style="background:rgba(247,201,72,0.08);border:1px solid rgba(247,201,72,0.3);border-radius:var(--radius-sm);padding:14px;margin-bottom:14px;text-align:center;">
+          <div style="font-size:13px;color:var(--muted);margin-bottom:4px;">Expected paycheck</div>
+          <div style="font-size:22px;font-weight:800;color:var(--warning);margin-bottom:12px;">${fmt(expected)}</div>
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-success" style="padding:11px;" onclick="confirmExpected('${w.id}',${expected},'${w.pay_date}')">✓ Received ${fmt(expected)}</button>
+            <button class="btn btn-ghost" style="padding:11px;" onclick="openPaycheckModal('${w.id}')">Different amount</button>
+          </div>
+        </div>`:`<div style="margin-bottom:14px;">
           <div class="week-row-item"><span class="week-row-label">💵 Paycheck</span><span class="week-row-value ${hasPaycheck?'text-success':'text-warning'}">${hasPaycheck?fmt(totalIn):'Not logged yet'}</span></div>
           <div class="week-row-item"><span class="week-row-label">💳 Debt Payments</span><span class="week-row-value text-danger">-${fmt(totalDebtPaid)}</span></div>
           <div class="week-row-item"><span class="week-row-label">🧾 Expenses</span><span class="week-row-value text-danger">-${fmt(totalSpent)}</span></div>
           <div class="week-row-item" style="border-top:2px solid var(--border);margin-top:4px;padding-top:12px;"><span style="font-weight:700;">Net Remaining</span><span style="font-size:18px;font-weight:800;" class="${net>=0?'text-success':'text-danger'}">${fmt(net)}</span></div>
-        </div>
+        </div>`}
         ${weekPaychecks.length>0?`<div style="margin-bottom:10px;"><div class="card-title">Paychecks</div>${weekPaychecks.map(p=>`<div class="paycheck-row"><div><div style="font-weight:600;">${fmt(p.amount)}</div><div style="font-size:11px;color:var(--muted);">${fmtDate(p.pay_date)}${p.notes?' · '+esc(p.notes):''}</div></div><button class="del-btn" onclick="deletePaycheck('${p.id}')">🗑️</button></div>`).join('')}</div>`:''}
         ${weekPayments.length>0?`<div style="margin-bottom:10px;"><div class="card-title">Debt Payments</div>${weekPayments.map(p=>{const d=debts.find(x=>x.id===p.debt_id);return`<div class="paycheck-row"><div><div style="font-weight:600;">${d?esc(d.name):'Unknown'} · -${fmt(p.amount)}</div><div style="font-size:11px;color:var(--muted);">${fmtDate(p.pay_date)}${p.notes?' · '+esc(p.notes):''}</div></div><button class="del-btn" onclick="deletePayment('${p.id}')">🗑️</button></div>`;}).join('')}</div>`:''}
         ${weekExpenses.length>0?`<div style="margin-bottom:10px;"><div class="card-title">Expenses</div>${weekExpenses.map(e=>`<div class="paycheck-row"><div><div style="font-weight:600;">${esc(e.category)} · -${fmt(e.amount)}</div><div style="font-size:11px;color:var(--muted);">${esc(e.description||'')}${e.description?' · ':''}${fmtDate(e.exp_date)}</div></div><button class="del-btn" onclick="deleteExpense('${e.id}')">🗑️</button></div>`).join('')}</div>`:''}
@@ -1189,19 +1239,100 @@ function renderWeekly(){
     </div>`;
   }).join('');
 }
+async function confirmExpected(weekId,amount,payDate){
+  await sb.from('paychecks').insert({user_id:currentUser.id,pay_week_id:weekId,amount,pay_date:payDate,notes:'Recurring income'});
+  await loadPaychecks();renderWeekly();renderDashboard();toast('Paycheck confirmed ✓');
+}
 function toggleWeek(id){const el=document.getElementById(id);if(el)el.style.display=el.style.display==='none'?'block':'none';}
-function openWeekModal(){document.getElementById('week-date').value=today();document.getElementById('week-paycheck').value='';document.getElementById('week-notes').value='';openModal('week-modal');}
+function onWeekIncomeTypeChange(){
+  const type=document.getElementById('week-income-type').value;
+  document.getElementById('week-paycheck-field').style.display=type==='known'?'block':'none';
+}
+function openWeekModal(){document.getElementById('week-date').value=today();document.getElementById('week-paycheck').value='';document.getElementById('week-notes').value='';document.getElementById('week-income-type').value='known';onWeekIncomeTypeChange();openModal('week-modal');}
 async function saveWeek(){
   const pay_date=document.getElementById('week-date').value;
   if(!pay_date){toast('Enter a pay date');return;}
-  const paycheck_amount=parseFloat(document.getElementById('week-paycheck').value)||0;
+  const type=document.getElementById('week-income-type').value;
+  const paycheck_amount=type==='known'?(parseFloat(document.getElementById('week-paycheck').value)||0):0;
   const notes=document.getElementById('week-notes').value.trim();
   const{data:weekData,error}=await sb.from('pay_weeks').insert({user_id:currentUser.id,pay_date,bills_amount:0,notes:notes||null}).select().single();
   if(error){toast('Error: '+error.message);return;}
   if(paycheck_amount>0)await sb.from('paychecks').insert({user_id:currentUser.id,pay_week_id:weekData.id,amount:paycheck_amount,pay_date});
-  closeModal('week-modal');await Promise.all([loadWeeks(),loadPaychecks()]);renderWeekly();toast('Pay period added ✓');
+  closeModal('week-modal');await Promise.all([loadWeeks(),loadPaychecks()]);renderWeekly();renderDashboard();toast('Pay period added ✓');
 }
-async function deleteWeek(id){if(!confirm('Delete this pay period?'))return;await sb.from('pay_weeks').delete().eq('id',id);await Promise.all([loadWeeks(),loadPaychecks(),loadPayments(),loadExpenses()]);renderWeekly();toast('Pay period deleted');}
+async function deleteWeek(id){if(!confirm('Delete this pay period?'))return;await sb.from('pay_weeks').delete().eq('id',id);await Promise.all([loadWeeks(),loadPaychecks(),loadPayments(),loadExpenses()]);renderWeekly();renderDashboard();toast('Pay period deleted');}
+
+// RECURRING INCOME
+function openRecurringModal(){
+  document.getElementById('rec-name').value='';
+  document.getElementById('rec-amount').value='';
+  document.getElementById('rec-frequency').value='biweekly';
+  document.getElementById('rec-start').value=today();
+  renderRecurringList();
+  openModal('recurring-modal');
+}
+function renderRecurringList(){
+  const el=document.getElementById('recurring-list');
+  if(recurringSources.length===0){el.innerHTML=`<div style="text-align:center;padding:16px;color:var(--muted);font-size:13px;">No recurring sources yet. Add one below.</div>`;return;}
+  el.innerHTML=`<div class="card-title">Active Sources</div>`+recurringSources.map(r=>`<div class="paycheck-row"><div><div style="font-weight:700;">${esc(r.name)} · ${fmt(r.amount)}</div><div style="font-size:11px;color:var(--muted);">${capFirst(r.frequency)} · next ${fmtDate(r.next_date)}</div></div><button class="del-btn" onclick="deleteRecurring('${r.id}')">🗑️</button></div>`).join('');
+}
+function addInterval(dateStr,freq,count){
+  const d=new Date(dateStr+'T00:00:00');
+  if(freq==='weekly')d.setDate(d.getDate()+7*count);
+  else if(freq==='biweekly')d.setDate(d.getDate()+14*count);
+  else if(freq==='monthly')d.setMonth(d.getMonth()+count);
+  else if(freq==='semimonthly'){
+    // alternate 1st and 15th
+    for(let k=0;k<count;k++){const day=d.getDate();if(day<15){d.setDate(15);}else{d.setMonth(d.getMonth()+1);d.setDate(1);}}
+  }
+  return d.toISOString().slice(0,10);
+}
+async function saveRecurring(){
+  const name=document.getElementById('rec-name').value.trim();
+  const amount=parseFloat(document.getElementById('rec-amount').value);
+  const frequency=document.getElementById('rec-frequency').value;
+  const start=document.getElementById('rec-start').value;
+  if(!name){toast('Enter a source name');return;}
+  if(!amount||amount<=0){toast('Enter a valid amount');return;}
+  if(!start){toast('Enter a start date');return;}
+  const{data:rec,error}=await sb.from('recurring_income').insert({user_id:currentUser.id,name,amount,frequency,next_date:start}).select().single();
+  if(error){toast('Error: '+error.message);return;}
+  await generatePeriods(rec);
+  await Promise.all([loadRecurring(),loadWeeks(),loadPaychecks()]);
+  renderRecurringList();renderWeekly();renderDashboard();
+  toast('Recurring source added ✓');
+  document.getElementById('rec-name').value='';
+  document.getElementById('rec-amount').value='';
+}
+async function generatePeriods(rec){
+  // Generate pay periods ~3 months out
+  const horizon=new Date();horizon.setMonth(horizon.getMonth()+3);
+  let d=rec.next_date;
+  const existing=weeks.map(w=>w.pay_date);
+  const newPeriods=[];
+  for(let count=0;count<24;count++){
+    const periodDate=count===0?rec.next_date:addInterval(rec.next_date,rec.frequency,count);
+    if(new Date(periodDate+'T00:00:00')>horizon)break;
+    if(!existing.includes(periodDate)){
+      newPeriods.push({user_id:currentUser.id,pay_date:periodDate,bills_amount:0,expected_amount:rec.amount,source_name:rec.name});
+    }
+  }
+  if(newPeriods.length>0){await sb.from('pay_weeks').insert(newPeriods);}
+}
+async function deleteRecurring(id){
+  if(!confirm('Delete this recurring source? Future unconfirmed periods from it will be removed.'))return;
+  const rec=recurringSources.find(r=>r.id===id);
+  await sb.from('recurring_income').delete().eq('id',id);
+  // Remove future pending periods from this source that have no paychecks
+  if(rec){
+    const todayStr=today();
+    const toDelete=weeks.filter(w=>w.source_name===rec.name&&w.pay_date>=todayStr&&paychecks.filter(p=>p.pay_week_id===w.id).length===0);
+    for(const w of toDelete){await sb.from('pay_weeks').delete().eq('id',w.id);}
+  }
+  await Promise.all([loadRecurring(),loadWeeks(),loadPaychecks()]);
+  renderRecurringList();renderWeekly();renderDashboard();
+  toast('Source deleted');
+}
 function openPaycheckModal(weekId){document.getElementById('paycheck-week-id').value=weekId;document.getElementById('paycheck-amount').value='';document.getElementById('paycheck-date').value=today();document.getElementById('paycheck-notes').value='';openModal('paycheck-modal');}
 async function savePaycheck(){
   const weekId=document.getElementById('paycheck-week-id').value;
@@ -1210,9 +1341,9 @@ async function savePaycheck(){
   if(!amount||amount<=0){toast('Enter a valid amount');return;}
   const{error}=await sb.from('paychecks').insert({user_id:currentUser.id,pay_week_id:weekId,amount,pay_date,notes:document.getElementById('paycheck-notes').value.trim()||null});
   if(error){toast('Error: '+error.message);return;}
-  closeModal('paycheck-modal');await loadPaychecks();renderWeekly();toast('Paycheck logged ✓');
+  closeModal('paycheck-modal');await loadPaychecks();renderWeekly();renderDashboard();toast('Paycheck logged ✓');
 }
-async function deletePaycheck(id){if(!confirm('Delete this paycheck?'))return;await sb.from('paychecks').delete().eq('id',id);await loadPaychecks();renderWeekly();toast('Paycheck deleted');}
+async function deletePaycheck(id){if(!confirm('Delete this paycheck?'))return;await sb.from('paychecks').delete().eq('id',id);await loadPaychecks();renderWeekly();renderDashboard();toast('Paycheck deleted');}
 function openPaymentModalForWeek(weekId){document.getElementById('pay-date').value=today();document.getElementById('pay-amount').value='';document.getElementById('pay-notes').value='';const sel=document.getElementById('pay-account');sel.innerHTML='<option value="">— Select account —</option>'+debts.map(d=>`<option value="${d.id}">${esc(d.name)}</option>`).join('');document.getElementById('payment-modal').dataset.weekId=weekId;openModal('payment-modal');}
 function openExpenseModalForWeek(weekId){document.getElementById('exp-date').value=today();document.getElementById('exp-amount').value='';document.getElementById('exp-desc').value='';document.getElementById('exp-notes').value='';document.getElementById('expense-modal').dataset.weekId=weekId;openModal('expense-modal');}
 
