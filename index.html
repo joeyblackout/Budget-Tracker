@@ -704,8 +704,8 @@ function renderForecast(){
   const todayDate=new Date();todayDate.setHours(0,0,0,0);
   const endDate=new Date(todayDate);endDate.setDate(endDate.getDate()+win.days);
 
-  // Starting point = current running balance
-  const totalIncome=paychecks.reduce((s,p)=>s+parseFloat(p.amount||0),0);
+  // Starting point = current running balance (only confirmed, past/today income)
+  const totalIncome=paychecks.filter(p=>(p.pay_date||'')<=today()).reduce((s,p)=>s+parseFloat(p.amount||0),0);
   const totalPaid=payments.reduce((s,p)=>s+parseFloat(p.amount||0),0);
   const totalExpenses=expenses.reduce((s,e)=>s+parseFloat(e.amount||0),0);
   const totalBillsPaid=billPayments.reduce((s,b)=>s+parseFloat(b.amount||0),0);
@@ -835,7 +835,8 @@ function renderDashboard(){
   const totalPaid=payments.reduce((s,p)=>s+parseFloat(p.amount||0),0);
   const startDebt=totalDebt+totalPaid;
   const progress=startDebt>0?Math.min((totalPaid/startDebt)*100,100):0;
-  const totalIncome=paychecks.reduce((s,p)=>s+parseFloat(p.amount||0),0);
+  const todayStr=today();
+  const totalIncome=paychecks.filter(p=>(p.pay_date||'')<=todayStr).reduce((s,p)=>s+parseFloat(p.amount||0),0);
   const totalExpenses=expenses.reduce((s,e)=>s+parseFloat(e.amount||0),0);
   const totalBillsPaid=billPayments.reduce((s,b)=>s+parseFloat(b.amount||0),0);
   const totalSaved=savingsTxns.filter(t=>t.type==='deposit'&&t.notes!=='__starting_balance__').reduce((s,t)=>s+parseFloat(t.amount||0),0)-savingsTxns.filter(t=>t.type==='withdraw').reduce((s,t)=>s+parseFloat(t.amount||0),0);
