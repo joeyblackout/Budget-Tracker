@@ -1789,7 +1789,23 @@ function renderWeekly(){
   const filterFn=w=>incomeFilter==='all'||(w.source_name===incomeFilter)||(incomeFilter==='all');
   const active=sorted.filter(w=>w.pay_date>=cutoffStr&&(incomeFilter==='all'||w.source_name===incomeFilter||!w.source_name));
   const archived=sorted.filter(w=>w.pay_date<cutoffStr&&(incomeFilter==='all'||w.source_name===incomeFilter||!w.source_name));
-  let html=filterBar;
+  // Totals bar
+  const todayStr2=today();
+  const confirmedTotal=paychecks.filter(p=>{
+    const w=weeks.find(x=>x.id===p.pay_week_id);
+    return (p.pay_date||'')<=todayStr2&&(incomeFilter==='all'||w?.source_name===incomeFilter||!w?.source_name);
+  }).reduce((s,p)=>s+parseFloat(p.amount||0),0);
+  const allFiltered=[...active,...archived];
+  const pendingPeriods=allFiltered.filter(w=>w.pay_date>todayStr2&&paychecks.filter(p=>p.pay_week_id===w.id).length===0);
+  const expectedTotal=pendingPeriods.reduce((s,w)=>s+parseFloat(w.expected_amount||0),0);
+  const totalsBar=`<div class="card" style="margin-bottom:14px;">
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
+      <div><div class="stat-label">Confirmed</div><div style="font-size:18px;font-weight:800;color:var(--success);">${fmt(confirmedTotal)}</div></div>
+      <div><div class="stat-label">Expected</div><div style="font-size:18px;font-weight:800;color:var(--warning);">${fmt(expectedTotal)}</div></div>
+      <div><div class="stat-label">Pending</div><div style="font-size:18px;font-weight:800;color:var(--muted);">${pendingPeriods.length} period${pendingPeriods.length!==1?'s':''}</div></div>
+    </div>
+  </div>`;
+  let html=filterBar+totalsBar;
   if(archived.length>0){
     html+=`<div style="margin-bottom:8px;">
       <button onclick="toggleWeek('archived-periods')" style="width:100%;display:flex;justify-content:space-between;align-items:center;padding:14px 18px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);cursor:pointer;color:var(--text);">
