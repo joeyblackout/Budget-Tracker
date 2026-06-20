@@ -253,7 +253,7 @@ select option{background:var(--surface);color:var(--text);}
 <div id="app-screen">
   <div class="topbar">
     <div style="display:flex;align-items:center;gap:12px;">
-      <button class="hamburger-btn" onclick="openSidebar()" aria-label="Menu"><span style="position:relative;">☰<span id="sidebar-dot" style="display:none;position:absolute;top:-3px;right:-5px;width:9px;height:9px;background:var(--danger);border-radius:50%;border:1.5px solid var(--surface);"></span></span></button>
+      <button class="hamburger-btn" onclick="openSidebar()" aria-label="Menu"><span style="position:relative;">☰<span id="more-dot" style="display:none;position:absolute;top:-3px;right:-5px;width:9px;height:9px;background:var(--danger);border-radius:50%;border:1.5px solid var(--surface);"></span></span></button>
       <div class="topbar-title">💰 Budget Tracker</div>
     </div>
     <div style="display:flex;align-items:center;gap:12px;">
@@ -355,7 +355,7 @@ select option{background:var(--surface);color:var(--text);}
     <button class="nav-btn" data-view="weekly" onclick="switchView('weekly',this)"><span class="icon">📅</span>Income</button>
     <button class="nav-btn" data-view="bills" onclick="switchView('bills',this)"><span class="icon">🏠</span>Bills</button>
     <button class="nav-btn" data-view="savings" onclick="switchView('savings',this)"><span class="icon" style="position:relative;">🏦<span id="more-dot" style="display:none;position:absolute;top:-2px;right:-6px;width:9px;height:9px;background:var(--danger);border-radius:50%;border:1.5px solid var(--surface);"></span></span>Savings</button>
-    <button class="nav-btn" onclick="openSidebar()"><span class="icon" style="position:relative;">☰<span id="more-dot" style="display:none;position:absolute;top:-2px;right:-6px;width:9px;height:9px;background:var(--danger);border-radius:50%;border:1.5px solid var(--surface);"></span></span>Menu</button>
+    <button class="nav-btn" data-view="expenses" onclick="switchView('expenses',this)"><span class="icon">🧾</span>Expenses</button>
   </nav>
 </div>
 
