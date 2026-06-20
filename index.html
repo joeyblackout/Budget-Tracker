@@ -279,6 +279,7 @@ select option{background:var(--surface);color:var(--text);}
       <button class="side-item" data-sview="community" onclick="sideNav('community')"><span class="side-icon">🎉</span>Community</button>
       <button class="side-item" data-sview="expenses" onclick="sideNav('expenses')"><span class="side-icon">🧾</span>Expenses</button>
       <button class="side-item" data-sview="setup" onclick="sideNav('setup')"><span class="side-icon">⚙️</span>Settings</button>
+      <button class="side-item" data-sview="instructions" onclick="sideNav('instructions')"><span class="side-icon">📖</span>How to Use</button>
     </nav>
     <div class="sidebar-footer">
       <button class="btn btn-danger" onclick="doLogout()">Sign Out</button>
@@ -347,6 +348,10 @@ select option{background:var(--surface);color:var(--text);}
     <div id="view-setup" class="view">
       <div class="section-head"><div class="section-title">Settings</div></div>
       <div id="setup-content"></div>
+    </div>
+    <div id="view-instructions" class="view">
+      <div class="section-head"><div class="section-title">📖 How to Use</div></div>
+      <div id="instructions-content"></div>
     </div>
   </div>
   <nav class="nav">
@@ -672,6 +677,7 @@ function switchView(name,btn){
   if(name==='community')renderCommunity();
   if(name==='expenses')renderExpenses();
   if(name==='setup')renderSetup();
+  if(name==='instructions')renderInstructions();
 }
 function openSidebar(){document.getElementById('sidebar').classList.add('open');document.getElementById('sidebar-overlay').classList.add('open');}
 function closeSidebar(){document.getElementById('sidebar').classList.remove('open');document.getElementById('sidebar-overlay').classList.remove('open');}
@@ -2120,7 +2126,71 @@ document.addEventListener('click',e=>{document.querySelectorAll('.tooltip-wrap.o
 let toastTimer;
 function toast(msg){const el=document.getElementById('toast');el.textContent=msg;el.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.classList.remove('show'),2500);}
 
-// UTILS
+// INSTRUCTIONS
+function renderInstructions(){
+  const el=document.getElementById('instructions-content');
+  const section=(emoji,title,items)=>`
+    <div class="card" style="margin-bottom:14px;">
+      <div style="font-size:16px;font-weight:800;margin-bottom:12px;">${emoji} ${title}</div>
+      ${items.map(([q,a])=>`<div style="margin-bottom:12px;"><div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:3px;">${q}</div><div style="font-size:13px;color:var(--muted);line-height:1.6;">${a}</div></div>`).join('<div class="divider" style="margin:10px 0;"></div>')}
+    </div>`;
+  el.innerHTML=`
+    <div class="card" style="border-color:var(--accent);background:rgba(79,142,247,0.06);margin-bottom:14px;">
+      <div style="font-size:15px;font-weight:700;margin-bottom:6px;">👋 Welcome to Budget Tracker</div>
+      <div style="font-size:13px;color:var(--muted);line-height:1.6;">This app helps you track debt payoff, income, bills, expenses, and savings — together as a family. Here's everything you need to know to get started.</div>
+    </div>
+    ${section('📊','Dashboard',[
+      ['What is the Running Balance?','Your real cash on hand right now. It starts from your Starting Cash (set in Settings), adds paychecks you\'ve confirmed received, and subtracts everything you\'ve paid — debt, bills, expenses, and savings deposits.'],
+      ['What do the stat cards do?','Tap any card for a breakdown. Total Debt shows each account, Raked In shows your paycheck history, CC Utilization shows per-card usage, and Total Saved goes to your Savings tab.'],
+      ['Account Summary vs Savings Pots','Toggle between your debt accounts and your savings pots using the buttons at the bottom of the dashboard.'],
+    ])}
+    ${section('📅','Income',[
+      ['How do I set up recurring income?','Tap 🔁 Recurring, add a source with your pay amount and how often you get paid. The app auto-creates upcoming pay periods for the next 12 months.'],
+      ['What does Pending mean?','A pay period is Pending when the pay date hasn\'t arrived yet. The income doesn\'t count toward your balance until you tap ✓ Received on payday.'],
+      ['What if my paycheck amount varies?','Tap "Different amount" on any pending period to enter the actual amount you received instead of the expected one.'],
+      ['What is Past Periods?','Pay periods older than 7 days collapse into a "Past Periods" accordion at the top to keep the list clean. Tap it to expand your history.'],
+    ])}
+    ${section('💳','Debts & Payments',[
+      ['How do I add a debt?','Go to Debts tab → tap +. Enter the account name, type, current balance, credit limit (for credit cards), APR, minimum payment, and due date.'],
+      ['How do I log a payment?','Go to Debt Payments → tap +. Select the account and enter the amount. The balance updates automatically.'],
+      ['What is ⚡ Sync Debts on Bills?','Creates a monthly bill entry for each debt\'s minimum payment automatically, so you never forget to mark it. Tap it once to sync — it updates whenever your minimums change.'],
+      ['Does marking a bill paid update my debt?','Yes — if a bill is linked to a debt (created via Sync Debts), marking it paid also logs a debt payment and decrements the balance.'],
+    ])}
+    ${section('🏠','Bills',[
+      ['How do I add a bill?','Tap + on the Bills tab. Enter the name, amount, due day of the month, category, and how often it repeats.'],
+      ['What do the colors mean?','Green = paid this month. Yellow = due within 5 days. Red = overdue. Grey = upcoming.'],
+      ['What does the progress bar show?','How many of your monthly bills you\'ve paid so far this month, and the total amount remaining.'],
+    ])}
+    ${section('🏦','Savings',[
+      ['How do I create a savings pot?','Tap + on the Savings tab. Give it a name, emoji, and optional goal amount. You can also enter a Starting Balance if you already have money there.'],
+      ['How do deposits work?','Deposits pull from your running balance — they represent money you\'re moving from your checking account into savings.'],
+      ['What are Shared Pots?','Savings pots you share with another member. Tap 🤝 Shared to create one and invite someone by their display name. Each person can only withdraw what they personally contributed.'],
+      ['How do I invite someone to a shared pot?','Create a shared pot and type their display name (the name they set in Settings). They\'ll see an invite banner on their Dashboard and Savings tab to accept.'],
+    ])}
+    ${section('🧾','Expenses',[
+      ['How do I quickly log an expense?','Use the quick-add buttons at the top of the Expenses tab — tap a category, enter the amount, done. Two taps total.'],
+      ['Can I customize the quick-add buttons?','Yes — tap the ✏️ Edit button in the quick-add bar to change the emoji, label, and category for each shortcut.'],
+      ['What does the 🔁 button on an expense do?','Repeats that expense with today\'s date instantly — great for recurring purchases like a weekly grocery run.'],
+    ])}
+    ${section('🔮','Forecast',[
+      ['How does the forecast work?','Starts from your current running balance, adds expected income from upcoming pay periods, subtracts recurring bills and debt minimums, and estimates variable spending based on your recent average.'],
+      ['How do I change the time window?','Tap Biweekly, Monthly, 3 Months, 6 Months, Annual, or Custom at the top of the Forecast tab.'],
+      ['What does the red warning mean?','Your projected balance dips below $0 at some point in the window. The warning tells you when and how low it gets so you can plan ahead.'],
+    ])}
+    ${section('🎉','Community',[
+      ['What is the Community feed?','A shared feed where all family members can see each other\'s milestones and cheer each other on with reactions.'],
+      ['What posts automatically?','Paying off a debt, getting a credit card under 30% utilization, reaching a savings goal, and becoming debt-free all post automatically — amounts are never shown.'],
+      ['Can I turn off auto-posts?','Yes — go to Settings and toggle Auto-Posts off if you prefer to share manually.'],
+    ])}
+    ${section('⚙️','Settings & Getting Started',[
+      ['How do I set my name?','Go to Settings → enter your Display Name. This shows in the Community feed and is how others invite you to shared pots.'],
+      ['What is Starting Cash?','The money you currently have in your checking account. Set this once in Settings so your Running Balance starts from the right number.'],
+      ['How do I change the app theme?','Settings → Color Scheme. Choose from 6 themes. Your preference is saved on your device.'],
+      ['How do I get the app on my iPhone home screen?','Open the app in Safari → tap the Share button → Add to Home Screen. It opens full-screen like a native app.'],
+    ])}`;
+}
+
+
 function fmt(n){return'$'+parseFloat(n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
 function fmtDate(str){if(!str)return'—';const[y,m,d]=str.split('-');const months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];return`${months[parseInt(m)-1]} ${parseInt(d)}, ${y}`;}
 function fmtMonth(str){if(!str)return'—';const[y,m]=str.split('-');const months=['January','February','March','April','May','June','July','August','September','October','November','December'];return`${months[parseInt(m)-1]} ${y}`;}
