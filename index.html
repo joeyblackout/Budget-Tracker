@@ -358,7 +358,7 @@ select option{background:var(--surface);color:var(--text);}
     <button class="nav-btn active" data-view="dashboard" onclick="switchView('dashboard',this)"><span class="icon">📊</span>Dashboard</button>
     <button class="nav-btn" data-view="forecast" onclick="switchView('forecast',this)"><span class="icon">🔮</span>Forecast</button>
     <button class="nav-btn" data-view="weekly" onclick="switchView('weekly',this)"><span class="icon">📅</span>Income</button>
-    <button class="nav-btn" data-view="bills" onclick="switchView('bills',this)"><span class="icon">🏠</span>Bills</button>
+    <button class="nav-btn" data-view="bills" onclick="switchView('bills',this)"><span class="icon" style="position:relative;">🏠<span id="bills-badge" style="display:none;position:absolute;top:-4px;right:-8px;min-width:16px;height:16px;background:var(--danger);border-radius:99px;border:1.5px solid var(--surface);font-size:9px;font-weight:800;color:#fff;display:none;align-items:center;justify-content:center;padding:0 3px;"></span></span>Bills</button>
     <button class="nav-btn" data-view="savings" onclick="switchView('savings',this)"><span class="icon" style="position:relative;">🏦<span id="more-dot" style="display:none;position:absolute;top:-2px;right:-6px;width:9px;height:9px;background:var(--danger);border-radius:50%;border:1.5px solid var(--surface);"></span></span>Savings</button>
     <button class="nav-btn" data-view="expenses" onclick="switchView('expenses',this)"><span class="icon">🧾</span>Expenses</button>
   </nav>
@@ -578,6 +578,18 @@ select option{background:var(--surface);color:var(--text);}
   <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal('post-modal')">Cancel</button><button class="btn btn-primary" onclick="savePost()">Post</button></div>
 </div></div>
 
+<!-- EDIT EXPENSE MODAL -->
+<div class="modal-overlay" id="edit-expense-modal"><div class="modal">
+  <div class="modal-handle"></div><div class="modal-title">Edit Expense</div>
+  <input type="hidden" id="edit-exp-id"/>
+  <div class="field"><label>Date</label><input type="date" id="edit-exp-date"/></div>
+  <div class="field"><label>Category</label><select id="edit-exp-category"><option>Groceries</option><option>Gas Station</option><option>Dining / DoorDash</option><option>Nicotine</option><option>Laundry</option><option>Medical / Pharmacy</option><option>Personal Care</option><option>Clothing</option><option>Entertainment</option><option>Household Supplies</option><option>Transportation / Rideshare</option><option>Subscriptions</option><option>Other</option></select></div>
+  <div class="field"><label>Description</label><input type="text" id="edit-exp-desc" placeholder="e.g. Walmart run"/></div>
+  <div class="field"><label>Amount ($)</label><input type="number" id="edit-exp-amount" placeholder="0.00" step="0.01" min="0"/></div>
+  <div class="field"><label>Notes</label><input type="text" id="edit-exp-notes" placeholder="Optional notes…"/></div>
+  <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal('edit-expense-modal')">Cancel</button><button class="btn btn-primary" onclick="saveEditExpense()">Save</button></div>
+</div></div>
+
 <!-- QUICK EXPENSE MODAL -->
 <div class="modal-overlay" id="quick-expense-modal"><div class="modal">
   <div class="modal-handle"></div>
@@ -684,7 +696,7 @@ function closeSidebar(){document.getElementById('sidebar').classList.remove('ope
 function sideNav(name){closeSidebar();switchView(name,null);}
 
 // DATA
-async function loadAll(){await Promise.all([loadDebts(),loadPayments(),loadExpenses(),loadWeeks(),loadPaychecks(),loadBills(),loadBillPayments(),loadPots(),loadSavingsTxns(),loadProfiles(),loadPosts(),loadReactions(),loadShared(),loadRecurring()]);await topUpPeriods();renderDashboard();}
+async function loadAll(){await Promise.all([loadDebts(),loadPayments(),loadExpenses(),loadWeeks(),loadPaychecks(),loadBills(),loadBillPayments(),loadPots(),loadSavingsTxns(),loadProfiles(),loadPosts(),loadReactions(),loadShared(),loadRecurring()]);await topUpPeriods();renderDashboard();updateBillBadge();startPolling();}
 async function topUpPeriods(){
   // Only extend recurring sources if the furthest period is within 10 months out
   if(recurringSources.length===0)return;
@@ -1065,7 +1077,9 @@ function renderDashboard(){
       <button class="toggle-btn ${dashSection==='overview'?'active':''}" onclick="setDashSection('overview')">Account Summary</button>
       <button class="toggle-btn ${dashSection==='savings'?'active':''}" onclick="setDashSection('savings')">Savings Pots</button>
     </div>
-    ${sectionContent}`;
+    ${sectionContent}
+    ${renderNetWorth()}
+    ${renderPayoffCalc()}`;
 }
 
 // SAVINGS
@@ -1590,7 +1604,7 @@ async function markBillPaid(billId,billName,amount){
       await Promise.all([loadDebts(),loadPayments()]);
     }
   }
-  await loadBillPayments();renderBills();renderDebts();renderDashboard();
+  await loadBillPayments();renderBills();renderDebts();renderDashboard();updateBillBadge();
   toast(`${billName} marked as paid ✓`);
 }
 async function undoBillPayment(billId){
@@ -1699,9 +1713,13 @@ function renderWeekly(){
   // Split: active = within 7 days, archived = older than 7 days
   const cutoff=new Date();cutoff.setDate(cutoff.getDate()-7);
   const cutoffStr=cutoff.toISOString().slice(0,10);
-  const active=sorted.filter(w=>w.pay_date>=cutoffStr);
-  const archived=sorted.filter(w=>w.pay_date<cutoffStr);
-  let html='';
+  // Income source filter
+  const sources=['all',...new Set(weeks.filter(w=>w.source_name).map(w=>w.source_name))];
+  const filterBar=sources.length>1?`<div class="toggle-row" style="flex-wrap:wrap;margin-bottom:14px;">${sources.map(s=>`<button class="toggle-btn ${incomeFilter===s?'active':''}" style="flex:0 0 auto;padding:7px 12px;font-size:11px;" onclick="setIncomeFilter('${esc(s)}')">${s==='all'?'All Sources':esc(s)}</button>`).join('')}</div>`:'';
+  const filterFn=w=>incomeFilter==='all'||(w.source_name===incomeFilter)||(incomeFilter==='all');
+  const active=sorted.filter(w=>w.pay_date>=cutoffStr&&(incomeFilter==='all'||w.source_name===incomeFilter||!w.source_name));
+  const archived=sorted.filter(w=>w.pay_date<cutoffStr&&(incomeFilter==='all'||w.source_name===incomeFilter||!w.source_name));
+  let html=filterBar;
   if(archived.length>0){
     html+=`<div style="margin-bottom:8px;">
       <button onclick="toggleWeek('archived-periods')" style="width:100%;display:flex;justify-content:space-between;align-items:center;padding:14px 18px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);cursor:pointer;color:var(--text);">
@@ -1882,7 +1900,7 @@ function openExpenseModalForWeek(weekId){document.getElementById('exp-date').val
 function renderDebts(){
   const el=document.getElementById('debts-list');
   if(debts.length===0){el.innerHTML=`<div class="empty"><div class="icon">💳</div><p>No accounts yet. Tap <strong>+</strong> to add one.</p></div>`;return;}
-  el.innerHTML=debts.map(d=>{const bal=parseFloat(d.balance||0);const lim=parseFloat(d.credit_limit||0);const u=lim>0?(bal/lim)*100:null;return`<div class="card"><div style="display:flex;justify-content:space-between;align-items:flex-start;"><div><div style="font-size:17px;font-weight:800;letter-spacing:-0.02em;">${esc(d.name)}</div><div class="text-muted mt8">${esc(d.type)}</div></div><div style="display:flex;gap:6px;"><button class="del-btn" onclick="editDebt('${d.id}')">✏️</button><button class="del-btn" onclick="deleteDebt('${d.id}')">🗑️</button></div></div><div class="divider"></div><div class="stat-grid" style="grid-template-columns:1fr 1fr 1fr;gap:8px;"><div><div class="pill-label">Balance</div><div style="font-size:16px;font-weight:800;color:var(--danger);">${fmt(bal)}</div></div>${lim>0?`<div><div class="pill-label">Limit</div><div style="font-size:16px;font-weight:700;">${fmt(lim)}</div></div>`:`<div></div>`}<div><div class="pill-label">APR</div><div style="font-size:16px;font-weight:700;">${parseFloat(d.apr||0).toFixed(1)}%</div></div></div>${u!==null?`<div class="progress-wrap mt8"><div class="progress-label"><span>Utilization</span><span class="${u>100?'text-danger':u>30?'text-warning':'text-success'}">${u.toFixed(1)}%</span></div><div class="progress-bar"><div class="progress-fill" style="width:${Math.min(u,100)}%;background:${u>100?'var(--danger)':u>30?'var(--warning)':'var(--success)'}"></div></div></div>`:''}<div class="divider"></div><div style="display:flex;gap:16px;"><div><div class="pill-label">Min Payment</div><div style="font-weight:700;">${fmt(d.min_payment||0)}</div></div><div><div class="pill-label">Due</div><div style="font-weight:700;">Day ${d.due_date||'—'}</div></div></div></div>`;}).join('');
+  el.innerHTML=debts.map(d=>{const bal=parseFloat(d.balance||0);const lim=parseFloat(d.credit_limit||0);const u=lim>0?(bal/lim)*100:null;return`<div class="card"><div style="display:flex;justify-content:space-between;align-items:flex-start;"><div><div style="font-size:17px;font-weight:800;letter-spacing:-0.02em;">${esc(d.name)}</div><div class="text-muted mt8">${esc(d.type)}</div></div><div style="display:flex;gap:6px;"><button class="del-btn" onclick="showDebtDetail('${d.id}')">📋</button><button class="del-btn" onclick="editDebt('${d.id}')">✏️</button><button class="del-btn" onclick="deleteDebt('${d.id}')">🗑️</button></div></div><div class="divider"></div><div class="stat-grid" style="grid-template-columns:1fr 1fr 1fr;gap:8px;"><div><div class="pill-label">Balance</div><div style="font-size:16px;font-weight:800;color:var(--danger);">${fmt(bal)}</div></div>${lim>0?`<div><div class="pill-label">Limit</div><div style="font-size:16px;font-weight:700;">${fmt(lim)}</div></div>`:`<div></div>`}<div><div class="pill-label">APR</div><div style="font-size:16px;font-weight:700;">${parseFloat(d.apr||0).toFixed(1)}%</div></div></div>${u!==null?`<div class="progress-wrap mt8"><div class="progress-label"><span>Utilization</span><span class="${u>100?'text-danger':u>30?'text-warning':'text-success'}">${u.toFixed(1)}%</span></div><div class="progress-bar"><div class="progress-fill" style="width:${Math.min(u,100)}%;background:${u>100?'var(--danger)':u>30?'var(--warning)':'var(--success)'}"></div></div></div>`:''}<div class="divider"></div><div style="display:flex;gap:16px;"><div><div class="pill-label">Min Payment</div><div style="font-weight:700;">${fmt(d.min_payment||0)}</div></div><div><div class="pill-label">Due</div><div style="font-weight:700;">Day ${d.due_date||'—'}</div></div></div></div>`;}).join('');
 }
 function openDebtModal(id=null){document.getElementById('debt-modal-title').textContent=id?'Edit Account':'Add Debt Account';document.getElementById('debt-edit-id').value=id||'';if(id){const d=debts.find(x=>x.id===id);if(d){document.getElementById('debt-name').value=d.name||'';document.getElementById('debt-type').value=d.type||'Credit Card';document.getElementById('debt-balance').value=d.balance||'';document.getElementById('debt-limit').value=d.credit_limit||'';document.getElementById('debt-apr').value=d.apr||'';document.getElementById('debt-minpay').value=d.min_payment||'';document.getElementById('debt-due').value=d.due_date||'';}}else{['debt-name','debt-balance','debt-limit','debt-apr','debt-minpay','debt-due'].forEach(i=>document.getElementById(i).value='');document.getElementById('debt-type').value='Credit Card';}openModal('debt-modal');}
 function editDebt(id){openDebtModal(id);}
@@ -2022,9 +2040,9 @@ function openQuickAddEditor(){
 function renderExpenses(){
   const el=document.getElementById('expenses-list');
   renderQuickAddBar();
-  if(expenses.length===0){el.innerHTML=`<div class="empty"><div class="icon">🧾</div><p>No expenses yet. Use the quick buttons above or tap <strong>+</strong> to log one.</p></div>`;return;}
+  if(expenses.length===0){el.innerHTML=renderBudgetTargets()+`<div class="empty"><div class="icon">🧾</div><p>No expenses yet. Use the quick buttons above or tap <strong>+</strong> to log one.</p></div>`;return;}
   const groups={};expenses.forEach(e=>{const mo=(e.exp_date||'').slice(0,7);if(!groups[mo])groups[mo]=[];groups[mo].push(e);});
-  el.innerHTML=Object.entries(groups).map(([mo,list])=>{
+  el.innerHTML=renderBudgetTargets()+Object.entries(groups).map(([mo,list])=>{
     const moTotal=list.reduce((s,e)=>s+parseFloat(e.amount||0),0);
     return`<div class="card-title" style="margin-top:8px;">${fmtMonth(mo)} · ${fmt(moTotal)} spent</div>
     <div class="card" style="padding:0 18px;">${list.map(e=>`<div class="expense-item">
@@ -2035,6 +2053,7 @@ function renderExpenses(){
       </div>
       <div style="display:flex;align-items:center;gap:4px;">
         <div class="expense-amount">-${fmt(e.amount)}</div>
+        <button class="del-btn" onclick="editExpense('${e.id}')" title="Edit">✏️</button>
         <button class="del-btn" onclick="repeatExpense('${e.id}')" title="Repeat today">🔁</button>
         <button class="del-btn" onclick="deleteExpense('${e.id}')">🗑️</button>
       </div>
@@ -2050,7 +2069,42 @@ async function saveExpense(){
   if(error){toast('Error: '+error.message);return;}
   closeModal('expense-modal');await loadExpenses();renderExpenses();if(weekId)renderWeekly();toast('Expense logged ✓');
 }
-async function deleteExpense(id){if(!confirm('Delete this expense?'))return;await sb.from('expenses').delete().eq('id',id);await loadExpenses();renderExpenses();if(document.getElementById('view-weekly').classList.contains('active'))renderWeekly();toast('Expense deleted');}
+async function deleteExpense(id){if(!confirm('Delete this expense?'))return;await sb.from('expenses').delete().eq('id',id);await loadExpenses();renderExpenses();if(document.getElementById('view-weekly').classList.contains('active'))renderWeekly();renderDashboard();toast('Expense deleted');}
+function editExpense(id){
+  const e=expenses.find(x=>x.id===id);if(!e)return;
+  document.getElementById('edit-exp-id').value=id;
+  document.getElementById('edit-exp-date').value=e.exp_date||today();
+  document.getElementById('edit-exp-category').value=e.category||'Other';
+  document.getElementById('edit-exp-desc').value=e.description||'';
+  document.getElementById('edit-exp-amount').value=e.amount||'';
+  document.getElementById('edit-exp-notes').value=e.notes||'';
+  openModal('edit-expense-modal');
+}
+async function saveEditExpense(){
+  const id=document.getElementById('edit-exp-id').value;
+  const amount=parseFloat(document.getElementById('edit-exp-amount').value);
+  if(!amount||amount<=0){toast('Enter a valid amount');return;}
+  const{error}=await sb.from('expenses').update({exp_date:document.getElementById('edit-exp-date').value,category:document.getElementById('edit-exp-category').value,description:document.getElementById('edit-exp-desc').value.trim()||null,amount,notes:document.getElementById('edit-exp-notes').value.trim()||null}).eq('id',id);
+  if(error){toast('Error: '+error.message);return;}
+  closeModal('edit-expense-modal');await loadExpenses();renderExpenses();renderDashboard();toast('Expense updated ✓');
+}
+function updateBillBadge(){
+  const todayDay=new Date().getDate();
+  const thisMonth=new Date().toISOString().slice(0,7);
+  const urgent=bills.filter(b=>{
+    const dueDay=parseInt(b.due_day||0);
+    if(!dueDay)return false;
+    const isPaid=billPayments.some(p=>p.bill_id===b.id&&(p.paid_date||'').startsWith(thisMonth));
+    if(isPaid)return false;
+    const diff=dueDay-todayDay;
+    return diff>=0&&diff<=5||todayDay>dueDay;
+  });
+  const badge=document.getElementById('bills-badge');
+  if(badge){
+    if(urgent.length>0){badge.textContent=urgent.length;badge.style.display='flex';}
+    else{badge.style.display='none';}
+  }
+}
 
 // THEMES
 const THEMES={
@@ -2125,6 +2179,151 @@ function toggleTooltip(id){const el=document.getElementById(id);if(el)el.classLi
 document.addEventListener('click',e=>{document.querySelectorAll('.tooltip-wrap.open').forEach(t=>{if(!t.contains(e.target))t.classList.remove('open');});});
 let toastTimer;
 function toast(msg){const el=document.getElementById('toast');el.textContent=msg;el.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.classList.remove('show'),2500);}
+
+// POLLING (#8 — live shared updates)
+let pollingInterval=null;
+function startPolling(){
+  if(pollingInterval)clearInterval(pollingInterval);
+  pollingInterval=setInterval(async()=>{
+    await Promise.all([loadShared(),loadPosts(),loadReactions(),loadBillPayments(),loadBills()]);
+    updateBillBadge();
+    updateNotificationDots();
+    if(document.getElementById('view-shared')&&document.getElementById('savings-list').closest('.view.active'))renderSavings();
+    if(document.getElementById('community-list').closest?.('.view.active'))renderCommunity();
+  },60000);
+}
+
+// NET WORTH (#5)
+function renderNetWorth(){
+  const potTotals={};
+  savingsTxns.forEach(t=>{if(!potTotals[t.pot_id])potTotals[t.pot_id]=0;potTotals[t.pot_id]+=(t.type==='deposit'||t.type==='transfer_in')?parseFloat(t.amount||0):-(parseFloat(t.amount||0));});
+  const totalSaved=Object.values(potTotals).reduce((s,v)=>s+Math.max(0,v),0);
+  const sharedPotTotals={};
+  sharedTxns.filter(t=>t.user_id===currentUser.id).forEach(t=>{if(!sharedPotTotals[t.pot_id])sharedPotTotals[t.pot_id]=0;sharedPotTotals[t.pot_id]+=(t.type==='deposit'?parseFloat(t.amount||0):-(parseFloat(t.amount||0)));});
+  const myShared=Object.values(sharedPotTotals).reduce((s,v)=>s+Math.max(0,v),0);
+  const totalAssets=totalSaved+myShared;
+  const totalDebt=debts.reduce((s,d)=>s+parseFloat(d.balance||0),0);
+  const netWorth=totalAssets-totalDebt;
+  return`<div class="card" style="margin-bottom:14px;border-color:${netWorth>=0?'var(--success)':'var(--danger)'};">
+    <div style="font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);margin-bottom:8px;">💎 Net Worth</div>
+    <div style="font-size:32px;font-weight:800;color:${netWorth>=0?'var(--success)':'var(--danger)'};">${fmt(netWorth)}</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px;">
+      <div class="balance-line"><span class="balance-line-label">Total Assets</span><span class="balance-line-val text-success">${fmt(totalAssets)}</span></div>
+      <div class="balance-line"><span class="balance-line-label">Total Debt</span><span class="balance-line-val text-danger">-${fmt(totalDebt)}</span></div>
+      <div class="balance-line"><span class="balance-line-label">In Savings</span><span class="balance-line-val text-accent">${fmt(totalSaved)}</span></div>
+      <div class="balance-line"><span class="balance-line-label">Shared Pots</span><span class="balance-line-val text-accent">${fmt(myShared)}</span></div>
+    </div>
+  </div>`;
+}
+
+// DEBT PAYOFF CALCULATOR (#1)
+function renderPayoffCalc(){
+  if(debts.length===0)return`<div class="empty"><div class="icon">💳</div><p>Add debt accounts to see payoff strategies.</p></div>`;
+  const totalDebt=debts.reduce((s,d)=>s+parseFloat(d.balance||0),0);
+  const minPayments=debts.reduce((s,d)=>s+parseFloat(d.min_payment||0),0);
+  const calcPayoff=(strategy,extraPayment)=>{
+    let accounts=debts.filter(d=>parseFloat(d.balance||0)>0).map(d=>({
+      name:d.name,bal:parseFloat(d.balance||0),apr:parseFloat(d.apr||0)/100/12,min:parseFloat(d.min_payment||0)
+    }));
+    if(strategy==='avalanche')accounts.sort((a,b)=>b.apr-a.apr);
+    else accounts.sort((a,b)=>a.bal-b.bal);
+    let months=0,totalInterest=0,payment=minPayments+extraPayment;
+    while(accounts.some(a=>a.bal>0)&&months<600){
+      months++;
+      let extra=extraPayment;
+      accounts.forEach(a=>{if(a.bal>0){const interest=a.bal*a.apr;totalInterest+=interest;a.bal+=interest;a.bal-=a.min;if(a.bal<0)a.bal=0;}});
+      for(const a of accounts){if(a.bal>0){a.bal-=extra;if(a.bal<0)a.bal=0;break;}}
+      accounts=accounts.filter(a=>a.bal>0).concat(accounts.filter(a=>a.bal<=0));
+    }
+    return{months,totalInterest};
+  };
+  const avx=calcPayoff('avalanche',0);
+  const snx=calcPayoff('snowball',0);
+  const avx200=calcPayoff('avalanche',200);
+  const mo=(m)=>m>=12?`${Math.floor(m/12)}y ${m%12}m`:`${m}m`;
+  return`<div class="card" style="margin-bottom:14px;">
+    <div style="font-size:16px;font-weight:800;margin-bottom:4px;">🎯 Payoff Strategies</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:14px;">Based on ${fmt(totalDebt)} total debt, ${fmt(minPayments)}/mo minimum payments</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+      <div style="background:var(--surface2);border-radius:var(--radius-sm);padding:14px;">
+        <div style="font-size:11px;font-weight:700;letter-spacing:0.08em;color:var(--accent);margin-bottom:6px;">AVALANCHE 🏔️</div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:8px;">Highest APR first — saves the most interest</div>
+        <div style="font-size:15px;font-weight:800;">${mo(avx.months)}</div>
+        <div style="font-size:12px;color:var(--danger);">${fmt(avx.totalInterest)} interest</div>
+      </div>
+      <div style="background:var(--surface2);border-radius:var(--radius-sm);padding:14px;">
+        <div style="font-size:11px;font-weight:700;letter-spacing:0.08em;color:var(--warning);margin-bottom:6px;">SNOWBALL ❄️</div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:8px;">Smallest balance first — fastest wins</div>
+        <div style="font-size:15px;font-weight:800;">${mo(snx.months)}</div>
+        <div style="font-size:12px;color:var(--danger);">${fmt(snx.totalInterest)} interest</div>
+      </div>
+    </div>
+    <div style="background:rgba(45,212,160,0.08);border:1px solid rgba(45,212,160,0.3);border-radius:var(--radius-sm);padding:14px;">
+      <div style="font-size:12px;font-weight:700;color:var(--success);margin-bottom:4px;">⚡ +$200/mo extra (Avalanche)</div>
+      <div style="font-size:15px;font-weight:800;">${mo(avx200.months)} <span style="font-size:12px;color:var(--success);font-weight:600;">saves ${mo(avx.months-avx200.months)} & ${fmt(avx.totalInterest-avx200.totalInterest)}</span></div>
+    </div>
+  </div>`;
+}
+
+// DEBT DETAIL (#4)
+function showDebtDetail(debtId){
+  const debt=debts.find(d=>d.id===debtId);
+  if(!debt)return;
+  const debtPayments=payments.filter(p=>p.debt_id===debtId).sort((a,b)=>b.pay_date<a.pay_date?-1:1);
+  const totalPaidOnDebt=debtPayments.reduce((s,p)=>s+parseFloat(p.amount||0),0);
+  const content=`
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px;">
+      <div class="balance-line"><span class="balance-line-label">Balance</span><span class="balance-line-val text-danger">${fmt(debt.balance)}</span></div>
+      <div class="balance-line"><span class="balance-line-label">Total Paid</span><span class="balance-line-val text-success">${fmt(totalPaidOnDebt)}</span></div>
+      <div class="balance-line"><span class="balance-line-label">APR</span><span class="balance-line-val">${parseFloat(debt.apr||0).toFixed(1)}%</span></div>
+      <div class="balance-line"><span class="balance-line-label">Min Payment</span><span class="balance-line-val">${fmt(debt.min_payment||0)}</span></div>
+    </div>
+    <div class="card-title">Payment History</div>
+    ${debtPayments.length===0?'<div class="text-muted" style="padding:12px 0;">No payments logged yet.</div>':
+    debtPayments.map(p=>`<div class="account-row"><div><div class="account-name">-${fmt(p.amount)}</div><div class="account-detail">${fmtDate(p.pay_date)}${p.notes?' · '+esc(p.notes):''}</div></div></div>`).join('')}`;
+  openDashModal(debt.name,content,'payments');
+}
+
+// BUDGET TARGETS (#2)
+let budgetTargets=JSON.parse(localStorage.getItem('bt-budget-targets')||'{}');
+function saveBudgetTargets(){localStorage.setItem('bt-budget-targets',JSON.stringify(budgetTargets));}
+function renderBudgetTargets(){
+  const thisMonth=new Date().toISOString().slice(0,7);
+  const monthExpenses=expenses.filter(e=>(e.exp_date||'').startsWith(thisMonth));
+  const byCategory={};
+  monthExpenses.forEach(e=>{if(!byCategory[e.category])byCategory[e.category]=0;byCategory[e.category]+=parseFloat(e.amount||0);});
+  const cats=['Groceries','Gas Station','Dining / DoorDash','Nicotine','Entertainment','Household Supplies','Other'];
+  return`<div class="card" style="margin-bottom:14px;">
+    <div style="font-size:16px;font-weight:800;margin-bottom:4px;">🎯 Monthly Budget Targets</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:14px;">Set spending limits per category. Tap a target to edit it.</div>
+    ${cats.map(cat=>{
+      const spent=byCategory[cat]||0;
+      const target=budgetTargets[cat]||0;
+      const pct=target>0?Math.min((spent/target)*100,100):0;
+      const over=target>0&&spent>target;
+      return`<div style="margin-bottom:10px;">
+        <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+          <span style="font-size:13px;font-weight:600;">${cat}</span>
+          <span style="font-size:12px;color:${over?'var(--danger)':'var(--muted)'};">${fmt(spent)}${target>0?` / ${fmt(target)}`:''} <button onclick="editBudgetTarget('${cat}')" style="background:none;border:none;color:var(--accent);cursor:pointer;font-size:11px;padding:0 4px;">✏️</button></span>
+        </div>
+        ${target>0?`<div class="progress-bar" style="height:6px;"><div class="progress-fill" style="width:${pct}%;background:${over?'var(--danger)':pct>80?'var(--warning)':'var(--success)'}"></div></div>`:`<button onclick="editBudgetTarget('${cat}')" style="font-size:11px;color:var(--muted);background:none;border:1px dashed var(--border);border-radius:4px;padding:3px 8px;cursor:pointer;">+ Set target</button>`}
+      </div>`;
+    }).join('')}
+  </div>`;
+}
+function editBudgetTarget(cat){
+  const current=budgetTargets[cat]||'';
+  const val=prompt(`Monthly budget for ${cat} ($):`,current);
+  if(val===null)return;
+  const num=parseFloat(val);
+  if(!isNaN(num)&&num>0){budgetTargets[cat]=num;saveBudgetTargets();}
+  else if(val===''||num===0){delete budgetTargets[cat];saveBudgetTargets();}
+  if(document.getElementById('view-expenses').classList.contains('active'))renderExpenses();
+}
+
+// INCOME FILTER (#6)
+let incomeFilter='all';
+function setIncomeFilter(f){incomeFilter=f;renderWeekly();}
 
 // INSTRUCTIONS
 function renderInstructions(){
