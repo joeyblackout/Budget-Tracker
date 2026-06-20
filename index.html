@@ -1436,7 +1436,7 @@ function renderWeekly(){
   });
   const periodNumber={};
   [...weeks].sort((a,b)=>a.pay_date<b.pay_date?-1:1).forEach((w,idx)=>{periodNumber[w.id]=idx+1;});
-  el.innerHTML=sorted.map((w)=>{
+  const buildCard=(w)=>{
     const isFuture=w.pay_date>todayStr;
     const isCurrent=w.pay_date<=todayStr&&!sorted.some(x=>x.pay_date>w.pay_date&&x.pay_date<=todayStr);
     const weekPaychecks=paychecks.filter(p=>p.pay_week_id===w.id);
@@ -1489,7 +1489,24 @@ function renderWeekly(){
         <div style="margin-top:10px;"><button class="btn btn-danger" style="padding:10px;" onclick="deleteWeek('${w.id}')">Delete Period</button></div>
       </div>
     </div>`;
-  }).join('');
+  };
+  // Split: active = within 7 days, archived = older than 7 days
+  const cutoff=new Date();cutoff.setDate(cutoff.getDate()-7);
+  const cutoffStr=cutoff.toISOString().slice(0,10);
+  const active=sorted.filter(w=>w.pay_date>=cutoffStr);
+  const archived=sorted.filter(w=>w.pay_date<cutoffStr);
+  let html='';
+  if(archived.length>0){
+    html+=`<div style="margin-bottom:8px;">
+      <button onclick="toggleWeek('archived-periods')" style="width:100%;display:flex;justify-content:space-between;align-items:center;padding:14px 18px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);cursor:pointer;color:var(--text);">
+        <span style="font-size:14px;font-weight:700;color:var(--muted);">🗂️ Past Periods (${archived.length})</span>
+        <span style="font-size:12px;color:var(--muted);">tap to expand</span>
+      </button>
+      <div id="archived-periods" style="display:none;">${archived.map(buildCard).join('')}</div>
+    </div>`;
+  }
+  html+=active.map(buildCard).join('');
+  el.innerHTML=html;
 }
 async function confirmExpected(weekId,amount,payDate){
   await sb.from('paychecks').insert({user_id:currentUser.id,pay_week_id:weekId,amount,pay_date:payDate,notes:'Recurring income'});
