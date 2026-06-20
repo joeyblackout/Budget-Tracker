@@ -668,6 +668,7 @@ const sb=createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
 let currentUser=null;
 let debts=[],payments=[],expenses=[],weeks=[],paychecks=[],bills=[],billPayments=[],pots=[],savingsTxns=[];
 let billsGroupBy='type';
+let billsCatOpen={};
 let posts=[],reactions=[],profiles=[],myProfile=null;
 let sharedPots=[],sharedMembers=[],sharedTxns=[],sharedInvites=[];
 let assets=[];
@@ -1685,7 +1686,16 @@ function renderBills(){
     groupedHTML=cats.map(cat=>{
       const group=bills.filter(b=>(b.category||'Uncategorized')===cat);
       const catTotal=group.reduce((s,b)=>s+parseFloat(b.amount||0),0);
-      return`<div class="card-title" style="margin-top:8px;">${esc(cat)} <span style="font-weight:500;color:var(--muted);font-size:12px;">· ${fmt(catTotal)}/mo</span></div><div class="card" style="padding:0 18px;">${group.map(billCard).join('')}</div>`;
+      const isOpen=!!billsCatOpen[cat];
+      const paidCount=group.filter(b=>billPayments.some(p=>p.bill_id===b.id&&(p.paid_date||'').startsWith(thisMonth))).length;
+      return`<div onclick="billsCatOpen['${esc(cat)}']=!billsCatOpen['${esc(cat)}'];renderBills();" style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:var(--surface);border-radius:var(--radius-sm);margin-top:6px;cursor:pointer;user-select:none;">
+        <div>
+          <div style="font-size:13px;font-weight:700;">${esc(cat)}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px;">${paidCount}/${group.length} paid · ${fmt(catTotal)}</div>
+        </div>
+        <span style="font-size:16px;color:var(--muted);">${isOpen?'▲':'▼'}</span>
+      </div>
+      ${isOpen?`<div class="card" style="padding:0 18px;margin-top:2px;border-top-left-radius:0;border-top-right-radius:0;">${group.map(billCard).join('')}</div>`:''}`;
     }).join('');
   } else {
     groupedHTML=`
