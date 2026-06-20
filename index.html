@@ -2286,16 +2286,24 @@ function showDebtDetail(debtId){
 
 // BUDGET TARGETS (#2)
 let budgetTargets=JSON.parse(localStorage.getItem('bt-budget-targets')||'{}');
+let budgetTargetsOpen=localStorage.getItem('bt-budget-open')!=='false';
 function saveBudgetTargets(){localStorage.setItem('bt-budget-targets',JSON.stringify(budgetTargets));}
+function toggleBudgetTargets(){budgetTargetsOpen=!budgetTargetsOpen;localStorage.setItem('bt-budget-open',budgetTargetsOpen);renderExpenses();}
 function renderBudgetTargets(){
   const thisMonth=new Date().toISOString().slice(0,7);
   const monthExpenses=expenses.filter(e=>(e.exp_date||'').startsWith(thisMonth));
   const byCategory={};
   monthExpenses.forEach(e=>{if(!byCategory[e.category])byCategory[e.category]=0;byCategory[e.category]+=parseFloat(e.amount||0);});
   const cats=['Groceries','Gas Station','Dining / DoorDash','Nicotine','Entertainment','Household Supplies','Other'];
+  // Count any over-budget categories for badge when collapsed
+  const overCount=cats.filter(cat=>{const t=budgetTargets[cat];return t&&(byCategory[cat]||0)>t;}).length;
   return`<div class="card" style="margin-bottom:14px;">
-    <div style="font-size:16px;font-weight:800;margin-bottom:4px;">🎯 Monthly Budget Targets</div>
-    <div style="font-size:12px;color:var(--muted);margin-bottom:14px;">Set spending limits per category. Tap a target to edit it.</div>
+    <div onclick="toggleBudgetTargets()" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;${budgetTargetsOpen?'margin-bottom:12px;':''}">
+      <div style="font-size:16px;font-weight:800;">🎯 Monthly Budget Targets${!budgetTargetsOpen&&overCount>0?`<span style="margin-left:8px;font-size:11px;font-weight:700;background:rgba(247,90,90,0.2);color:var(--danger);padding:2px 8px;border-radius:99px;">${overCount} over</span>`:''}</div>
+      <span style="font-size:18px;color:var(--muted);font-weight:300;">${budgetTargetsOpen?'−':'+'}</span>
+    </div>
+    ${budgetTargetsOpen?`
+    <div style="font-size:12px;color:var(--muted);margin-bottom:14px;">Set spending limits per category. Tap ✏️ to edit.</div>
     ${cats.map(cat=>{
       const spent=byCategory[cat]||0;
       const target=budgetTargets[cat]||0;
@@ -2308,7 +2316,7 @@ function renderBudgetTargets(){
         </div>
         ${target>0?`<div class="progress-bar" style="height:6px;"><div class="progress-fill" style="width:${pct}%;background:${over?'var(--danger)':pct>80?'var(--warning)':'var(--success)'}"></div></div>`:`<button onclick="editBudgetTarget('${cat}')" style="font-size:11px;color:var(--muted);background:none;border:1px dashed var(--border);border-radius:4px;padding:3px 8px;cursor:pointer;">+ Set target</button>`}
       </div>`;
-    }).join('')}
+    }).join('')}`:''}
   </div>`;
 }
 function editBudgetTarget(cat){
