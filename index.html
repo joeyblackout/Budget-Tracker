@@ -930,17 +930,32 @@ function renderDashboard(){
         ${debts.map(d=>{const bal=parseFloat(d.balance||0);const lim=parseFloat(d.credit_limit||0);const u=lim>0?(bal/lim)*100:null;return`<div class="account-row"><div><div class="account-name">${esc(d.name)}</div><div class="account-detail">${esc(d.type)} · APR ${parseFloat(d.apr||0).toFixed(1)}% · Min ${fmt(d.min_payment||0)}</div>${u!==null?`<span class="util-badge ${u>100?'util-over':u>30?'util-high':'util-ok'}">${u.toFixed(0)}% util</span>`:''}</div><div class="account-balance ${bal>0?'text-danger':''}">${fmt(bal)}</div></div>`;}).join('')}
       </div>`;
   } else if(dashSection==='savings'){
+    // Shared pot balances
+    const sharedPotTotals={};
+    sharedTxns.forEach(t=>{if(!sharedPotTotals[t.pot_id])sharedPotTotals[t.pot_id]=0;sharedPotTotals[t.pot_id]+=(t.type==='deposit'?parseFloat(t.amount||0):-(parseFloat(t.amount||0)));});
     sectionContent=`
       <div class="card">
-        <div class="card-title">Savings Pots</div>
+        <div class="card-title">Personal Pots</div>
         ${pots.length===0?`<div style="text-align:center;padding:20px;color:var(--muted);font-size:14px;">No pots yet — add one in the Savings tab</div>`:
         pots.map(p=>{
           const bal=Math.max(0,potTotals[p.id]||0);
           const goal=parseFloat(p.goal_amount||0);
           const prog=goal>0?Math.min((bal/goal)*100,100):null;
-          return`<div class="account-row"><div><div class="account-name">${p.emoji||'💰'} ${esc(p.name)}</div>${goal>0?`<div class="account-detail">Goal: ${fmt(goal)}</div>`:''}${prog!==null?`<div style="margin-top:6px;"><div class="progress-bar" style="width:120px;"><div class="progress-fill" style="width:${prog}%"></div></div></div>`:''}</div><div class="account-balance text-success">${fmt(bal)}</div></div>`;
+          return`<div class="account-row" onclick="switchView('savings',null)" style="cursor:pointer;"><div><div class="account-name">${p.emoji||'💰'} ${esc(p.name)}</div>${goal>0?`<div class="account-detail">Goal: ${fmt(goal)}</div>`:''}${prog!==null?`<div style="margin-top:6px;"><div class="progress-bar" style="width:120px;"><div class="progress-fill" style="width:${prog}%"></div></div></div>`:''}</div><div class="account-balance text-success">${fmt(bal)}</div></div>`;
         }).join('')}
-      </div>`;
+      </div>
+      ${sharedPots.length>0?`<div class="card">
+        <div class="card-title">Shared Pots</div>
+        ${sharedPots.map(p=>{
+          const bal=Math.max(0,sharedPotTotals[p.id]||0);
+          const mine=Math.max(0,sharedTxns.filter(t=>t.pot_id===p.id&&t.user_id===currentUser.id).reduce((s,t)=>s+(t.type==='deposit'?parseFloat(t.amount||0):-(parseFloat(t.amount||0))),0));
+          const goal=parseFloat(p.goal_amount||0);
+          const prog=goal>0?Math.min((bal/goal)*100,100):null;
+          const members=sharedMembers.filter(m=>m.pot_id===p.id);
+          const others=members.filter(m=>m.user_id!==currentUser.id).map(m=>displayName(m.user_id));
+          return`<div class="account-row" onclick="switchView('shared',null)" style="cursor:pointer;"><div><div class="account-name">${p.emoji||'🤝'} ${esc(p.name)}</div><div class="account-detail">${others.length>0?'With: '+others.join(', '):'Just you'} · Your share: ${fmt(mine)}</div>${prog!==null?`<div style="margin-top:6px;"><div class="progress-bar" style="width:120px;"><div class="progress-fill" style="width:${prog}%"></div></div></div>`:''}</div><div class="account-balance text-success">${fmt(bal)}</div></div>`;
+        }).join('')}
+      </div>`:''}`;
   }
 
   el.innerHTML=`
