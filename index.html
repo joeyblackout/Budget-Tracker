@@ -631,7 +631,18 @@ function closeSidebar(){document.getElementById('sidebar').classList.remove('ope
 function sideNav(name){closeSidebar();switchView(name,null);}
 
 // DATA
-async function loadAll(){await Promise.all([loadDebts(),loadPayments(),loadExpenses(),loadWeeks(),loadPaychecks(),loadBills(),loadBillPayments(),loadPots(),loadSavingsTxns(),loadProfiles(),loadPosts(),loadReactions(),loadShared(),loadRecurring()]);renderDashboard();}
+async function loadAll(){await Promise.all([loadDebts(),loadPayments(),loadExpenses(),loadWeeks(),loadPaychecks(),loadBills(),loadBillPayments(),loadPots(),loadSavingsTxns(),loadProfiles(),loadPosts(),loadReactions(),loadShared(),loadRecurring()]);await topUpPeriods();renderDashboard();}
+async function topUpPeriods(){
+  // Extend any existing recurring sources out to 12 months if they're short
+  if(recurringSources.length===0)return;
+  let added=false;
+  for(const rec of recurringSources){
+    const before=weeks.length;
+    await generatePeriods(rec);
+    added=true;
+  }
+  if(added){await Promise.all([loadWeeks(),loadPaychecks()]);}
+}
 async function loadDebts(){const{data}=await sb.from('debts').select('*').eq('user_id',currentUser.id).order('created_at');debts=data||[];}
 async function loadPayments(){const{data}=await sb.from('payments').select('*').eq('user_id',currentUser.id).order('pay_date',{ascending:false});payments=data||[];}
 async function loadExpenses(){const{data}=await sb.from('expenses').select('*').eq('user_id',currentUser.id).order('exp_date',{ascending:false});expenses=data||[];}
@@ -1492,12 +1503,11 @@ async function saveRecurring(){
   document.getElementById('rec-amount').value='';
 }
 async function generatePeriods(rec){
-  // Generate pay periods ~3 months out
-  const horizon=new Date();horizon.setMonth(horizon.getMonth()+3);
-  let d=rec.next_date;
+  // Generate pay periods ~12 months out so the annual forecast has data
+  const horizon=new Date();horizon.setMonth(horizon.getMonth()+12);
   const existing=weeks.map(w=>w.pay_date);
   const newPeriods=[];
-  for(let count=0;count<24;count++){
+  for(let count=0;count<60;count++){
     const periodDate=count===0?rec.next_date:addInterval(rec.next_date,rec.frequency,count);
     if(new Date(periodDate+'T00:00:00')>horizon)break;
     if(!existing.includes(periodDate)){
