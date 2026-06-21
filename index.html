@@ -2365,6 +2365,7 @@ async function saveRecurring(){
   }else{
     const{data:rec,error}=await sb.from('recurring_income').insert({user_id:currentUser.id,name,amount,frequency,next_date:start,end_date:end}).select().single();
     if(error){toast('Error: '+error.message);return;}
+    await loadWeeks();
     await generatePeriods(rec);
     toast('Recurring source added ✓');
   }
@@ -2377,12 +2378,12 @@ async function generatePeriods(rec){
   const horizon=new Date();horizon.setMonth(horizon.getMonth()+12);
   const endDate=rec.end_date?new Date(rec.end_date+'T00:00:00'):null;
   const cutoff=endDate&&endDate<horizon?endDate:horizon;
-  const existing=weeks.map(w=>w.pay_date);
   const newPeriods=[];
   for(let count=0;count<60;count++){
     const periodDate=count===0?rec.next_date:addInterval(rec.next_date,rec.frequency,count);
     if(new Date(periodDate+'T00:00:00')>cutoff)break;
-    if(!existing.includes(periodDate)){
+    const alreadyExists=weeks.some(w=>w.pay_date===periodDate&&w.source_name===rec.name);
+    if(!alreadyExists){
       newPeriods.push({user_id:currentUser.id,pay_date:periodDate,bills_amount:0,expected_amount:rec.amount,source_name:rec.name});
     }
   }
