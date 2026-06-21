@@ -1007,6 +1007,11 @@ function renderForecast(){
       <div style="font-size:12px;color:var(--muted);margin-bottom:10px;font-weight:600;">Select dates above</div>
       <div class="empty"><div class="icon"><i class="ti ti-calendar"></i></div><p>Pick a date range above and tap Apply to see your forecast.</p></div>`;
     return;
+  } else if(forecastWindow==='annual'){
+    const yr=todayDate.getFullYear();
+    const startOfYear=new Date(yr,0,1);
+    endDate=new Date(yr,11,31);
+    winLabel='Annual · '+fmtDate(startOfYear.toISOString().slice(0,10))+' → '+fmtDate(endDate.toISOString().slice(0,10));
   } else {
     const win=windows[forecastWindow];
     endDate=new Date(todayDate);endDate.setDate(endDate.getDate()+win.days);
@@ -1118,7 +1123,7 @@ function renderForecast(){
       <button class="btn btn-primary" style="padding:11px 18px;width:auto;" onclick="applyCustomForecast()">Apply</button>
     </div>`:''}
     <div class="balance-card">
-      <div class="balance-label">Projected Balance · ${forecastWindow==='custom'?'Custom · '+dateRangeLabel:winLabel+' · '+dateRangeLabel}</div>
+      <div class="balance-label">Projected Balance · ${forecastWindow==='custom'?'Custom · '+dateRangeLabel:forecastWindow==='annual'?winLabel:winLabel+' · '+dateRangeLabel}</div>
       <div class="balance-amount ${endBalance>=0?'text-success':'text-danger'}">${fmt(endBalance)}</div>
       <div style="font-size:12px;color:var(--muted);margin-bottom:14px;">Starting from ${fmt(startBalance)} cash on hand today</div>
       <div class="balance-breakdown">
