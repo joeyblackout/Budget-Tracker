@@ -614,6 +614,11 @@ select option{background:var(--surface);color:var(--text);}
   <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal('shared-history-modal')">Close</button></div>
 </div></div>
 
+<!-- PAYDAY MODE MODAL -->
+<div class="modal-overlay" id="payday-modal"><div class="modal" style="max-height:85vh;overflow-y:auto;">
+  <div class="modal-handle"></div>
+  <div id="payday-modal-content"></div>
+</div></div>
 <!-- PAY ALL DUE MODAL -->
 <div class="modal-overlay" id="pay-all-due-modal"><div class="modal">
   <div class="modal-handle"></div>
@@ -1081,6 +1086,227 @@ function showUtilBreakdown(){
   openDashModal('CC Utilization',rows||'<div class="empty"><p>No credit cards added yet.</p></div>','debts');
 }
 function setDashSection(s){dashSection=s;renderDashboard();}
+
+// PAYDAY MODE
+let paydayStep=1;
+let paydayWeeks=[];
+let paydayConfirmedAmount=0;
+let paydayBillsPaid=0;
+let paydaySaved=0;
+
+function getPendingPaydays(){
+  const todayStr=today();
+  return weeks.filter(w=>w.pay_date<=todayStr&&paychecks.filter(p=>p.pay_week_id===w.id).length===0);
+}
+
+function openPaydayMode(){
+  paydayWeeks=getPendingPaydays();
+  if(paydayWeeks.length===0)return;
+  paydayStep=1;paydayConfirmedAmount=0;paydayBillsPaid=0;paydaySaved=0;
+  renderPaydayStep();
+  openModal('payday-modal');
+}
+
+function renderPaydayStep(){
+  const el=document.getElementById('payday-modal-content');
+  if(!el)return;
+  const prog=`<div style="display:flex;align-items:center;gap:8px;margin-bottom:18px;">
+    ${[1,2,3].map(n=>`<div style="display:flex;align-items:center;gap:6px;">
+      <div style="width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;background:${n<=paydayStep?'var(--accent)':'var(--surface2)'};color:${n<=paydayStep?'#fff':'var(--muted)'};">${n}</div>
+      <span style="font-size:12px;font-weight:${n===paydayStep?'700':'400'};color:${n===paydayStep?'var(--text)':'var(--muted)'};">${['Paycheck','Bills','Savings'][n-1]}</span>
+    </div>${n<3?'<div style="flex:1;height:2px;background:'+( n<paydayStep?'var(--accent)':'var(--border)')+'"></div>':''}`).join('')}
+  </div>`;
+  if(paydayStep===1)el.innerHTML=prog+renderPaydayStep1();
+  else if(paydayStep===2)el.innerHTML=prog+renderPaydayStep2();
+  else el.innerHTML=prog+renderPaydayStep3();
+}
+
+function renderPaydayStep1(){
+  const rows=paydayWeeks.map(w=>{
+    const expected=parseFloat(w.expected_amount||0);
+    return`<div style="background:rgba(247,201,72,0.08);border:1px solid rgba(247,201,72,0.3);border-radius:var(--radius-sm);padding:14px;margin-bottom:10px;">
+      <div style="font-size:13px;font-weight:700;margin-bottom:4px;">${esc(w.source_name||'Pay Period')} · ${fmtDate(w.pay_date)}</div>
+      ${expected>0?`<div style="font-size:22px;font-weight:800;color:var(--warning);margin-bottom:12px;">${fmt(expected)}</div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-success" style="flex:1;padding:11px;" onclick="paydayConfirmExpected('${w.id}',${expected},'${w.pay_date}')">✓ Received ${fmt(expected)}</button>
+          <button class="btn btn-ghost" style="flex:1;padding:11px;" onclick="paydayDifferentAmount('${w.id}','${w.pay_date}')">Different amount</button>
+        </div>`
+      :`<input id="payday-custom-${w.id}" type="number" placeholder="Enter amount" step="0.01" min="0" style="width:100%;box-sizing:border-box;padding:9px 10px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:14px;margin-bottom:8px;">
+        <button class="btn btn-success" style="width:100%;" onclick="paydayConfirmCustom('${w.id}','${w.pay_date}')">✓ Confirm</button>`}
+    </div>`;
+  }).join('');
+  return`<div class="modal-title" style="margin-bottom:14px;">Confirm Your Paycheck</div>${rows}
+    <button class="btn btn-ghost" style="width:100%;margin-top:4px;" onclick="closeModal('payday-modal')">Exit</button>`;
+}
+
+async function paydayConfirmExpected(weekId,amount,payDate){
+  await sb.from('paychecks').insert({user_id:currentUser.id,pay_week_id:weekId,amount,pay_date:payDate,notes:'Recurring income'});
+  paydayConfirmedAmount+=amount;
+  paydayWeeks=paydayWeeks.filter(w=>w.id!==weekId);
+  await loadPaychecks();
+  if(paydayWeeks.length===0){paydayStep=2;renderPaydayStep();}
+  else renderPaydayStep();
+}
+
+function paydayDifferentAmount(weekId,payDate){
+  const w=paydayWeeks.find(x=>x.id===weekId);
+  if(!w)return;
+  // Replace expected card with input
+  w.expected_amount=0;
+  renderPaydayStep();
+}
+
+async function paydayConfirmCustom(weekId,payDate){
+  const inp=document.getElementById('payday-custom-'+weekId);
+  const amount=parseFloat(inp?.value||0);
+  if(!amount||amount<=0){toast('Enter a valid amount');return;}
+  await sb.from('paychecks').insert({user_id:currentUser.id,pay_week_id:weekId,amount,pay_date:payDate,notes:null});
+  paydayConfirmedAmount+=amount;
+  paydayWeeks=paydayWeeks.filter(w=>w.id!==weekId);
+  await loadPaychecks();
+  if(paydayWeeks.length===0){paydayStep=2;renderPaydayStep();}
+  else renderPaydayStep();
+}
+
+function renderPaydayStep2(){
+  const due=getDueBills();
+  if(due.length===0){
+    paydayStep=3;renderPaydayStep();return'';
+  }
+  const total=due.reduce((s,b)=>s+parseFloat(b.amount||0),0);
+  const rows=due.map(b=>`<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border);">
+    <input type="checkbox" id="payday-bill-${b.id}" checked style="width:18px;height:18px;flex-shrink:0;cursor:pointer;" onchange="paydayUpdateBillTotal()">
+    <div style="flex:1;font-size:13px;">${esc(b.name)}</div>
+    <div style="font-weight:700;color:var(--danger);">-${fmt(b.amount)}</div>
+  </div>`).join('');
+  return`<div class="modal-title" style="margin-bottom:14px;">Pay Due Bills</div>
+    <div style="margin-bottom:12px;">${rows}</div>
+    <div id="payday-bill-total" style="display:flex;justify-content:space-between;font-size:14px;font-weight:800;padding:10px 0;margin-bottom:14px;">
+      <span>Selected Total</span><span style="color:var(--danger);">-${fmt(total)}</span>
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-ghost" style="flex:1;" onclick="paydaySkipBills()">Skip</button>
+      <button class="btn btn-success" style="flex:1;" onclick="paydayPayBills()">Pay Selected</button>
+    </div>
+    <button class="btn btn-ghost" style="width:100%;margin-top:8px;" onclick="closeModal('payday-modal')">Exit</button>`;
+}
+
+function paydayUpdateBillTotal(){
+  const due=getDueBills();
+  const checked=due.filter(b=>document.getElementById('payday-bill-'+b.id)?.checked);
+  const total=checked.reduce((s,b)=>s+parseFloat(b.amount||0),0);
+  const el=document.getElementById('payday-bill-total');
+  if(el)el.innerHTML=`<span>Selected Total</span><span style="color:var(--danger);">-${fmt(total)}</span>`;
+}
+
+async function paydayPayBills(){
+  const due=getDueBills();
+  const checked=due.filter(b=>document.getElementById('payday-bill-'+b.id)?.checked);
+  for(const b of checked){
+    await sb.from('bill_payments').insert({user_id:currentUser.id,bill_id:b.id,amount:parseFloat(b.amount),paid_date:today(),notes:b.name});
+    if(b.debt_id){
+      const debt=debts.find(d=>d.id===b.debt_id);
+      if(debt){
+        const newBal=Math.max(0,parseFloat(debt.balance||0)-parseFloat(b.amount));
+        await sb.from('debts').update({balance:newBal}).eq('id',debt.id);
+        await sb.from('payments').insert({user_id:currentUser.id,debt_id:debt.id,amount:parseFloat(b.amount),pay_date:today(),notes:`Min payment via ${b.name}`});
+      }
+    }
+  }
+  paydayBillsPaid=checked.length;
+  await Promise.all([loadBillPayments(),loadDebts(),loadPayments()]);
+  paydayStep=3;renderPaydayStep();
+}
+
+function paydaySkipBills(){paydayStep=3;renderPaydayStep();}
+
+function renderPaydayStep3(){
+  if(pots.length===0){
+    return`<div class="modal-title" style="margin-bottom:14px;">All Done! 🎉</div>
+      ${renderPaydaySummary(0)}
+      <button class="btn btn-primary" style="width:100%;margin-top:14px;" onclick="paydayFinish()">Close</button>`;
+  }
+  const potTotals={};
+  savingsTxns.forEach(t=>{if(!potTotals[t.pot_id])potTotals[t.pot_id]=0;potTotals[t.pot_id]+=(t.type==='deposit'||t.type==='transfer_in')?parseFloat(t.amount||0):-(parseFloat(t.amount||0));});
+  const rows=pots.map(p=>{
+    const bal=Math.max(0,potTotals[p.id]||0);
+    const goal=parseFloat(p.goal_amount||0);
+    return`<div style="padding:10px 0;border-bottom:1px solid var(--border);">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+        <div>
+          <div style="font-size:13px;font-weight:700;">${p.emoji||'💰'} ${esc(p.name)}</div>
+          <div style="font-size:11px;color:var(--muted);">${fmt(bal)} saved${goal>0?' · Goal: '+fmt(goal):''}</div>
+        </div>
+        <input id="payday-pot-${p.id}" type="number" min="0" step="0.01" placeholder="$0"
+          style="width:90px;padding:7px 8px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:13px;text-align:right;"
+          oninput="paydayUpdateSavingsTotal()">
+      </div>
+    </div>`;
+  }).join('');
+  const allocLabel=paydayConfirmedAmount>0?`of ${fmt(paydayConfirmedAmount)} received`:'';
+  return`<div class="modal-title" style="margin-bottom:14px;">Allocate to Savings</div>
+    <div style="margin-bottom:12px;">${rows}</div>
+    <div id="payday-savings-total" style="display:flex;justify-content:space-between;font-size:14px;font-weight:800;padding:10px 0;margin-bottom:14px;">
+      <span>Allocating</span><span style="color:var(--success);">${fmt(0)} ${allocLabel}</span>
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-ghost" style="flex:1;" onclick="paydayFinish()">Skip</button>
+      <button class="btn btn-success" style="flex:1;" onclick="paydaySaveDeposits()">Save &amp; Finish</button>
+    </div>`;
+}
+
+function paydayUpdateSavingsTotal(){
+  const total=pots.reduce((s,p)=>{const v=parseFloat(document.getElementById('payday-pot-'+p.id)?.value||0)||0;return s+v;},0);
+  const el=document.getElementById('payday-savings-total');
+  const allocLabel=paydayConfirmedAmount>0?`of ${fmt(paydayConfirmedAmount)} received`:'';
+  if(el)el.innerHTML=`<span>Allocating</span><span style="color:var(--success);">${fmt(total)} ${allocLabel}</span>`;
+}
+
+async function paydaySaveDeposits(){
+  let saved=0;
+  for(const p of pots){
+    const amount=parseFloat(document.getElementById('payday-pot-'+p.id)?.value||0)||0;
+    if(amount<=0)continue;
+    await sb.from('savings_transactions').insert({user_id:currentUser.id,pot_id:p.id,type:'deposit',amount,txn_date:today(),notes:'Payday deposit'});
+    saved+=amount;
+  }
+  paydaySaved=saved;
+  await loadSavingsTxns();
+  paydayFinish();
+}
+
+function renderPaydaySummary(savedAmt){
+  const todayStr=today();
+  const totalIncome=paychecks.filter(p=>(p.pay_date||'')<=todayStr).reduce((s,p)=>s+parseFloat(p.amount||0),0);
+  const totalExpenses=expenses.reduce((s,e)=>s+parseFloat(e.amount||0),0);
+  const totalPaid=payments.reduce((s,p)=>s+parseFloat(p.amount||0),0);
+  const totalBillsPaid=billPayments.reduce((s,b)=>s+parseFloat(b.amount||0),0);
+  const totalSaved=savingsTxns.filter(t=>t.type==='deposit'&&t.notes!=='__starting_balance__').reduce((s,t)=>s+parseFloat(t.amount||0),0)-savingsTxns.filter(t=>t.type==='withdraw').reduce((s,t)=>s+parseFloat(t.amount||0),0);
+  const startingCash=myProfile?.starting_cash?parseFloat(myProfile.starting_cash):0;
+  const mySharedNet=sharedTxns.filter(t=>t.user_id===currentUser.id).reduce((s,t)=>s+(t.type==='deposit'?parseFloat(t.amount||0):-(parseFloat(t.amount||0))),0);
+  const newBal=startingCash+totalIncome-totalPaid-totalExpenses-totalBillsPaid-totalSaved-mySharedNet;
+  return`<div style="background:rgba(45,212,160,0.08);border:1px solid rgba(45,212,160,0.3);border-radius:var(--radius-sm);padding:16px;">
+    <div style="font-size:14px;font-weight:700;margin-bottom:10px;">🎉 Payday complete!</div>
+    ${paydayConfirmedAmount>0?`<div style="display:flex;justify-content:space-between;font-size:13px;padding:5px 0;"><span style="color:var(--muted);">Paycheck confirmed</span><span style="color:var(--success);font-weight:700;">+${fmt(paydayConfirmedAmount)}</span></div>`:''}
+    ${paydayBillsPaid>0?`<div style="display:flex;justify-content:space-between;font-size:13px;padding:5px 0;"><span style="color:var(--muted);">${paydayBillsPaid} bill${paydayBillsPaid!==1?'s':''} paid</span><span style="color:var(--danger);font-weight:700;">bills cleared</span></div>`:''}
+    ${savedAmt>0?`<div style="display:flex;justify-content:space-between;font-size:13px;padding:5px 0;"><span style="color:var(--muted);">Saved</span><span style="color:var(--accent);font-weight:700;">+${fmt(savedAmt)}</span></div>`:''}
+    <div style="border-top:1px solid var(--border);margin-top:8px;padding-top:8px;display:flex;justify-content:space-between;font-size:15px;font-weight:800;"><span>New Balance</span><span style="color:${newBal>=0?'var(--success)':'var(--danger)'};">${fmt(newBal)}</span></div>
+  </div>`;
+}
+
+async function paydayFinish(){
+  closeModal('payday-modal');
+  await Promise.all([loadPaychecks(),loadBillPayments(),loadDebts(),loadPayments(),loadSavingsTxns()]);
+  renderDashboard();renderBills();updateBillBadge();
+  if(paydayBillsPaid>0||paydaySaved>0){
+    const parts=[];
+    if(paydayBillsPaid>0)parts.push(`${paydayBillsPaid} bill${paydayBillsPaid!==1?'s':''} paid`);
+    if(paydaySaved>0)parts.push(`${fmt(paydaySaved)} saved`);
+    toast('Payday complete — '+parts.join(', ')+' ✓');
+  } else {
+    toast('Payday routine complete ✓');
+  }
+}
 function renderDashboard(){
   const el=document.getElementById('dashboard-content');
   if(debts.length===0){el.innerHTML=`<div class="empty"><div class="icon">🚀</div><p>Welcome! Add your debt accounts under <strong>Debts</strong> to get started.</p></div>`;return;}
@@ -1169,6 +1395,13 @@ function renderDashboard(){
         <div class="balance-line" onclick="switchView('savings',null)"><span class="balance-line-label">Saved Total</span><span class="balance-line-val text-success">${fmt(totalInPots)}</span></div>
       </div>
     </div>
+    ${getPendingPaydays().length>0?`<div class="card" onclick="openPaydayMode()" style="cursor:pointer;border-color:var(--accent);background:rgba(79,142,247,0.06);margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;">
+      <div>
+        <div style="font-size:15px;font-weight:700;">🎉 Payday Routine</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:3px;">${getPendingPaydays().length} paycheck${getPendingPaydays().length!==1?'s':''} ready to confirm</div>
+      </div>
+      <span style="font-size:20px;color:var(--accent);">›</span>
+    </div>`:''}
     <div class="stat-grid">
       <div class="stat" onclick="showDebtBreakdown()"><div class="stat-label">Total Debt</div><div class="stat-value danger">${fmt(totalDebt)}</div></div>
       <div class="stat" onclick="showIncomeBreakdown()"><div class="stat-label">Total Raked In 💵</div><div class="stat-value success">${fmt(totalIncome)}</div></div>
