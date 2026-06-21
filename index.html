@@ -367,6 +367,7 @@ select option{background:var(--surface);color:var(--text);}
       <div class="section-head"><div class="section-title">Expenses</div><button class="add-btn" onclick="openExpenseModal()">+</button></div>
       <div id="quick-add-bar"></div>
       <div id="expense-insights"></div>
+      <div id="expense-search-wrap" style="padding:0 16px 4px;"></div>
       <div id="expenses-list"></div>
     </div>
     <div id="view-setup" class="view">
@@ -2563,26 +2564,42 @@ function openQuickAddEditor(){
   };
   openModal('dash-detail-modal');
 }
-function renderExpenses(){
+function renderExpenseSearchBar(){
+  const wrap=document.getElementById('expense-search-wrap');
+  if(!wrap)return;
+  if(!wrap.querySelector('input')){
+    wrap.innerHTML=`<div style="position:relative;margin-bottom:10px;">
+      <input type="text" id="expense-search-input" placeholder="Search expenses…" style="width:100%;box-sizing:border-box;padding:9px 36px 9px 12px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:14px;" oninput="expenseSearch=this.value;renderExpenseXBtn();filterExpenses();">
+      <span id="expense-search-xbtn"></span>
+    </div>`;
+  }
+  const inp=document.getElementById('expense-search-input');
+  if(inp&&inp.value!==expenseSearch)inp.value=expenseSearch;
+  renderExpenseXBtn();
+}
+function renderExpenseXBtn(){
+  const xbtn=document.getElementById('expense-search-xbtn');
+  if(!xbtn)return;
+  if(expenseSearch){
+    xbtn.innerHTML=`<button onclick="expenseSearch='';document.getElementById('expense-search-input').value='';renderExpenseXBtn();filterExpenses();" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--muted);font-size:16px;cursor:pointer;line-height:1;">✕</button>`;
+  } else {
+    xbtn.innerHTML='';
+  }
+}
+function filterExpenses(){
   const el=document.getElementById('expenses-list');
-  renderQuickAddBar();
-  renderInsights();
+  if(!el)return;
   const q=expenseSearch.trim().toLowerCase();
   const filtered=expenses.filter(e=>{
     if(activeFilter&&e.category!==activeFilter)return false;
     if(!q)return true;
     return(e.description||'').toLowerCase().includes(q)||(e.category||'').toLowerCase().includes(q)||(e.notes||'').toLowerCase().includes(q);
   });
-  const searchBar=`<div style="position:relative;margin-bottom:10px;">
-    <input type="text" placeholder="Search expenses…" value="${esc(expenseSearch)}" oninput="expenseSearch=this.value;renderExpenses();" style="width:100%;box-sizing:border-box;padding:9px 36px 9px 12px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:14px;">
-    ${expenseSearch?`<button onclick="expenseSearch='';renderExpenses();" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--muted);font-size:16px;cursor:pointer;line-height:1;">✕</button>`:''}
-  </div>`;
-  if(expenses.length===0){el.innerHTML=renderBudgetTargets()+searchBar+`<div class="empty"><div class="icon">🧾</div><p>No expenses yet. Use the quick buttons above or tap <strong>+</strong> to log one.</p></div>`;return;}
+  if(expenses.length===0){el.innerHTML=renderBudgetTargets()+`<div class="empty"><div class="icon">🧾</div><p>No expenses yet. Use the quick buttons above or tap <strong>+</strong> to log one.</p></div>`;return;}
   const groups={};filtered.forEach(e=>{const mo=(e.exp_date||'').slice(0,7);if(!groups[mo])groups[mo]=[];groups[mo].push(e);});
   const groupEntries=Object.entries(groups).sort((a,b)=>a[0]<b[0]?1:-1);
-  // Most recent month open by default, older ones collapsed by default on first render
   groupEntries.forEach(([mo],i)=>{if(i>0&&!collapsedMonths.has('_opened_'+mo))collapsedMonths.add(mo);});
-  el.innerHTML=renderBudgetTargets()+searchBar+(Object.keys(groups).length===0?`<div style="text-align:center;padding:20px;color:var(--muted);">${q?`No results for "<strong>${esc(expenseSearch)}</strong>".`:'No expenses in this category.'} <button onclick="expenseSearch='';setExpenseFilter(null);renderExpenses();" style="background:none;border:none;color:var(--accent);cursor:pointer;font-weight:700;">Clear</button></div>`:groupEntries.map(([mo,list])=>{
+  el.innerHTML=renderBudgetTargets()+(Object.keys(groups).length===0?`<div style="text-align:center;padding:20px;color:var(--muted);">${q?`No results for "<strong>${esc(expenseSearch)}</strong>".`:'No expenses in this category.'} <button onclick="expenseSearch='';document.getElementById('expense-search-input').value='';renderExpenseXBtn();filterExpenses();setExpenseFilter(null);" style="background:none;border:none;color:var(--accent);cursor:pointer;font-weight:700;">Clear</button></div>`:groupEntries.map(([mo,list])=>{
     const moTotal=list.reduce((s,e)=>s+parseFloat(e.amount||0),0);
     const isCollapsed=collapsedMonths.has(mo);
     return`<div onclick="toggleMonth('${mo}')" style="display:flex;justify-content:space-between;align-items:center;padding:10px 4px;cursor:pointer;user-select:none;">
@@ -2603,6 +2620,12 @@ function renderExpenses(){
       </div>
     </div>`).join('')}</div>`}`;
   }).join(''));
+}
+function renderExpenses(){
+  renderQuickAddBar();
+  renderInsights();
+  renderExpenseSearchBar();
+  filterExpenses();
 }
 function openExpenseModal(){document.getElementById('exp-date').value=today();document.getElementById('exp-amount').value='';document.getElementById('exp-desc').value='';document.getElementById('exp-notes').value='';delete document.getElementById('expense-modal').dataset.weekId;openModal('expense-modal');}
 async function saveExpense(){
@@ -3012,60 +3035,62 @@ function calcFederalTax(gross){
 
 function renderPaycalc(){
   const el=document.getElementById('paycalc-content');
-  const regWage=parseFloat(document.getElementById('pc-reg-wage')?.value||0)||0;
-  const regHours=parseFloat(document.getElementById('pc-reg-hours')?.value||0)||0;
-  const otHours=parseFloat(document.getElementById('pc-ot-hours')?.value||0)||0;
-  const otWage=parseFloat(document.getElementById('pc-ot-wage')?.value||0)||(regWage*1.5);
-  const state=document.getElementById('pc-state')?.value||'Texas';
-
-  const grossReg=regHours*regWage;
-  const grossOT=otHours*otWage;
-  const gross=grossReg+grossOT;
-
-  // Annualize to apply brackets, then de-annualize (assume 26 pay periods biweekly)
-  const periods=26;
-  const annualGross=gross*periods;
-  const federalTax=gross>0?calcFederalTax(annualGross)/periods:0;
-  const socialSecurity=Math.min(gross,168600/periods)*0.062;
-  const medicare=gross*0.0145;
-  const stateTax=gross*(STATE_TAX_RATES[state]||0);
-  const totalDeductions=federalTax+socialSecurity+medicare+stateTax;
-  const netPay=gross-totalDeductions;
-
-  const row=(label,val,color)=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--border);">
-    <span style="font-size:13px;color:var(--muted);">${label}</span>
-    <span style="font-size:14px;font-weight:700;color:${color||'var(--text)'};">${fmt(val)}</span>
-  </div>`;
-
-  const stateOptions=STATES.map(s=>`<option value="${s}"${s===state?' selected':''}>${s}</option>`).join('');
-
+  const stateOptions=STATES.map(s=>`<option value="${s}"${s==='Texas'?' selected':''}>${s}</option>`).join('');
   el.innerHTML=`
     <div class="card" style="margin-bottom:14px;">
       <div style="font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:12px;">Pay Info</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
         <div>
           <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">Regular Hours</div>
-          <input id="pc-reg-hours" type="number" min="0" step="0.5" placeholder="40" value="${regHours||''}" oninput="renderPaycalc()" style="width:100%;box-sizing:border-box;padding:9px 10px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:14px;">
+          <input id="pc-reg-hours" type="number" min="0" step="0.5" placeholder="40" oninput="updatePaycalcOutput()" style="width:100%;box-sizing:border-box;padding:9px 10px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:14px;">
         </div>
         <div>
           <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">Regular Wage ($/hr)</div>
-          <input id="pc-reg-wage" type="number" min="0" step="0.01" placeholder="20.00" value="${regWage||''}" oninput="renderPaycalc()" style="width:100%;box-sizing:border-box;padding:9px 10px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:14px;">
+          <input id="pc-reg-wage" type="number" min="0" step="0.01" placeholder="20.00" oninput="updatePaycalcOTPlaceholder();updatePaycalcOutput()" style="width:100%;box-sizing:border-box;padding:9px 10px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:14px;">
         </div>
         <div>
           <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">Overtime Hours</div>
-          <input id="pc-ot-hours" type="number" min="0" step="0.5" placeholder="0" value="${otHours||''}" oninput="renderPaycalc()" style="width:100%;box-sizing:border-box;padding:9px 10px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:14px;">
+          <input id="pc-ot-hours" type="number" min="0" step="0.5" placeholder="0" oninput="updatePaycalcOutput()" style="width:100%;box-sizing:border-box;padding:9px 10px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:14px;">
         </div>
         <div>
           <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">OT Wage ($/hr)</div>
-          <input id="pc-ot-wage" type="number" min="0" step="0.01" placeholder="${(regWage*1.5).toFixed(2)||'30.00'}" value="${otHours>0||document.getElementById('pc-ot-wage')?.dataset.edited?otWage:''}" oninput="this.dataset.edited='1';renderPaycalc()" style="width:100%;box-sizing:border-box;padding:9px 10px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:14px;">
+          <input id="pc-ot-wage" type="number" min="0" step="0.01" placeholder="30.00" oninput="updatePaycalcOutput()" style="width:100%;box-sizing:border-box;padding:9px 10px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:14px;">
         </div>
       </div>
       <div>
         <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">State</div>
-        <select id="pc-state" onchange="renderPaycalc()" style="width:100%;box-sizing:border-box;padding:9px 10px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:14px;">${stateOptions}</select>
+        <select id="pc-state" onchange="updatePaycalcOutput()" style="width:100%;box-sizing:border-box;padding:9px 10px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:14px;">${stateOptions}</select>
       </div>
     </div>
-    ${gross>0?`
+    <div id="paycalc-output"><div class="card" style="text-align:center;padding:24px;color:var(--muted);">Enter your hours and wage above to see your take-home pay.</div></div>`;
+}
+function updatePaycalcOTPlaceholder(){
+  const regWage=parseFloat(document.getElementById('pc-reg-wage')?.value||0)||0;
+  const otInput=document.getElementById('pc-ot-wage');
+  if(otInput&&!otInput.value)otInput.placeholder=(regWage*1.5).toFixed(2);
+}
+function updatePaycalcOutput(){
+  const out=document.getElementById('paycalc-output');
+  if(!out)return;
+  const regWage=parseFloat(document.getElementById('pc-reg-wage')?.value||0)||0;
+  const regHours=parseFloat(document.getElementById('pc-reg-hours')?.value||0)||0;
+  const otHours=parseFloat(document.getElementById('pc-ot-hours')?.value||0)||0;
+  const otWageInput=parseFloat(document.getElementById('pc-ot-wage')?.value||0)||0;
+  const otWage=otWageInput||(regWage*1.5);
+  const state=document.getElementById('pc-state')?.value||'Texas';
+  const grossReg=regHours*regWage;
+  const grossOT=otHours*otWage;
+  const gross=grossReg+grossOT;
+  if(gross<=0){out.innerHTML='<div class="card" style="text-align:center;padding:24px;color:var(--muted);">Enter your hours and wage above to see your take-home pay.</div>';return;}
+  const periods=26;
+  const federalTax=calcFederalTax(gross*periods)/periods;
+  const socialSecurity=Math.min(gross,168600/periods)*0.062;
+  const medicare=gross*0.0145;
+  const stateTax=gross*(STATE_TAX_RATES[state]||0);
+  const totalDeductions=federalTax+socialSecurity+medicare+stateTax;
+  const netPay=gross-totalDeductions;
+  const row=(label,val,color)=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--border);"><span style="font-size:13px;color:var(--muted);">${label}</span><span style="font-size:14px;font-weight:700;color:${color||'var(--text)'};">${fmt(val)}</span></div>`;
+  out.innerHTML=`
     <div class="card" style="margin-bottom:14px;">
       <div style="font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:4px;">Breakdown</div>
       ${row('Regular Pay ('+regHours+'h × '+fmt(regWage)+')',grossReg,'var(--success)')}
@@ -3075,7 +3100,7 @@ function renderPaycalc(){
       ${row('Federal Income Tax',federalTax,'var(--danger)')}
       ${row('Social Security (6.2%)',socialSecurity,'var(--danger)')}
       ${row('Medicare (1.45%)',medicare,'var(--danger)')}
-      ${stateTax>0?row(`${state} State Tax (${((STATE_TAX_RATES[state]||0)*100).toFixed(2)}%)`,stateTax,'var(--danger)'):`<div style="padding:9px 0;border-bottom:1px solid var(--border);font-size:13px;color:var(--muted);">${state} — No state income tax</div>`}
+      ${stateTax>0?row(state+' State Tax ('+(((STATE_TAX_RATES[state]||0)*100).toFixed(2))+'%)',stateTax,'var(--danger)'):'<div style="padding:9px 0;border-bottom:1px solid var(--border);font-size:13px;color:var(--muted);">'+state+' — No state income tax</div>'}
       ${row('Total Deductions',totalDeductions,'var(--danger)')}
     </div>
     <div class="card" style="background:rgba(45,212,160,0.08);border-color:rgba(45,212,160,0.3);margin-bottom:14px;">
@@ -3083,7 +3108,7 @@ function renderPaycalc(){
       <div style="font-size:32px;font-weight:800;color:var(--success);letter-spacing:-0.02em;">${fmt(netPay)}</div>
       <div style="font-size:12px;color:var(--muted);margin-top:4px;">${((netPay/gross)*100).toFixed(1)}% of gross</div>
       <button onclick="paycalcPrefill=${netPay.toFixed(2)};switchView('weekly',null);toast('Amount pre-filled — open any pay period to log it');" style="margin-top:14px;width:100%;padding:12px;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;border:none;border-radius:99px;font-size:14px;font-weight:700;cursor:pointer;">Use this amount →</button>
-    </div>`:'<div class="card" style="text-align:center;padding:24px;color:var(--muted);">Enter your hours and wage above to see your take-home pay.</div>'}`;
+    </div>`;
 }
 function renderInstructions(){
   const el=document.getElementById('instructions-content');
