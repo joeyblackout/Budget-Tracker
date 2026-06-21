@@ -1627,23 +1627,26 @@ function renderDashboard(){
       </div>
       <button onclick="event.stopPropagation();openPaydayMode();" style="flex-shrink:0;background:var(--success);color:var(--bg);border:none;border-radius:var(--radius-sm);padding:9px 16px;font-size:13px;font-weight:800;cursor:pointer;white-space:nowrap;">Start →</button>
     </div>`:'';})()}
-    <div class="card" style="display:flex;padding:0;overflow:hidden;margin-bottom:14px;">
-      <div onclick="showDebtBreakdown()" style="flex:1;padding:14px 16px;cursor:pointer;">
-        <div class="stat-label">Total Debt</div>
-        <div class="stat-value danger">${fmt(totalDebt)}</div>
+    <div class="card" style="padding:0;overflow:hidden;margin-bottom:14px;">
+      <div style="display:flex;">
+        <div onclick="showDebtBreakdown()" style="flex:1;padding:14px 16px;cursor:pointer;">
+          <div class="stat-label">Total Debt</div>
+          <div class="stat-value danger">${fmt(totalDebt)}</div>
+        </div>
+        <div style="width:1px;background:var(--border);flex-shrink:0;"></div>
+        <div onclick="showUtilBreakdown()" style="flex:1;padding:14px 16px;cursor:pointer;">
+          <div class="stat-label">CC Utilization</div>
+          <div class="stat-value ${util>100?'danger':util>30?'warning':'success'}">${util.toFixed(1)}%</div>
+        </div>
       </div>
-      <div style="width:1px;background:var(--border);flex-shrink:0;"></div>
-      <div onclick="showUtilBreakdown()" style="flex:1;padding:14px 16px;cursor:pointer;">
-        <div class="stat-label">CC Utilization</div>
-        <div class="stat-value ${util>100?'danger':util>30?'warning':'success'}">${util.toFixed(1)}%</div>
-      </div>
-    </div>
-    <div class="card" onclick="showDebtPaidBreakdown()" style="cursor:pointer;">
-      <div class="card-title">Payoff Progress</div>
-      <div class="progress-wrap">
-        <div class="progress-label"><span>${fmt(totalPaid)} paid</span><span>${fmt(totalDebt)} remaining</span></div>
-        <div class="progress-bar"><div class="progress-fill" style="width:${progress}%"></div></div>
-        <div style="text-align:right;font-size:11px;color:var(--accent);margin-top:4px;font-weight:700;">${progress.toFixed(1)}% complete</div>
+      <div style="height:1px;background:var(--border);"></div>
+      <div onclick="showDebtPaidBreakdown()" style="padding:14px 16px;cursor:pointer;">
+        <div class="card-title" style="margin-bottom:10px;">Payoff Progress</div>
+        <div class="progress-wrap">
+          <div class="progress-label"><span>${fmt(totalPaid)} paid</span><span>${fmt(totalDebt)} remaining</span></div>
+          <div class="progress-bar"><div class="progress-fill" style="width:${progress}%"></div></div>
+          <div style="text-align:right;font-size:11px;color:var(--accent);margin-top:4px;font-weight:700;">${progress.toFixed(1)}% complete</div>
+        </div>
       </div>
     </div>
     ${renderNetWorth()}`;
