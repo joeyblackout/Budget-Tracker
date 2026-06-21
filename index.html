@@ -1588,9 +1588,13 @@ function renderDashboard(){
       const tSpent=tCats.reduce((s,c)=>s+(byCatDash[c]||0),0);
       const tRem=tTotal-tSpent;
       const tPct=Math.min((tSpent/tTotal)*100,100);
-      const tSpentCol=tSpent>tTotal?'var(--danger)':'var(--success)';
-      const tRemCol=tRem<0?'var(--danger)':'var(--success)';
-      const tBarCol=tPct>=100?'var(--danger)':tPct>=80?'var(--warning)':'var(--success)';
+      const _tNow=new Date();
+      const _tDays=new Date(_tNow.getFullYear(),_tNow.getMonth()+1,0).getDate();
+      const _tExp=(tTotal/_tDays)*_tNow.getDate();
+      const _tSt=tSpent<=_tExp?'on':tSpent<=_tExp*1.2?'close':'over';
+      const tSpentCol=_tSt==='over'?'var(--danger)':_tSt==='close'?'var(--warning)':'var(--success)';
+      const tRemCol=tRem<0?'var(--danger)':_tSt==='over'?'var(--danger)':_tSt==='close'?'var(--warning)':'var(--success)';
+      const tBarCol=_tSt==='over'?'var(--danger)':_tSt==='close'?'var(--warning)':'var(--success)';
       return'<div class="card" onclick="switchView(\'expenses\',null);setTimeout(()=>{insightsTab=\'budget\';insightsOpen=true;renderInsights();},100);" style="cursor:pointer;">'
         +'<div class="card-title">Expenses Budget This Month</div>'
         +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px;">'
@@ -2857,12 +2861,15 @@ function renderInsights(){
   const targetedCats=Object.keys(budgetTargets);
   let banner='';
   if(targetedCats.length>0){
-    const onTrack=targetedCats.filter(c=>(byCatBanner[c]||0)/budgetTargets[c]<0.8).length;
-    const over=targetedCats.filter(c=>(byCatBanner[c]||0)>=budgetTargets[c]).length;
-    const warn=targetedCats.length-onTrack-over;
-    const bannerColor=over>0?'var(--danger)':warn>0?'var(--warning)':'var(--success)';
+    const _now=new Date();
+    const _daysInMo=new Date(_now.getFullYear(),_now.getMonth()+1,0).getDate();
+    const _elapsed=_now.getDate();
+    const onTrack=targetedCats.filter(c=>{const exp=(budgetTargets[c]/_daysInMo)*_elapsed;return(byCatBanner[c]||0)<=exp;}).length;
+    const overBudget=targetedCats.filter(c=>{const exp=(budgetTargets[c]/_daysInMo)*_elapsed;return(byCatBanner[c]||0)>exp*1.2;}).length;
+    const close=targetedCats.length-onTrack-overBudget;
+    const bannerColor=overBudget>0?'var(--danger)':close>0?'var(--warning)':'var(--success)';
     banner=`<div style="font-size:12px;font-weight:700;color:${bannerColor};margin-bottom:12px;padding:8px 10px;background:rgba(0,0,0,0.2);border-radius:var(--radius-sm);display:flex;justify-content:space-between;align-items:center;">`
-      +`<span>${onTrack} of ${targetedCats.length} categories on track${over>0?' · '+over+' over budget':''}</span>`
+      +`<span>${onTrack} of ${targetedCats.length} categories on track${overBudget>0?' · '+overBudget+' over budget':''}</span>`
       +`<button onclick="setInsightsTab('budget')" style="background:none;border:none;color:var(--accent);font-size:11px;cursor:pointer;font-weight:700;padding:0;">View →</button>`
       +`</div>`;
   }
@@ -2951,9 +2958,14 @@ function renderBudgetInsights(){
   const totalAllSpent=Object.values(byCat).reduce((s,v)=>s+v,0);
   const totalRemaining=totalTarget-totalTargetedSpent;
   const overallPct=Math.min((totalTargetedSpent/totalTarget)*100,100);
-  const spentColor=totalTargetedSpent>totalTarget?'var(--danger)':'var(--success)';
-  const remColor=totalRemaining<0?'var(--danger)':'var(--success)';
-  const barColor=overallPct>=100?'var(--danger)':overallPct>=80?'var(--warning)':'var(--success)';
+  const _nowB=new Date();
+  const _daysInMoB=new Date(_nowB.getFullYear(),_nowB.getMonth()+1,0).getDate();
+  const _elapsedB=_nowB.getDate();
+  const _totalExpected=(totalTarget/_daysInMoB)*_elapsedB;
+  const _overallStatus=totalTargetedSpent<=_totalExpected?'on':totalTargetedSpent<=_totalExpected*1.2?'close':'over';
+  const spentColor=_overallStatus==='over'?'var(--danger)':_overallStatus==='close'?'var(--warning)':'var(--success)';
+  const remColor=totalRemaining<0?'var(--danger)':_overallStatus==='over'?'var(--danger)':_overallStatus==='close'?'var(--warning)':'var(--success)';
+  const barColor=_overallStatus==='over'?'var(--danger)':_overallStatus==='close'?'var(--warning)':'var(--success)';
 
   const summary='<div style="background:var(--surface2);border-radius:var(--radius-sm);padding:14px 16px;margin-bottom:14px;">'
     +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px;">'
@@ -2991,14 +3003,29 @@ function renderBudgetInsights(){
     ?'<tr><td colspan="5" style="padding:8px 6px;font-size:11px;color:var(--muted);font-style:italic;">Tap any target amount to set or edit your monthly budget</td></tr>'
     :'';
 
+  const _now=new Date();
+  const _daysInMo=new Date(_now.getFullYear(),_now.getMonth()+1,0).getDate();
+  const _elapsed=_now.getDate();
+  const paceStatus=(spent,tgt)=>{
+    const exp=(tgt/_daysInMo)*_elapsed;
+    if(spent<=exp)return'on';
+    if(spent<=exp*1.2)return'close';
+    return'over';
+  };
+
   const tableRows=targetedTableCats.map(cat=>{
     const tgt=budgetTargets[cat];
     const spent=byCat[cat]||0;
     const rem=tgt-spent;
     const pct=Math.min((spent/tgt)*100,100);
-    const over=rem<0;
-    const rc=over?'var(--danger)':'var(--success)';
-    const bc=over?'var(--danger)':pct>=80?'var(--warning)':'var(--success)';
+    const status=paceStatus(spent,tgt);
+    const bc=status==='over'?'var(--danger)':status==='close'?'var(--warning)':'var(--success)';
+    const rc=rem<0?'var(--danger)':status==='over'?'var(--danger)':status==='close'?'var(--warning)':'var(--success)';
+    const badge=status==='over'
+      ?'<span style="font-size:9px;font-weight:700;color:var(--danger);margin-left:4px;white-space:nowrap;">✕ Over Budget</span>'
+      :status==='close'
+        ?'<span style="font-size:9px;font-weight:700;color:var(--warning);margin-left:4px;white-space:nowrap;">⚠ Getting Close</span>'
+        :'<span style="font-size:9px;font-weight:700;color:var(--success);margin-left:4px;white-space:nowrap;">✓ On Track</span>';
     const col=catColorMap[cat]||'var(--accent)';
     const isEditing=budgetEditingCat===cat;
     const tgtCell=isEditing
@@ -3014,7 +3041,7 @@ function renderBudgetInsights(){
       +'<td style="padding:7px 6px;font-size:12px;font-weight:600;"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:'+col+';margin-right:5px;vertical-align:middle;"></span>'+esc(cat)+'</td>'
       +tgtCell
       +'<td style="padding:7px 6px;font-size:12px;text-align:right;">'+fmt(spent)+'</td>'
-      +'<td style="padding:7px 6px;font-size:12px;font-weight:700;color:'+rc+';text-align:right;">'+(over?'-':'')+fmt(Math.abs(rem))+'</td>'
+      +'<td style="padding:7px 6px;font-size:12px;font-weight:700;color:'+rc+';text-align:right;"><span>'+(rem<0?'-':'')+fmt(Math.abs(rem))+'</span>'+badge+'</td>'
       +'<td style="padding:7px 6px;min-width:60px;"><div style="height:5px;background:var(--surface2);border-radius:3px;overflow:hidden;"><div style="width:'+pct+'%;height:100%;background:'+bc+';border-radius:3px;"></div></div></td>'
       +'</tr>';
   }).join('');
@@ -3169,8 +3196,23 @@ function renderTrendsInsights(){
     const targetLine=targetY!==null
       ?`<line x1="0" y1="${targetY}" x2="${lineWidth}" y2="${targetY}" stroke="var(--warning)" stroke-width="1.5" stroke-dasharray="3,2" opacity="0.8"/>`
       :'';
-    const latestOverTarget=periodTarget>0&&latestVal>periodTarget;
-    const latestLabelColor=periodTarget>0?(latestOverTarget?'var(--danger)':latestVal/periodTarget>=0.8?'var(--warning)':'var(--muted)'):'var(--muted)';
+    const latestLabelColor=(()=>{
+      if(!periodTarget)return'var(--muted)';
+      if(trendsWindow==='weekly'){
+        // For the most recent (current) week use days-elapsed pace; for past weeks compare to full week target
+        const isCurrentWk=periods[periods.length-1]&&periods[periods.length-1].start<=now.toISOString().slice(0,10)&&periods[periods.length-1].end>=now.toISOString().slice(0,10);
+        if(isCurrentWk){
+          const dayOfWk=((now.getDay()+6)%7)+1;
+          const expected=(periodTarget/7)*dayOfWk;
+          if(latestVal<=expected)return'var(--success)';
+          if(latestVal<=expected*1.2)return'var(--warning)';
+          return'var(--danger)';
+        }
+      }
+      if(latestVal<=periodTarget)return'var(--success)';
+      if(latestVal<=periodTarget*1.2)return'var(--warning)';
+      return'var(--danger)';
+    })();
     return`<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);">
       <div style="width:8px;height:8px;border-radius:50%;background:${col};flex-shrink:0;"></div>
       <div style="flex:1;min-width:0;"><div style="font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(cat)}</div><div style="font-size:11px;color:${latestLabelColor};font-weight:${periodTarget>0?'700':'400'};">${fmt(latestVal)} ${latestLabel}</div></div>
