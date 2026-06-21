@@ -3149,6 +3149,7 @@ function renderInstructions(){
       ['How do I see payment history for one debt?','Tap the History button on any debt card to see that account\'s full payment history and totals.'],
       ['What is ⚡ Sync Debts on Bills?','Creates a monthly bill for each debt\'s minimum payment automatically. Tap it once — it updates whenever your minimums change. Hover the ℹ️ for a full explanation.'],
       ['Does marking a bill paid update my debt?','Yes — bills linked to a debt (via Sync Debts) automatically log a debt payment and decrement the balance when marked paid. Undo reverses both.'],
+      ['Can I collapse debt cards?','Yes — tap any debt card header or the ▼ chevron to collapse it and hide the details. Tap again to expand. All cards start expanded by default.'],
     ])}
     ${section('🏠','Bills',[
       ['How do I add a bill?','Tap + on the Bills tab. Enter the name, amount, due day of the month, category, and frequency.'],
@@ -3166,7 +3167,8 @@ function renderInstructions(){
       ['How do I quickly log an expense?','Use the quick-add buttons at the top of the Expenses tab — tap a category button, enter the amount, tap Log It. Two taps total.'],
       ['Can I customize the quick-add buttons?','Tap the Edit button in the quick-add bar. Change the emoji, label, and category for each of the 6 shortcuts. Your preferences are saved.'],
       ['What does Repeat do on an expense?','Instantly duplicates that expense with today\'s date — great for recurring purchases like a weekly grocery run. No modal needed.'],
-      ['What are Spending Insights?','The 📊 Insights card at the top of the Expenses tab has three tabs: Categories (color-coded bars showing this month\'s breakdown — tap any bar to filter the list), Over Time (weekly or monthly bar chart of your spending history), and Trends (3-month sparklines per category with projected end-of-month spend).'],
+      ['What are Spending Insights?','The 📊 Insights card at the top of the Expenses tab has three tabs: Categories (color-coded bars showing this month\'s breakdown — tap any bar to filter the list), Trends (sparklines per category showing spending over time), and Over Time (weekly or yearly bar chart of your spending history).'],
+      ['What time frames are available in the Trends and Over Time tabs?','Both tabs share the same time frame selector: Weekly, 3 Months, 6 Months, and Yearly. Weekly is selected by default. Tap any option to update the chart.'],
       ['What are Monthly Budget Targets?','Set a spending limit per category — tap + Set target next to any category. A progress bar fills as you spend, turning yellow at 80% and red when over. Collapse or expand the card with the +/- toggle.'],
       ['How are expenses grouped?','Expenses are grouped by month with collapsible headers. The current month starts expanded. Tap any month header to collapse older history.'],
     ])}
@@ -3180,6 +3182,12 @@ function renderInstructions(){
       ['What is the Community feed?','A shared feed where all family members can see milestones and cheer each other on with 5 reactions (🔥💪🎉👏❤️). Tap + to write your own post.'],
       ['What posts automatically?','Paying off a debt, getting a credit card under 30% utilization, reaching a savings goal, and becoming debt-free all post automatically. Amounts are never shown.'],
       ['Can I turn off auto-posts?','Yes — go to Settings → toggle Auto-Posts off if you prefer to share manually only.'],
+    ])}
+    ${section('🧮','Paycheck Calculator',[
+      ['Where do I find the Paycheck Calculator?','Tap the ☰ hamburger menu and select 🧮 Paycheck Calculator. It\'s an estimator tool — not a certified calculator.'],
+      ['What does it calculate?','Enter your regular hours, wage, and any overtime hours and rate. It calculates your gross pay, then estimates deductions for Federal income tax, Social Security (6.2%), Medicare (1.45%), and state income tax. Net take-home pay is shown prominently at the bottom.'],
+      ['Which states are supported?','Texas (default), California, New York, Florida, Washington, Georgia, Illinois, Pennsylvania, Ohio, North Carolina, and Oregon. State rates are approximate effective rates — actual withholding may vary.'],
+      ['What does \'Use this amount\' do?','Pre-fills a new paycheck entry on the Income tab with your calculated net pay so you can log it without retyping.'],
     ])}
     ${section('🔔','Notifications',[
       ['What triggers the notification bell?','The bell shows a count badge when any of these are active: shared pot invites (with Accept/Decline inline), overdue bills, bills due within 5 days, paychecks awaiting confirmation, and new community posts since your last visit.'],
