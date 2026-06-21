@@ -1627,9 +1627,16 @@ function renderDashboard(){
       </div>
       <button onclick="event.stopPropagation();openPaydayMode();" style="flex-shrink:0;background:var(--success);color:var(--bg);border:none;border-radius:var(--radius-sm);padding:9px 16px;font-size:13px;font-weight:800;cursor:pointer;white-space:nowrap;">Start →</button>
     </div>`:'';})()}
-    <div class="stat-grid">
-      <div class="stat" onclick="showDebtBreakdown()"><div class="stat-label">Total Debt</div><div class="stat-value danger">${fmt(totalDebt)}</div></div>
-      <div class="stat" onclick="showUtilBreakdown()"><div class="stat-label">CC Utilization</div><div class="stat-value ${util>100?'danger':util>30?'warning':'success'}">${util.toFixed(1)}%</div></div>
+    <div class="card" style="display:flex;padding:0;overflow:hidden;margin-bottom:14px;">
+      <div onclick="showDebtBreakdown()" style="flex:1;padding:14px 16px;cursor:pointer;">
+        <div class="stat-label">Total Debt</div>
+        <div class="stat-value danger">${fmt(totalDebt)}</div>
+      </div>
+      <div style="width:1px;background:var(--border);flex-shrink:0;"></div>
+      <div onclick="showUtilBreakdown()" style="flex:1;padding:14px 16px;cursor:pointer;">
+        <div class="stat-label">CC Utilization</div>
+        <div class="stat-value ${util>100?'danger':util>30?'warning':'success'}">${util.toFixed(1)}%</div>
+      </div>
     </div>
     <div class="card" onclick="showDebtPaidBreakdown()" style="cursor:pointer;">
       <div class="card-title">Payoff Progress</div>
