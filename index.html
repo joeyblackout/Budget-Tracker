@@ -338,6 +338,7 @@ select option{background:var(--surface);color:var(--text);}
       <div class="section-head">
         <div class="section-title">Bills</div>
         <div style="display:flex;gap:8px;">
+          <button id="pay-all-due-btn" onclick="openPayAllDue()" style="display:none;background:rgba(45,212,160,0.15);border:1px solid rgba(45,212,160,0.3);color:var(--success);border-radius:99px;padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer;">✓ Pay All Due</button>
           <div style="position:relative;display:inline-flex;align-items:center;gap:4px;" class="tooltip-wrap" id="sync-tooltip-wrap">
             <button onclick="syncDebtMinimums()" style="background:var(--surface2);border:1px solid var(--border);color:var(--accent);border-radius:99px;padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer;">⚡ Sync Debts</button>
             <button onclick="toggleTooltip('sync-tooltip-wrap')" style="background:none;border:none;color:var(--muted);font-size:14px;cursor:pointer;padding:2px 4px;line-height:1;">ℹ️</button>
@@ -613,6 +614,16 @@ select option{background:var(--surface);color:var(--text);}
   <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal('shared-history-modal')">Close</button></div>
 </div></div>
 
+<!-- PAY ALL DUE MODAL -->
+<div class="modal-overlay" id="pay-all-due-modal"><div class="modal">
+  <div class="modal-handle"></div>
+  <div class="modal-title">Pay All Due Bills</div>
+  <div id="pay-all-due-list" style="margin-bottom:16px;"></div>
+  <div style="display:flex;gap:8px;">
+    <button class="btn btn-ghost" style="flex:1;" onclick="closeModal('pay-all-due-modal')">Cancel</button>
+    <button class="btn btn-primary" style="flex:1;" onclick="confirmPayAllDue()">Confirm</button>
+  </div>
+</div></div>
 <!-- DASH DETAIL MODAL -->
 <div class="modal-overlay" id="dash-detail-modal"><div class="modal">
   <div class="modal-handle"></div>
@@ -1649,6 +1660,8 @@ async function autoPost(message){
 // BILLS
 function renderBills(){
   const el=document.getElementById('bills-list');
+  const payAllBtn=document.getElementById('pay-all-due-btn');
+  if(payAllBtn)payAllBtn.style.display=getDueBills().length>0?'':'none';
   if(bills.length===0){el.innerHTML=`<div class="empty"><div class="icon">🏠</div><p>No bills yet. Tap <strong>+</strong> to add one.</p></div>`;return;}
   const todayDay=new Date().getDate();
   const thisMonth=new Date().toISOString().slice(0,7);
@@ -1784,6 +1797,48 @@ async function saveBill(){
   closeModal('bill-modal');await loadBills();renderBills();renderDashboard();toast(id?'Bill updated ✓':'Bill added ✓');
 }
 async function deleteBill(id){if(!confirm('Delete this bill?'))return;await sb.from('bills').delete().eq('id',id);await loadBills();renderBills();renderDashboard();toast('Bill deleted');}
+function getDueBills(){
+  const todayDay=new Date().getDate();
+  const thisMonth=new Date().toISOString().slice(0,7);
+  return bills.filter(b=>{
+    const dueDay=parseInt(b.due_day||0);
+    if(!dueDay)return false;
+    const isPaid=billPayments.some(p=>p.bill_id===b.id&&(p.paid_date||'').startsWith(thisMonth));
+    if(isPaid)return false;
+    return todayDay>=dueDay;
+  });
+}
+function openPayAllDue(){
+  const due=getDueBills();
+  if(due.length===0)return;
+  const total=due.reduce((s,b)=>s+parseFloat(b.amount||0),0);
+  const rows=due.map(b=>`<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px;"><span>${esc(b.name)}</span><span style="font-weight:700;color:var(--danger);">-${fmt(b.amount)}</span></div>`).join('');
+  document.getElementById('pay-all-due-list').innerHTML=`
+    ${rows}
+    <div style="display:flex;justify-content:space-between;padding:10px 0;font-size:14px;font-weight:800;">
+      <span>Total</span><span style="color:var(--danger);">-${fmt(total)}</span>
+    </div>`;
+  openModal('pay-all-due-modal');
+}
+async function confirmPayAllDue(){
+  const due=getDueBills();
+  closeModal('pay-all-due-modal');
+  for(const b of due){
+    const{error}=await sb.from('bill_payments').insert({user_id:currentUser.id,bill_id:b.id,amount:parseFloat(b.amount),paid_date:today(),notes:b.name});
+    if(error){toast('Error on '+b.name+': '+error.message);continue;}
+    if(b.debt_id){
+      const debt=debts.find(d=>d.id===b.debt_id);
+      if(debt){
+        const newBal=Math.max(0,parseFloat(debt.balance||0)-parseFloat(b.amount));
+        await sb.from('debts').update({balance:newBal}).eq('id',debt.id);
+        await sb.from('payments').insert({user_id:currentUser.id,debt_id:debt.id,amount:parseFloat(b.amount),pay_date:today(),notes:`Min payment via ${b.name}`});
+      }
+    }
+  }
+  await Promise.all([loadBillPayments(),loadDebts(),loadPayments()]);
+  renderBills();renderDebts();renderDashboard();updateBillBadge();
+  toast(`${due.length} bill${due.length!==1?'s':''} marked paid ✓`);
+}
 async function markBillPaid(billId,billName,amount){
   const{error}=await sb.from('bill_payments').insert({user_id:currentUser.id,bill_id:billId,amount:parseFloat(amount),paid_date:today(),notes:billName});
   if(error){toast('Error: '+error.message);return;}
