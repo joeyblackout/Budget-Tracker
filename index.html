@@ -957,6 +957,7 @@ function renderForecast(){
         <div class="field" style="margin:0;flex:1;min-width:130px;"><label>To</label><input type="date" id="forecast-end" value="${forecastCustomEnd}" style="width:100%;background:var(--bg);border:1.5px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:14px;padding:10px 12px;"/></div>
         <button class="btn btn-primary" style="padding:11px 18px;width:auto;" onclick="applyCustomForecast()">Apply</button>
       </div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:10px;font-weight:600;">Select dates above</div>
       <div class="empty"><div class="icon"><i class="ti ti-calendar"></i></div><p>Pick a date range above and tap Apply to see your forecast.</p></div>`;
     return;
   } else {
@@ -965,6 +966,8 @@ function renderForecast(){
     winLabel=win.label;
   }
   const totalDays=Math.max(1,Math.round((endDate-todayDate)/(1000*60*60*24)));
+  const fmtRangeDate=(d,showYear)=>{const mo=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];return mo[d.getMonth()]+' '+d.getDate()+(showYear?', '+d.getFullYear():'');};
+  const dateRangeLabel=(()=>{const sy=todayDate.getFullYear(),ey=endDate.getFullYear();return fmtRangeDate(todayDate,sy!==ey)+' – '+fmtRangeDate(endDate,true);})();
 
   // Starting point = current running balance (only confirmed, past/today income)
   const totalIncome=paychecks.filter(p=>(p.pay_date||'')<=today()).reduce((s,p)=>s+parseFloat(p.amount||0),0);
@@ -1066,6 +1069,7 @@ function renderForecast(){
       <div class="field" style="margin:0;flex:1;min-width:130px;"><label>To</label><input type="date" id="forecast-end" value="${forecastCustomEnd}" style="width:100%;background:var(--bg);border:1.5px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:14px;padding:10px 12px;"/></div>
       <button class="btn btn-primary" style="padding:11px 18px;width:auto;" onclick="applyCustomForecast()">Apply</button>
     </div>`:''}
+    <div style="font-size:12px;color:var(--muted);margin-bottom:10px;font-weight:600;">${dateRangeLabel}</div>
     <div class="balance-card">
       <div class="balance-label">Projected Balance · ${winLabel}</div>
       <div class="balance-amount ${endBalance>=0?'text-success':'text-danger'}">${fmt(endBalance)}</div>
