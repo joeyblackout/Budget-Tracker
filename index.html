@@ -1643,9 +1643,10 @@ function renderDashboard(){
       const tSpentCol=_tSt==='over'?'var(--danger)':_tSt==='close'?'var(--warning)':'var(--success)';
       const tRemCol=tRem<0?'var(--danger)':_tSt==='over'?'var(--danger)':_tSt==='close'?'var(--warning)':'var(--success)';
       const tBarCol=_tSt==='over'?'var(--danger)':_tSt==='close'?'var(--warning)':'var(--success)';
+      const tIncMo=paychecks.filter(p=>(p.pay_date||'').startsWith(tMo)).reduce((s,p)=>s+parseFloat(p.amount||0),0);
       return'<div class="card" onclick="switchView(\'expenses\',null);setTimeout(()=>{insightsTab=\'budget\';insightsOpen=true;renderInsights();},100);" style="cursor:pointer;">'
         +'<div class="card-title">Expenses Budget This Month</div>'
-        +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px;">'
+        +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:0;">'
           +'<div style="text-align:center;">'
             +'<div class="stat-label">Budget</div>'
             +'<div style="font-size:18px;font-weight:800;color:var(--text);">'+fmt(tTotal)+'</div>'
@@ -1659,7 +1660,11 @@ function renderDashboard(){
             +'<div style="font-size:18px;font-weight:800;color:'+tRemCol+';">'+(tRem<0?'-':'')+fmt(Math.abs(tRem))+'</div>'
           +'</div>'
         +'</div>'
-        +'<div class="progress-bar" style="height:8px;margin-bottom:6px;">'
+        +'<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);text-align:center;">'
+          +'<div class="stat-label">Income This Month</div>'
+          +'<div style="font-size:18px;font-weight:800;color:var(--success);">'+fmt(tIncMo)+'</div>'
+        +'</div>'
+        +'<div class="progress-bar" style="height:8px;margin-bottom:6px;margin-top:12px;">'
           +'<div class="progress-fill" style="width:'+tPct+'%;background:'+tBarCol+';"></div>'
         +'</div>'
         +'<div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted);">'
@@ -3025,8 +3030,10 @@ function renderBudgetInsights(){
   const remColor=totalRemaining<0?'var(--danger)':_overallStatus==='over'?'var(--danger)':_overallStatus==='close'?'var(--warning)':'var(--success)';
   const barColor=_overallStatus==='over'?'var(--danger)':_overallStatus==='close'?'var(--warning)':'var(--success)';
 
+  const incomeThisMo=paychecks.filter(p=>(p.pay_date||'').startsWith(thisMonth)).reduce((s,p)=>s+parseFloat(p.amount||0),0);
+
   const summary='<div style="background:var(--surface2);border-radius:var(--radius-sm);padding:14px 16px;margin-bottom:14px;">'
-    +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px;">'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:0;">'
     +'<div style="text-align:center;">'
       +'<div style="font-size:10px;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;color:var(--muted);margin-bottom:4px;">Budget</div>'
       +'<div style="font-size:18px;font-weight:800;color:var(--text);">'+fmt(totalTarget)+'</div>'
@@ -3040,7 +3047,11 @@ function renderBudgetInsights(){
       +'<div style="font-size:18px;font-weight:800;color:'+remColor+';">'+(totalRemaining<0?'-':'')+fmt(Math.abs(totalRemaining))+'</div>'
     +'</div>'
     +'</div>'
-    +'<div style="height:8px;background:var(--surface);border-radius:4px;overflow:hidden;">'
+    +'<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);text-align:center;">'
+      +'<div style="font-size:10px;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;color:var(--muted);margin-bottom:4px;">Income This Month</div>'
+      +'<div style="font-size:18px;font-weight:800;color:var(--success);">'+fmt(incomeThisMo)+'</div>'
+    +'</div>'
+    +'<div style="height:8px;background:var(--surface);border-radius:4px;overflow:hidden;margin-top:12px;">'
       +'<div style="width:'+overallPct+'%;height:100%;background:'+barColor+';border-radius:4px;transition:width 0.3s;"></div>'
     +'</div>'
     +'<div style="display:flex;justify-content:space-between;margin-top:5px;">'
