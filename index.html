@@ -1508,9 +1508,7 @@ function renderDashboard(){
     </div>`:'';})()}
     <div class="stat-grid">
       <div class="stat" onclick="showDebtBreakdown()"><div class="stat-label">Total Debt</div><div class="stat-value danger">${fmt(totalDebt)}</div></div>
-      <div class="stat" onclick="showIncomeBreakdown()"><div class="stat-label">Total Raked In</div><div class="stat-value success">${fmt(totalIncome)}</div></div>
       <div class="stat" onclick="showUtilBreakdown()"><div class="stat-label">CC Utilization</div><div class="stat-value ${util>100?'danger':util>30?'warning':'success'}">${util.toFixed(1)}%</div></div>
-      <div class="stat" onclick="switchView('savings',null)"><div class="stat-label">Total Saved</div><div class="stat-value success">${fmt(totalInPots)}</div></div>
     </div>
     <div class="card" onclick="showDebtPaidBreakdown()" style="cursor:pointer;">
       <div class="card-title">Payoff Progress</div>
