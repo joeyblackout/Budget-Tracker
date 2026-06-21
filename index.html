@@ -13,7 +13,7 @@
 <meta name="theme-color" content="#0d0f14"/>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
-:root{--bg:#0d0f14;--surface:#161a23;--surface2:#1e2433;--border:#2a3045;--accent:#4f8ef7;--accent2:#7c4dff;--success:#2dd4a0;--warning:#f7c948;--danger:#f75a5a;--text:#e8eaf2;--muted:#7a82a0;--radius:14px;--radius-sm:8px;}
+:root{--bg:#080808;--surface:#111111;--surface2:#1a1a1a;--border:#272727;--accent:#2dd4a0;--accent2:#0a9e74;--success:#2dd4a0;--warning:#f7c948;--danger:#f75a5a;--text:#f0f0f0;--muted:#666666;--radius:14px;--radius-sm:8px;}
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);min-height:100dvh;overscroll-behavior:none;}
 #auth-screen{min-height:100dvh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;background:radial-gradient(ellipse at 50% 0%,var(--surface2) 0%,var(--bg) 70%);}
@@ -748,7 +748,6 @@ function showAuth(){hideAllScreens();document.getElementById('auth-screen').styl
 async function showApp(){
   document.getElementById('loading-screen').style.display='block';
   document.getElementById('auth-screen').style.display='none';
-  loadSavedTheme();
   await loadProfiles();
   if(!myProfile?.display_name){
     document.getElementById('loading-screen').style.display='none';
@@ -3051,21 +3050,8 @@ function updateBillBadge(){
   }
 }
 
-// THEMES
-const THEMES={
-  midnight:{label:'Midnight Blue',emoji:'🌙',bg:'#0d0f14',surface:'#161a23',surface2:'#1e2433',border:'#2a3045',accent:'#4f8ef7',accent2:'#7c4dff',success:'#2dd4a0',warning:'#f7c948',danger:'#f75a5a',text:'#e8eaf2',muted:'#7a82a0'},
-  slate:{label:'Slate',emoji:'🩶',bg:'#0a0c10',surface:'#13161e',surface2:'#1a1e28',border:'#252a38',accent:'#94a3b8',accent2:'#64748b',success:'#2dd4a0',warning:'#f7c948',danger:'#f75a5a',text:'#e2e8f0',muted:'#64748b'},
-  nightforest:{label:'Midnight Forest',emoji:'🌲',bg:'#080e0a',surface:'#0e1812',surface2:'#152019',border:'#1e3025',accent:'#2dd4a0',accent2:'#0a9e74',success:'#2dd4a0',warning:'#f7c948',danger:'#f75a5a',text:'#d4ede2',muted:'#5a8a6a'},
-  carbon:{label:'Carbon',emoji:'⚫',bg:'#080808',surface:'#111111',surface2:'#1a1a1a',border:'#272727',accent:'#2dd4a0',accent2:'#0a9e74',success:'#2dd4a0',warning:'#f7c948',danger:'#f75a5a',text:'#f0f0f0',muted:'#666666'},
-  navy:{label:'Navy',emoji:'🌊',bg:'#070b14',surface:'#0d1525',surface2:'#111d33',border:'#192840',accent:'#2dd4a0',accent2:'#0a9e74',success:'#2dd4a0',warning:'#f7c948',danger:'#f75a5a',text:'#dce8f5',muted:'#5a7a9a'},
-  mint:{label:'Mint',emoji:'🌿',bg:'#f4faf7',surface:'#ffffff',surface2:'#e8f5ee',border:'#c8e6d8',accent:'#0a9e74',accent2:'#077a5a',success:'#0a9e74',warning:'#c4860a',danger:'#d93025',text:'#0f2d1e',muted:'#4a7a62'},
-  chalk:{label:'Chalk',emoji:'🤍',bg:'#f5f5f5',surface:'#ffffff',surface2:'#eeeeee',border:'#d8d8d8',accent:'#0a9e74',accent2:'#077a5a',success:'#0a9e74',warning:'#c4860a',danger:'#d93025',text:'#1a1a1a',muted:'#6a6a6a'},
-};
-function applyTheme(key){const t=THEMES[key];if(!t)return;const r=document.documentElement;Object.entries({bg:t.bg,surface:t.surface,surface2:t.surface2,border:t.border,accent:t.accent,accent2:t.accent2,success:t.success,warning:t.warning,danger:t.danger,text:t.text,muted:t.muted}).forEach(([k,v])=>r.style.setProperty('--'+k,v));localStorage.setItem('bt-theme',key);const sv=document.getElementById('view-setup');if(sv&&sv.classList.contains('active'))renderSetup();}
-function loadSavedTheme(){const s=localStorage.getItem('bt-theme');if(s&&THEMES[s])applyTheme(s);else applyTheme('midnight');}
 function renderSetup(){
   const el=document.getElementById('setup-content');
-  const currentTheme=localStorage.getItem('bt-theme')||'midnight';
   const autoOn=!myProfile||myProfile.auto_post!==false;
   el.innerHTML=`
     <div class="card">
@@ -3083,16 +3069,6 @@ function renderSetup(){
       <div class="card-title">Community Auto-Posts</div>
       <p class="text-muted mb8">Automatically share milestones (debts paid off, goals reached) to the community feed. Amounts are never shown.</p>
       <button class="btn ${autoOn?'btn-primary':'btn-ghost'}" onclick="toggleAutoPost()">${autoOn?'✓ Auto-Posts On':'Auto-Posts Off'}</button>
-    </div>
-    <div class="card">
-      <div class="card-title">Color Scheme</div>
-      ${(function(){
-        var darkKeys=['midnight','slate','nightforest','carbon','navy'];
-        var lightKeys=['mint','chalk'];
-        var themeBtn=function(key){var t=THEMES[key];return '<button onclick="applyTheme(\''+key+'\')" style="background:'+t.surface+';border:2px solid '+(key===currentTheme?t.accent:t.border)+';border-radius:12px;padding:14px 10px;cursor:pointer;text-align:center;transition:all 0.2s;"><div style="font-size:22px;margin-bottom:6px;">'+t.emoji+'</div><div style="font-size:13px;font-weight:700;color:'+t.text+';">'+t.label+'</div><div style="display:flex;gap:4px;justify-content:center;margin-top:8px;"><div style="width:14px;height:14px;border-radius:50%;background:'+t.accent+';"></div><div style="width:14px;height:14px;border-radius:50%;background:'+t.accent2+';"></div><div style="width:14px;height:14px;border-radius:50%;background:'+t.success+';"></div></div>'+(key===currentTheme?'<div style="font-size:10px;font-weight:700;color:'+t.accent+';margin-top:6px;letter-spacing:0.08em;">ACTIVE</div>':'')+'</button>';};
-        var divider=function(label){return '<div style="grid-column:1/-1;font-size:10px;font-weight:700;letter-spacing:0.1em;color:var(--muted);margin-top:4px;margin-bottom:2px;">'+label+'</div>';};
-        return '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">'+divider('DARK')+darkKeys.map(themeBtn).join('')+divider('LIGHT')+lightKeys.map(themeBtn).join('')+'</div>';
-      })()}
     </div>
     <div class="card"><div class="card-title">Account Info</div><div class="text-muted">Signed in as <strong>${esc(currentUser.email)}</strong></div><div class="divider"></div><button class="btn btn-danger" onclick="doLogout()">Sign Out</button></div>`;
 }
