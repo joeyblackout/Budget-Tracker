@@ -253,8 +253,10 @@ select option{background:var(--surface);color:var(--text);}
 
 <!-- AUTH -->
 <div id="auth-screen" style="display:none;">
-  <div class="auth-logo">Personal Finance</div>
-  <div class="auth-title">Budget<br><span>Tracker</span></div>
+  <div style="display:flex;align-items:center;gap:14px;justify-content:center;margin-bottom:40px;">
+    <img src="favicon.ico" style="width:48px;height:48px;border-radius:10px;" alt=""/>
+    <span style="font-size:26px;font-weight:800;letter-spacing:-0.03em;"><span style="color:var(--text);">Budget</span> <span style="color:var(--success);">Tracker</span></span>
+  </div>
   <div class="auth-card">
     <div class="auth-tabs">
       <button class="auth-tab active" onclick="switchAuthTab('login',this)">Sign In</button>
@@ -279,7 +281,7 @@ select option{background:var(--surface);color:var(--text);}
   <div class="topbar">
     <div style="display:flex;align-items:center;gap:12px;">
       <button class="hamburger-btn" onclick="openSidebar()" aria-label="Menu"><span style="position:relative;">☰<span id="more-dot" style="display:none;position:absolute;top:-3px;right:-5px;width:9px;height:9px;background:var(--danger);border-radius:50%;border:1.5px solid var(--surface);"></span></span></button>
-      <div class="topbar-title" onclick="switchView('dashboard',null)" style="cursor:pointer;">💰 Budget Tracker</div>
+      <div class="topbar-title" onclick="switchView('dashboard',null)" style="cursor:pointer;display:flex;align-items:center;gap:10px;"><img src="favicon.ico" style="width:28px;height:28px;border-radius:6px;" alt=""/><span><span style="color:var(--text);">Budget</span> <span style="color:var(--success);">Tracker</span></span></div>
     </div>
     <div style="display:flex;align-items:center;gap:12px;">
       <button class="hamburger-btn" onclick="openNotifications()" aria-label="Notifications" style="position:relative;">
@@ -302,7 +304,7 @@ select option{background:var(--surface);color:var(--text);}
   <div id="sidebar-overlay" onclick="closeSidebar()"></div>
   <aside id="sidebar">
     <div class="sidebar-header">
-      <div class="sidebar-title">💰 Budget Tracker</div>
+      <div class="sidebar-title" style="display:flex;align-items:center;gap:10px;"><img src="favicon.ico" style="width:28px;height:28px;border-radius:6px;" alt=""/><span><span style="color:var(--text);">Budget</span> <span style="color:var(--success);">Tracker</span></span></div>
       <div class="sidebar-email" id="sidebar-email">—</div>
     </div>
     <nav class="sidebar-nav">
