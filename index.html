@@ -236,6 +236,20 @@ select option{background:var(--surface);color:var(--text);}
   </div>
 </div>
 
+<!-- SET PASSWORD (invite flow) -->
+<div id="set-password-screen" style="display:none;min-height:100dvh;flex-direction:column;align-items:center;justify-content:center;padding:24px;background:radial-gradient(ellipse at 50% 0%,#1a1f35 0%,var(--bg) 70%);">
+  <div class="auth-logo">One more step</div>
+  <div class="auth-title">Budget<br><span>Tracker</span></div>
+  <div class="auth-card">
+    <div style="font-size:17px;font-weight:700;margin-bottom:8px;text-align:center;">🔒 Set Your Password</div>
+    <p class="text-muted mb8" style="text-align:center;line-height:1.5;">Create a password so you can sign back in anytime.</p>
+    <div class="field" style="margin-top:18px;"><label>New Password</label><input type="password" id="invite-password" placeholder="Min 8 characters"/></div>
+    <div class="field"><label>Confirm Password</label><input type="password" id="invite-password-confirm" placeholder="Re-enter password"/></div>
+    <button class="btn btn-primary" onclick="saveInvitePassword()">Set Password</button>
+    <div id="invite-password-msg" class="auth-msg"></div>
+  </div>
+</div>
+
 <!-- AUTH -->
 <div id="auth-screen" style="display:none;">
   <div class="auth-logo">Personal Finance</div>
@@ -698,7 +712,9 @@ let recurringSources=[];
 let dashSection='overview';
 let snapshotOpen=localStorage.getItem('bt-snapshot-open')!=='false';
 
+let isInviteFlow=false;
 window.addEventListener('DOMContentLoaded',async()=>{
+  isInviteFlow=/[#&]type=invite/.test(window.location.hash);
   const {data:{session}}=await sb.auth.getSession();
   if(session?.user){currentUser=session.user;showApp();}else showAuth();
   sb.auth.onAuthStateChange((_e,session)=>{
@@ -706,7 +722,14 @@ window.addEventListener('DOMContentLoaded',async()=>{
   });
 });
 
-function showAuth(){document.getElementById('loading-screen').style.display='none';document.getElementById('auth-screen').style.display='flex';document.getElementById('welcome-screen').style.display='none';document.getElementById('app-screen').classList.remove('visible');}
+function hideAllScreens(){
+  document.getElementById('loading-screen').style.display='none';
+  document.getElementById('auth-screen').style.display='none';
+  document.getElementById('welcome-screen').style.display='none';
+  document.getElementById('set-password-screen').style.display='none';
+  document.getElementById('app-screen').classList.remove('visible');
+}
+function showAuth(){hideAllScreens();document.getElementById('auth-screen').style.display='flex';}
 async function showApp(){
   document.getElementById('loading-screen').style.display='block';
   document.getElementById('auth-screen').style.display='none';
@@ -717,8 +740,7 @@ async function showApp(){
     document.getElementById('welcome-screen').style.display='flex';
     return;
   }
-  document.getElementById('loading-screen').style.display='none';
-  document.getElementById('welcome-screen').style.display='none';
+  hideAllScreens();
   document.getElementById('app-screen').classList.add('visible');
   document.getElementById('sidebar-email').textContent=currentUser.email;
   loadAll();
@@ -730,7 +752,28 @@ async function saveWelcomeName(){
   const{error}=await sb.from('profiles').upsert({user_id:currentUser.id,display_name:name,auto_post:true},{onConflict:'user_id'});
   if(error){showMsg(msg,'error',error.message);return;}
   await loadProfiles();
-  document.getElementById('welcome-screen').style.display='none';
+  if(isInviteFlow){
+    document.getElementById('welcome-screen').style.display='none';
+    document.getElementById('set-password-screen').style.display='flex';
+    document.getElementById('invite-password').focus();
+    return;
+  }
+  hideAllScreens();
+  document.getElementById('app-screen').classList.add('visible');
+  document.getElementById('sidebar-email').textContent=currentUser.email;
+  loadAll();
+}
+async function saveInvitePassword(){
+  const pw=document.getElementById('invite-password').value;
+  const pw2=document.getElementById('invite-password-confirm').value;
+  const msg=document.getElementById('invite-password-msg');
+  if(pw.length<8){showMsg(msg,'error','Password must be at least 8 characters.');return;}
+  if(pw!==pw2){showMsg(msg,'error','Passwords do not match.');return;}
+  showMsg(msg,'','Setting password…');
+  const{error}=await sb.auth.updateUser({password:pw});
+  if(error){showMsg(msg,'error',error.message);return;}
+  isInviteFlow=false;
+  hideAllScreens();
   document.getElementById('app-screen').classList.add('visible');
   document.getElementById('sidebar-email').textContent=currentUser.email;
   loadAll();
