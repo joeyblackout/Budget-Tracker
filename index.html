@@ -2811,9 +2811,8 @@ async function deletePayment(id){
 // EXPENSES
 // EXPENSE INSIGHTS
 let insightsOpen=localStorage.getItem('bt-insights-open')!=='false';
-let insightsTab='categories';
+let insightsTab='budget';
 let trendsWindow='weekly';
-let insightsTimeframe='monthly';
 let activeFilter=null;
 let collapsedMonths=new Set();
 let expenseSearch='';
@@ -2823,7 +2822,6 @@ const CAT_COLORS=['#4f8ef7','#2dd4a0','#f7c948','#f75a5a','#b07fff','#f7a94f','#
 
 function toggleInsights(){insightsOpen=!insightsOpen;localStorage.setItem('bt-insights-open',insightsOpen);renderExpenses();}
 function setInsightsTab(t){insightsTab=t;renderInsights();}
-function setInsightsTimeframe(t){insightsTimeframe=t;renderInsights();}
 function toggleMonth(mo){if(collapsedMonths.has(mo))collapsedMonths.delete(mo);else collapsedMonths.add(mo);renderExpenses();}
 function setExpenseFilter(cat){activeFilter=activeFilter===cat?null:cat;renderExpenses();}
 
@@ -2846,16 +2844,12 @@ function renderInsights(){
     return;
   }
   const tabs=`<div style="display:flex;border-bottom:1px solid var(--border);margin-bottom:16px;">
-    <button class="insights-tab ${insightsTab==='categories'?'active':''}" onclick="setInsightsTab('categories')">Categories</button>
-    <button class="insights-tab ${insightsTab==='trends'?'active':''}" onclick="setInsightsTab('trends')">Trends</button>
-    <button class="insights-tab ${insightsTab==='overtime'?'active':''}" onclick="setInsightsTab('overtime')">Over Time</button>
     <button class="insights-tab ${insightsTab==='budget'?'active':''}" onclick="setInsightsTab('budget')">Budget</button>
+    <button class="insights-tab ${insightsTab==='trends'?'active':''}" onclick="setInsightsTab('trends')">Trends</button>
   </div>`;
   let content='';
-  if(insightsTab==='categories') content=renderCategoryInsights();
-  else if(insightsTab==='overtime') content=renderOverTimeInsights();
-  else if(insightsTab==='budget') content=renderBudgetInsights();
-  else content=renderTrendsInsights();
+  if(insightsTab==='trends') content=renderTrendsInsights();
+  else content=renderBudgetInsights();
   // Budget targets summary banner
   const thisMonthKey=new Date().toISOString().slice(0,7);
   const byCatBanner={};
@@ -2869,7 +2863,7 @@ function renderInsights(){
     const bannerColor=over>0?'var(--danger)':warn>0?'var(--warning)':'var(--success)';
     banner=`<div style="font-size:12px;font-weight:700;color:${bannerColor};margin-bottom:12px;padding:8px 10px;background:rgba(0,0,0,0.2);border-radius:var(--radius-sm);display:flex;justify-content:space-between;align-items:center;">`
       +`<span>${onTrack} of ${targetedCats.length} categories on track${over>0?' · '+over+' over budget':''}</span>`
-      +`<button onclick="setInsightsTab('categories')" style="background:none;border:none;color:var(--accent);font-size:11px;cursor:pointer;font-weight:700;padding:0;">View →</button>`
+      +`<button onclick="setInsightsTab('budget')" style="background:none;border:none;color:var(--accent);font-size:11px;cursor:pointer;font-weight:700;padding:0;">View →</button>`
       +`</div>`;
   }
   el.innerHTML=`<div class="card" style="margin-bottom:14px;">
