@@ -2326,8 +2326,8 @@ function renderInsights(){
   }
   const tabs=`<div style="display:flex;border-bottom:1px solid var(--border);margin-bottom:16px;">
     <button class="insights-tab ${insightsTab==='categories'?'active':''}" onclick="setInsightsTab('categories')">Categories</button>
-    <button class="insights-tab ${insightsTab==='overtime'?'active':''}" onclick="setInsightsTab('overtime')">Over Time</button>
     <button class="insights-tab ${insightsTab==='trends'?'active':''}" onclick="setInsightsTab('trends')">Trends</button>
+    <button class="insights-tab ${insightsTab==='overtime'?'active':''}" onclick="setInsightsTab('overtime')">Over Time</button>
   </div>`;
   let content='';
   if(insightsTab==='categories') content=renderCategoryInsights();
