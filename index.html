@@ -2292,7 +2292,7 @@ async function deletePayment(id){
 // EXPENSE INSIGHTS
 let insightsOpen=localStorage.getItem('bt-insights-open')!=='false';
 let insightsTab='categories';
-let trendsWindow='3mo';
+let trendsWindow='weekly';
 let insightsTimeframe='monthly';
 let activeFilter=null;
 let collapsedMonths=new Set();
@@ -2420,7 +2420,8 @@ function renderTrendsInsights(){
   const now=new Date();
   const cats=[...new Set(expenses.map(e=>e.category))];
   if(cats.length===0)return`<div class="empty" style="padding:20px 0;"><p>No expenses yet.</p></div>`;
-  const windowBtns=['3mo','6mo','weekly'].map(w=>`<button onclick="setTrendsWindow('${w}')" style="padding:4px 10px;border-radius:99px;border:1px solid var(--border);background:${trendsWindow===w?'var(--accent)':'transparent'};color:${trendsWindow===w?'#fff':'var(--muted)'};font-size:11px;font-weight:700;cursor:pointer;">${w==='3mo'?'3 Months':w==='6mo'?'6 Months':'Week by Week'}</button>`).join('');
+  const windowBtnLabels={weekly:'Weekly',monthly:'Monthly','3mo':'3 Months','6mo':'6 Months'};
+  const windowBtns=['weekly','monthly','3mo','6mo'].map(w=>`<button onclick="setTrendsWindow('${w}')" style="padding:4px 10px;border-radius:99px;border:1px solid var(--border);background:${trendsWindow===w?'var(--accent)':'transparent'};color:${trendsWindow===w?'#fff':'var(--muted)'};font-size:11px;font-weight:700;cursor:pointer;">${windowBtnLabels[w]}</button>`).join('');
   let periods,labels,svgWidth,ptSpacing;
   if(trendsWindow==='weekly'){
     // Build last 8 ISO weeks (Mon–Sun), label as "Jun 9" etc
@@ -2434,14 +2435,15 @@ function renderTrendsInsights(){
     }
     svgWidth=350;ptSpacing=50;
   } else {
-    const count=trendsWindow==='6mo'?6:3;
+    const count=trendsWindow==='6mo'?6:trendsWindow==='monthly'?12:3;
     periods=Array.from({length:count},(_,i)=>{const d=new Date(now.getFullYear(),now.getMonth()-(count-1-i),1);return{month:d.toISOString().slice(0,7)};});
     labels=periods.map((p,i)=>{
       if(i===periods.length-1)return'This mo';
       if(i===periods.length-2)return'Last mo';
       const d=new Date(p.month+'-01');return d.toLocaleString('default',{month:'short'});
     });
-    svgWidth=trendsWindow==='6mo'?250:100;ptSpacing=trendsWindow==='6mo'?50:50;
+    svgWidth=trendsWindow==='monthly'?330:trendsWindow==='6mo'?250:100;
+    ptSpacing=trendsWindow==='monthly'?30:50;
   }
   const getVal=(cat,p)=>trendsWindow==='weekly'
     ?expenses.filter(e=>e.category===cat&&(e.exp_date||'')>=p.start&&(e.exp_date||'')<=p.end).reduce((s,e)=>s+parseFloat(e.amount||0),0)
@@ -2475,6 +2477,7 @@ function renderTrendsInsights(){
     const col=CAT_COLORS[ci%CAT_COLORS.length];
     const latestVal=vals[vals.length-1];
     const latestLabel=trendsWindow==='weekly'?'this wk':'this mo';
+
     return`<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);">
       <div style="width:8px;height:8px;border-radius:50%;background:${col};flex-shrink:0;"></div>
       <div style="flex:1;min-width:0;"><div style="font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(cat)}</div><div style="font-size:11px;color:var(--muted);">${fmt(latestVal)} ${latestLabel}</div></div>
@@ -2485,7 +2488,7 @@ function renderTrendsInsights(){
       <span style="font-size:16px;font-weight:800;color:${trendColor};width:16px;text-align:center;">${trendIcon}</span>
     </div>`;
   }).join('');
-  const titleMap={'3mo':'3 Months','6mo':'6 Months','weekly':'Week by Week'};
+  const titleMap={weekly:'Weekly',monthly:'Monthly','3mo':'3 Months','6mo':'6 Months'};
   return`
     ${projCard}
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;">${windowBtns}</div>
