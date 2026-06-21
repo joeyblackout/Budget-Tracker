@@ -1573,6 +1573,49 @@ function renderDashboard(){
         <span style="font-weight:700;color:${billsProgress>=100?'var(--success)':'var(--muted)'};">${billsProgress.toFixed(0)}% complete · ${fmt(monthlyTotal)}/mo</span>
       </div>
     </div>
+    ${(()=>{
+      const tCats=Object.keys(budgetTargets);
+      if(tCats.length===0){
+        return'<div class="card" onclick="switchView(\'expenses\',null);setTimeout(()=>{insightsTab=\'budget\';insightsOpen=true;renderInsights();},100);" style="cursor:pointer;">'
+          +'<div class="card-title">Budget This Month</div>'
+          +'<div style="font-size:13px;color:var(--muted);text-align:center;padding:6px 0;">No budget targets set — tap to add them</div>'
+          +'</div>';
+      }
+      const tMo=new Date().toISOString().slice(0,7);
+      const byCatDash={};
+      expenses.filter(e=>(e.exp_date||'').startsWith(tMo)).forEach(e=>{if(!byCatDash[e.category])byCatDash[e.category]=0;byCatDash[e.category]+=parseFloat(e.amount||0);});
+      const tTotal=tCats.reduce((s,c)=>s+budgetTargets[c],0);
+      const tSpent=tCats.reduce((s,c)=>s+(byCatDash[c]||0),0);
+      const tRem=tTotal-tSpent;
+      const tPct=Math.min((tSpent/tTotal)*100,100);
+      const tSpentCol=tSpent>tTotal?'var(--danger)':'var(--success)';
+      const tRemCol=tRem<0?'var(--danger)':'var(--success)';
+      const tBarCol=tPct>=100?'var(--danger)':tPct>=80?'var(--warning)':'var(--success)';
+      return'<div class="card" onclick="switchView(\'expenses\',null);setTimeout(()=>{insightsTab=\'budget\';insightsOpen=true;renderInsights();},100);" style="cursor:pointer;">'
+        +'<div class="card-title">Budget This Month</div>'
+        +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px;">'
+          +'<div style="text-align:center;">'
+            +'<div class="stat-label">Budget</div>'
+            +'<div style="font-size:18px;font-weight:800;color:var(--text);">'+fmt(tTotal)+'</div>'
+          +'</div>'
+          +'<div style="text-align:center;border-left:1px solid var(--border);border-right:1px solid var(--border);">'
+            +'<div class="stat-label">Spent</div>'
+            +'<div style="font-size:18px;font-weight:800;color:'+tSpentCol+';">'+fmt(tSpent)+'</div>'
+          +'</div>'
+          +'<div style="text-align:center;">'
+            +'<div class="stat-label">Remaining</div>'
+            +'<div style="font-size:18px;font-weight:800;color:'+tRemCol+';">'+(tRem<0?'-':'')+fmt(Math.abs(tRem))+'</div>'
+          +'</div>'
+        +'</div>'
+        +'<div class="progress-bar" style="height:8px;margin-bottom:6px;">'
+          +'<div class="progress-fill" style="width:'+tPct+'%;background:'+tBarCol+';"></div>'
+        +'</div>'
+        +'<div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted);">'
+          +'<span>'+tPct.toFixed(0)+'% used</span>'
+          +'<span>This month</span>'
+        +'</div>'
+        +'</div>';
+    })()}
     ${(()=>{const pp=getPendingPaydays();return pp.length>0?`<div class="card" onclick="openPaydayMode()" style="cursor:pointer;border-color:var(--success);background:rgba(45,212,160,0.08);box-shadow:0 0 12px rgba(45,212,160,0.3);margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;gap:12px;">
       <div style="flex:1;min-width:0;">
         <div style="font-size:18px;font-weight:800;color:var(--success);">Payday Routine</div>
