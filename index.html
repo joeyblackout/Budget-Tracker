@@ -1577,7 +1577,7 @@ function renderDashboard(){
       const tCats=Object.keys(budgetTargets);
       if(tCats.length===0){
         return'<div class="card" onclick="switchView(\'expenses\',null);setTimeout(()=>{insightsTab=\'budget\';insightsOpen=true;renderInsights();},100);" style="cursor:pointer;">'
-          +'<div class="card-title">Budget This Month</div>'
+          +'<div class="card-title">Expenses Budget This Month</div>'
           +'<div style="font-size:13px;color:var(--muted);text-align:center;padding:6px 0;">No budget targets set — tap to add them</div>'
           +'</div>';
       }
@@ -1592,7 +1592,7 @@ function renderDashboard(){
       const tRemCol=tRem<0?'var(--danger)':'var(--success)';
       const tBarCol=tPct>=100?'var(--danger)':tPct>=80?'var(--warning)':'var(--success)';
       return'<div class="card" onclick="switchView(\'expenses\',null);setTimeout(()=>{insightsTab=\'budget\';insightsOpen=true;renderInsights();},100);" style="cursor:pointer;">'
-        +'<div class="card-title">Budget This Month</div>'
+        +'<div class="card-title">Expenses Budget This Month</div>'
         +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px;">'
           +'<div style="text-align:center;">'
             +'<div class="stat-label">Budget</div>'
