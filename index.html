@@ -1643,7 +1643,9 @@ function renderDashboard(){
       const tSpentCol=_tSt==='over'?'var(--danger)':_tSt==='close'?'var(--warning)':'var(--success)';
       const tRemCol=tRem<0?'var(--danger)':_tSt==='over'?'var(--danger)':_tSt==='close'?'var(--warning)':'var(--success)';
       const tBarCol=_tSt==='over'?'var(--danger)':_tSt==='close'?'var(--warning)':'var(--success)';
-      const tIncMo=paychecks.filter(p=>(p.pay_date||'').startsWith(tMo)).reduce((s,p)=>s+parseFloat(p.amount||0),0);
+      const _tConfirmedWkIds=new Set(paychecks.map(p=>p.pay_week_id));
+      const tIncMo=paychecks.filter(p=>(p.pay_date||'').startsWith(tMo)).reduce((s,p)=>s+parseFloat(p.amount||0),0)
+        +weeks.filter(w=>(w.pay_date||'').startsWith(tMo)&&!_tConfirmedWkIds.has(w.id)).reduce((s,w)=>s+parseFloat(w.expected_amount||0),0);
       const tDaysInMo=new Date(_tNow.getFullYear(),_tNow.getMonth()+1,0).getDate();
       const tBillsMo=bills.filter(b=>parseInt(b.due_day||1)<=tDaysInMo).reduce((s,b)=>s+parseFloat(b.amount||0),0);
       const tIncNet=tIncMo-tBillsMo;
@@ -1667,7 +1669,7 @@ function renderDashboard(){
         +'<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);text-align:center;">'
           +'<div class="stat-label">Income Less Bills</div>'
           +'<div style="font-size:18px;font-weight:800;color:'+tIncNetCol+';">'+(tIncNet<0?'-':'')+fmt(Math.abs(tIncNet))+'</div>'
-          +'<div style="font-size:11px;color:var(--muted);margin-top:2px;">'+fmt(tIncMo)+' − '+fmt(tBillsMo)+'</div>'
+          +'<div style="font-size:11px;color:var(--muted);margin-top:2px;">'+fmt(tIncMo)+' expected − '+fmt(tBillsMo)+' bills</div>'
         +'</div>'
         +'<div class="progress-bar" style="height:8px;margin-bottom:6px;margin-top:12px;">'
           +'<div class="progress-fill" style="width:'+tPct+'%;background:'+tBarCol+';"></div>'
@@ -3035,7 +3037,9 @@ function renderBudgetInsights(){
   const remColor=totalRemaining<0?'var(--danger)':_overallStatus==='over'?'var(--danger)':_overallStatus==='close'?'var(--warning)':'var(--success)';
   const barColor=_overallStatus==='over'?'var(--danger)':_overallStatus==='close'?'var(--warning)':'var(--success)';
 
-  const incomeThisMo=paychecks.filter(p=>(p.pay_date||'').startsWith(thisMonth)).reduce((s,p)=>s+parseFloat(p.amount||0),0);
+  const _confirmedWkIds=new Set(paychecks.map(p=>p.pay_week_id));
+  const incomeThisMo=paychecks.filter(p=>(p.pay_date||'').startsWith(thisMonth)).reduce((s,p)=>s+parseFloat(p.amount||0),0)
+    +weeks.filter(w=>(w.pay_date||'').startsWith(thisMonth)&&!_confirmedWkIds.has(w.id)).reduce((s,w)=>s+parseFloat(w.expected_amount||0),0);
   const daysInThisMo=new Date(new Date().getFullYear(),new Date().getMonth()+1,0).getDate();
   const billsThisMo=bills.filter(b=>parseInt(b.due_day||1)<=daysInThisMo).reduce((s,b)=>s+parseFloat(b.amount||0),0);
   const incomeNetBills=incomeThisMo-billsThisMo;
@@ -3059,7 +3063,7 @@ function renderBudgetInsights(){
     +'<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);text-align:center;">'
       +'<div style="font-size:10px;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;color:var(--muted);margin-bottom:4px;">Income Less Bills</div>'
       +'<div style="font-size:18px;font-weight:800;color:'+incomeNetCol+';">'+(incomeNetBills<0?'-':'')+fmt(Math.abs(incomeNetBills))+'</div>'
-      +'<div style="font-size:11px;color:var(--muted);margin-top:2px;">'+fmt(incomeThisMo)+' − '+fmt(billsThisMo)+'</div>'
+      +'<div style="font-size:11px;color:var(--muted);margin-top:2px;">'+fmt(incomeThisMo)+' expected − '+fmt(billsThisMo)+' bills</div>'
     +'</div>'
     +'<div style="height:8px;background:var(--surface);border-radius:4px;overflow:hidden;margin-top:12px;">'
       +'<div style="width:'+overallPct+'%;height:100%;background:'+barColor+';border-radius:4px;transition:width 0.3s;"></div>'
