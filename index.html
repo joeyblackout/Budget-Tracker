@@ -2774,6 +2774,7 @@ let insightsTimeframe='monthly';
 let activeFilter=null;
 let collapsedMonths=new Set();
 let expenseSearch='';
+let budgetEditingCat=null;
 
 const CAT_COLORS=['#4f8ef7','#2dd4a0','#f7c948','#f75a5a','#b07fff','#f7a94f','#64748b','#22c55e','#e879f9','#38bdf8','#fb923c','#a3e635'];
 
@@ -2850,25 +2851,12 @@ function renderCategoryInsights(){
     const pct=(amt/total)*100;
     const col=CAT_COLORS[i%CAT_COLORS.length];
     const isActive=activeFilter===cat;
-    const tgt=budgetTargets[cat]||0;
-    const tgtPct=tgt>0?Math.min((amt/tgt)*100,100):0;
-    const tgtOver=tgt>0&&amt>tgt;
-    const tgtColor=tgtOver?'var(--danger)':tgtPct>=80?'var(--warning)':'var(--success)';
-    const targetBar=tgt>0
-      ?'<div style="margin-top:5px;display:flex;align-items:center;gap:6px;">'
-        +'<div style="flex:1;height:4px;background:var(--surface2);border-radius:2px;overflow:hidden;">'
-          +'<div style="width:'+tgtPct+'%;height:100%;background:'+tgtColor+';border-radius:2px;transition:width 0.3s;"></div>'
-        +'</div>'
-        +'<span style="font-size:10px;color:'+tgtColor+';font-weight:700;white-space:nowrap;">'+fmt(amt)+' / '+fmt(tgt)+'</span>'
-      +'</div>'
-      :'';
-    return`<div class="bar-wrap" style="opacity:${activeFilter&&!isActive?'0.4':'1'};transition:opacity 0.2s;">
-      <div class="bar-label-row" onclick="setExpenseFilter('${esc(cat)}')" style="cursor:pointer;">
+    return`<div class="bar-wrap" onclick="setExpenseFilter('${esc(cat)}')" style="cursor:pointer;opacity:${activeFilter&&!isActive?'0.4':'1'};transition:opacity 0.2s;">
+      <div class="bar-label-row">
         <span style="font-weight:${isActive?'800':'600'};color:${isActive?col:'var(--text)'};">${esc(cat)}</span>
-        <span style="display:flex;align-items:center;gap:4px;color:var(--muted);">${fmt(amt)} <span style="color:${col};font-weight:700;">${pct.toFixed(1)}%</span><button onclick="event.stopPropagation();editBudgetTarget('${esc(cat)}')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:11px;padding:0 2px;" title="Set target"><i class="ti ti-target"></i></button></span>
+        <span style="color:var(--muted);">${fmt(amt)} <span style="color:${col};font-weight:700;">${pct.toFixed(1)}%</span></span>
       </div>
-      <div class="bar-track" onclick="setExpenseFilter('${esc(cat)}')" style="cursor:pointer;"><div class="bar-fill" style="width:${pct}%;background:${col};"></div></div>
-      ${targetBar}
+      <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${col};"></div></div>
     </div>`;
   }).join('');
   // SVG donut-style summary
@@ -2954,10 +2942,19 @@ function renderBudgetInsights(){
     +'</div>'
     +'</div>';
 
-  // Category breakdown table
-  const tableCats=targetedCats.slice().sort((a,b)=>(byCat[b]||0)-(byCat[a]||0));
+  // Category breakdown table — includes all categories that have spend this month OR a target
+  const allCats=[...new Set([...targetedCats,...Object.keys(byCat)])];
+  const tableCats=allCats.slice().sort((a,b)=>{
+    const aHas=!!budgetTargets[a],bHas=!!budgetTargets[b];
+    if(aHas&&!bHas)return-1;if(!aHas&&bHas)return 1;
+    return(byCat[b]||0)-(byCat[a]||0);
+  });
+  const targetedTableCats=tableCats.filter(c=>budgetTargets[c]);
+  const hint=targetedCats.length===0
+    ?'<tr><td colspan="5" style="padding:8px 6px;font-size:11px;color:var(--muted);font-style:italic;">Tap any target amount to set or edit your monthly budget</td></tr>'
+    :'';
 
-  const tableRows=tableCats.map(cat=>{
+  const tableRows=targetedTableCats.map(cat=>{
     const tgt=budgetTargets[cat];
     const spent=byCat[cat]||0;
     const rem=tgt-spent;
@@ -2966,34 +2963,59 @@ function renderBudgetInsights(){
     const rc=over?'var(--danger)':'var(--success)';
     const bc=over?'var(--danger)':pct>=80?'var(--warning)':'var(--success)';
     const col=catColorMap[cat]||'var(--accent)';
+    const isEditing=budgetEditingCat===cat;
+    const tgtCell=isEditing
+      ?'<td style="padding:5px 6px;">'
+        +'<div style="display:flex;align-items:center;gap:4px;">'
+          +'<input id="budget-inline-input" type="number" min="0" step="1" value="'+tgt+'" style="width:72px;padding:3px 6px;border:1px solid var(--accent);border-radius:var(--radius-sm);background:var(--surface);color:var(--text);font-size:12px;" onkeydown="if(event.key===\'Enter\')confirmBudgetEdit(\''+esc(cat)+'\');if(event.key===\'Escape\')cancelBudgetEdit();" autofocus/>'
+          +'<button onclick="confirmBudgetEdit(\''+esc(cat)+'\')" style="background:var(--success);border:none;border-radius:4px;color:#000;font-size:12px;font-weight:700;padding:3px 7px;cursor:pointer;line-height:1;">✓</button>'
+          +'<button onclick="cancelBudgetEdit()" style="background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--muted);font-size:12px;font-weight:700;padding:3px 7px;cursor:pointer;line-height:1;">✗</button>'
+        +'</div>'
+        +'</td>'
+      :'<td onclick="startBudgetEdit(\''+esc(cat)+'\')" style="padding:7px 6px;font-size:12px;color:var(--muted);text-align:right;cursor:pointer;">'+fmt(tgt)+'</td>';
     return'<tr>'
       +'<td style="padding:7px 6px;font-size:12px;font-weight:600;"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:'+col+';margin-right:5px;vertical-align:middle;"></span>'+esc(cat)+'</td>'
-      +'<td style="padding:7px 6px;font-size:12px;color:var(--muted);text-align:right;">'+fmt(tgt)+'</td>'
+      +tgtCell
       +'<td style="padding:7px 6px;font-size:12px;text-align:right;">'+fmt(spent)+'</td>'
       +'<td style="padding:7px 6px;font-size:12px;font-weight:700;color:'+rc+';text-align:right;">'+(over?'-':'')+fmt(Math.abs(rem))+'</td>'
       +'<td style="padding:7px 6px;min-width:60px;"><div style="height:5px;background:var(--surface2);border-radius:3px;overflow:hidden;"><div style="width:'+pct+'%;height:100%;background:'+bc+';border-radius:3px;"></div></div></td>'
       +'</tr>';
   }).join('');
 
-  const unbudgetedSpend=totalAllSpent-totalTargetedSpent;
-  const otherRow=unbudgetedSpend>0
-    ?'<tr style="border-top:1px solid var(--border);">'
-      +'<td style="padding:7px 6px;font-size:12px;color:var(--muted);">Other Spending</td>'
-      +'<td style="padding:7px 6px;font-size:12px;color:var(--muted);text-align:right;">—</td>'
-      +'<td style="padding:7px 6px;font-size:12px;color:var(--muted);text-align:right;">'+fmt(unbudgetedSpend)+'</td>'
+  // Unset categories: show "— Set —" tappable placeholder
+  const unsetCats=tableCats.filter(c=>!budgetTargets[c]);
+  const unsetRows=unsetCats.map(cat=>{
+    const spent=byCat[cat]||0;
+    const col=catColorMap[cat]||'var(--muted)';
+    const isEditing=budgetEditingCat===cat;
+    const tgtCell=isEditing
+      ?'<td style="padding:5px 6px;">'
+        +'<div style="display:flex;align-items:center;gap:4px;">'
+          +'<input id="budget-inline-input" type="number" min="0" step="1" placeholder="0" style="width:72px;padding:3px 6px;border:1px solid var(--accent);border-radius:var(--radius-sm);background:var(--surface);color:var(--text);font-size:12px;" onkeydown="if(event.key===\'Enter\')confirmBudgetEdit(\''+esc(cat)+'\');if(event.key===\'Escape\')cancelBudgetEdit();" autofocus/>'
+          +'<button onclick="confirmBudgetEdit(\''+esc(cat)+'\')" style="background:var(--success);border:none;border-radius:4px;color:#000;font-size:12px;font-weight:700;padding:3px 7px;cursor:pointer;line-height:1;">✓</button>'
+          +'<button onclick="cancelBudgetEdit()" style="background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--muted);font-size:12px;font-weight:700;padding:3px 7px;cursor:pointer;line-height:1;">✗</button>'
+        +'</div>'
+        +'</td>'
+      :'<td onclick="startBudgetEdit(\''+esc(cat)+'\')" style="padding:7px 6px;font-size:11px;color:var(--muted);text-align:right;cursor:pointer;font-style:italic;">— Set —</td>';
+    return'<tr style="opacity:0.7;">'
+      +'<td style="padding:7px 6px;font-size:12px;font-weight:600;"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:'+col+';margin-right:5px;vertical-align:middle;"></span>'+esc(cat)+'</td>'
+      +tgtCell
+      +'<td style="padding:7px 6px;font-size:12px;text-align:right;color:var(--muted);">'+fmt(spent)+'</td>'
       +'<td style="padding:7px 6px;text-align:right;color:var(--muted);">—</td>'
+      +'<td></td>'
+      +'</tr>';
+  }).join('');
+
+  const totRemColor=totalRemaining<0?'var(--danger)':'var(--success)';
+  const totalsRow=targetedCats.length>0
+    ?'<tr style="border-top:2px solid var(--border);font-weight:700;">'
+      +'<td style="padding:8px 6px;font-size:12px;">Total</td>'
+      +'<td style="padding:8px 6px;font-size:12px;text-align:right;">'+fmt(totalTarget)+'</td>'
+      +'<td style="padding:8px 6px;font-size:12px;text-align:right;">'+fmt(totalTargetedSpent)+'</td>'
+      +'<td style="padding:8px 6px;font-size:12px;color:'+totRemColor+';text-align:right;">'+(totalRemaining<0?'-':'')+fmt(Math.abs(totalRemaining))+'</td>'
       +'<td></td>'
       +'</tr>'
     :'';
-
-  const totRemColor=totalRemaining<0?'var(--danger)':'var(--success)';
-  const totalsRow='<tr style="border-top:2px solid var(--border);font-weight:700;">'
-    +'<td style="padding:8px 6px;font-size:12px;">Total</td>'
-    +'<td style="padding:8px 6px;font-size:12px;text-align:right;">'+fmt(totalTarget)+'</td>'
-    +'<td style="padding:8px 6px;font-size:12px;text-align:right;">'+fmt(totalTargetedSpent)+'</td>'
-    +'<td style="padding:8px 6px;font-size:12px;color:'+totRemColor+';text-align:right;">'+(totalRemaining<0?'-':'')+fmt(Math.abs(totalRemaining))+'</td>'
-    +'<td></td>'
-    +'</tr>';
 
   const table='<div style="overflow-x:auto;">'
     +'<table style="width:100%;border-collapse:collapse;">'
@@ -3004,7 +3026,7 @@ function renderBudgetInsights(){
     +'<th style="padding:5px 6px;font-size:10px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:var(--muted);text-align:right;">Remaining</th>'
     +'<th style="padding:5px 6px;font-size:10px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:var(--muted);">% Used</th>'
     +'</tr></thead>'
-    +'<tbody>'+tableRows+otherRow+totalsRow+'</tbody>'
+    +'<tbody>'+hint+tableRows+unsetRows+totalsRow+'</tbody>'
     +'</table>'
     +'</div>';
 
@@ -3233,11 +3255,11 @@ function filterExpenses(){
     if(!q)return true;
     return(e.description||'').toLowerCase().includes(q)||(e.category||'').toLowerCase().includes(q)||(e.notes||'').toLowerCase().includes(q);
   });
-  if(expenses.length===0){el.innerHTML=renderBudgetTargets()+`<div class="empty"><div class="icon"><i class="ti ti-receipt"></i></div><p>No expenses yet. Use the quick buttons above or tap <strong>+</strong> to log one.</p></div>`;return;}
+  if(expenses.length===0){el.innerHTML=`<div class="empty"><div class="icon"><i class="ti ti-receipt"></i></div><p>No expenses yet. Use the quick buttons above or tap <strong>+</strong> to log one.</p></div>`;return;}
   const groups={};filtered.forEach(e=>{const mo=(e.exp_date||'').slice(0,7);if(!groups[mo])groups[mo]=[];groups[mo].push(e);});
   const groupEntries=Object.entries(groups).sort((a,b)=>a[0]<b[0]?1:-1);
   groupEntries.forEach(([mo],i)=>{if(i>0&&!collapsedMonths.has('_opened_'+mo))collapsedMonths.add(mo);});
-  el.innerHTML=renderBudgetTargets()+(Object.keys(groups).length===0?`<div style="text-align:center;padding:20px;color:var(--muted);">${q?`No results for "<strong>${esc(expenseSearch)}</strong>".`:'No expenses in this category.'} <button onclick="expenseSearch='';document.getElementById('expense-search-input').value='';renderExpenseXBtn();filterExpenses();setExpenseFilter(null);" style="background:none;border:none;color:var(--accent);cursor:pointer;font-weight:700;">Clear</button></div>`:groupEntries.map(([mo,list])=>{
+  el.innerHTML=(Object.keys(groups).length===0?`<div style="text-align:center;padding:20px;color:var(--muted);">${q?`No results for "<strong>${esc(expenseSearch)}</strong>".`:'No expenses in this category.'} <button onclick="expenseSearch='';document.getElementById('expense-search-input').value='';renderExpenseXBtn();filterExpenses();setExpenseFilter(null);" style="background:none;border:none;color:var(--accent);cursor:pointer;font-weight:700;">Clear</button></div>`:groupEntries.map(([mo,list])=>{
     const moTotal=list.reduce((s,e)=>s+parseFloat(e.amount||0),0);
     const isCollapsed=collapsedMonths.has(mo);
     return`<div onclick="toggleMonth('${mo}')" style="display:flex;justify-content:space-between;align-items:center;padding:10px 4px;cursor:pointer;user-select:none;">
@@ -3594,49 +3616,18 @@ function showDebtDetail(debtId){
     FOR ALL USING (auth.uid() = user_id);
 */
 let budgetTargets={};
-let budgetTargetsOpen=localStorage.getItem('bt-budget-open')!=='false';
 async function loadBudgetTargets(){const{data}=await sb.from('budget_targets').select('*').eq('user_id',currentUser.id);budgetTargets={};(data||[]).forEach(r=>{budgetTargets[r.category]=parseFloat(r.monthly_target);});}
 async function saveBudgetTarget(cat,amount){await sb.from('budget_targets').upsert({user_id:currentUser.id,category:cat,monthly_target:amount},{onConflict:'user_id,category'});budgetTargets[cat]=amount;}
 async function deleteBudgetTarget(cat){await sb.from('budget_targets').delete().eq('user_id',currentUser.id).eq('category',cat);delete budgetTargets[cat];}
-function toggleBudgetTargets(){budgetTargetsOpen=!budgetTargetsOpen;localStorage.setItem('bt-budget-open',budgetTargetsOpen);renderExpenses();}
-function renderBudgetTargets(){
-  const thisMonth=new Date().toISOString().slice(0,7);
-  const monthExpenses=expenses.filter(e=>(e.exp_date||'').startsWith(thisMonth));
-  const byCategory={};
-  monthExpenses.forEach(e=>{if(!byCategory[e.category])byCategory[e.category]=0;byCategory[e.category]+=parseFloat(e.amount||0);});
-  const cats=['Groceries','Dining','DoorDash','Gas Station','Nicotine','Entertainment','Household Supplies','Other'];
-  // Count any over-budget categories for badge when collapsed
-  const overCount=cats.filter(cat=>{const t=budgetTargets[cat];return t&&(byCategory[cat]||0)>t;}).length;
-  return`<div class="card" style="margin-bottom:14px;">
-    <div onclick="toggleBudgetTargets()" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;${budgetTargetsOpen?'margin-bottom:12px;':''}">
-      <div style="font-size:16px;font-weight:800;">Monthly Budget Targets${!budgetTargetsOpen&&overCount>0?`<span style="margin-left:8px;font-size:11px;font-weight:700;background:rgba(247,90,90,0.2);color:var(--danger);padding:2px 8px;border-radius:99px;">${overCount} over</span>`:''}</div>
-      <span style="font-size:18px;color:var(--muted);font-weight:300;">${budgetTargetsOpen?'−':'+'}</span>
-    </div>
-    ${budgetTargetsOpen?`
-    <div style="font-size:12px;color:var(--muted);margin-bottom:14px;">Set spending limits per category. Tap the edit icon to change.</div>
-    ${cats.map(cat=>{
-      const spent=byCategory[cat]||0;
-      const target=budgetTargets[cat]||0;
-      const pct=target>0?Math.min((spent/target)*100,100):0;
-      const over=target>0&&spent>target;
-      return`<div style="margin-bottom:10px;">
-        <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
-          <span style="font-size:13px;font-weight:600;">${cat}</span>
-          <span style="font-size:12px;color:${over?'var(--danger)':'var(--muted)'};">${fmt(spent)}${target>0?` / ${fmt(target)}`:''} <button onclick="editBudgetTarget('${cat}')" style="background:none;border:none;color:var(--accent);cursor:pointer;font-size:11px;padding:0 4px;"><i class="ti ti-edit"></i></button></span>
-        </div>
-        ${target>0?`<div class="progress-bar" style="height:6px;"><div class="progress-fill" style="width:${pct}%;background:${over?'var(--danger)':pct>80?'var(--warning)':'var(--success)'}"></div></div>`:`<button onclick="editBudgetTarget('${cat}')" style="font-size:11px;color:var(--muted);background:none;border:1px dashed var(--border);border-radius:4px;padding:3px 8px;cursor:pointer;">+ Set target</button>`}
-      </div>`;
-    }).join('')}`:''}
-  </div>`;
-}
-async function editBudgetTarget(cat){
-  const current=budgetTargets[cat]||'';
-  const val=prompt(`Monthly budget for ${cat} ($):`,current);
-  if(val===null)return;
-  const num=parseFloat(val);
+function startBudgetEdit(cat){budgetEditingCat=cat;renderInsights();}
+function cancelBudgetEdit(){budgetEditingCat=null;renderInsights();}
+async function confirmBudgetEdit(cat){
+  const input=document.getElementById('budget-inline-input');
+  if(!input)return;
+  const num=parseFloat(input.value);
   if(!isNaN(num)&&num>0){await saveBudgetTarget(cat,num);}
-  else if(val===''||num===0){await deleteBudgetTarget(cat);}
-  if(document.getElementById('view-expenses').classList.contains('active'))renderExpenses();
+  else if(input.value===''||num===0){await deleteBudgetTarget(cat);}
+  budgetEditingCat=null;
   renderInsights();
 }
 
