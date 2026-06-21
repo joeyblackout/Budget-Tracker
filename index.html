@@ -3908,6 +3908,7 @@ function renderInstructions(){
       ['What does Pending mean?','A period is Pending when the pay date hasn\'t arrived yet. Income doesn\'t count toward your balance until you tap ✓ Received on payday — or "Different amount" if the actual paycheck varied.'],
       ['What if I get paid early?','If you confirm a paycheck before its scheduled date, it counts toward your running balance immediately — you don\'t have to wait for the scheduled pay date to pass.'],
       ['What is the totals bar?','The summary card at the top shows Confirmed (received so far), Expected (upcoming pending periods), and Pending (count of future periods). Use the source filter buttons to view one income source at a time.'],
+      ['Can I see and edit confirmed paychecks?','Yes — tap the Confirmed amount in the totals bar to open a list of all confirmed paychecks. From there you can edit the amount or delete a confirmation to revert a period back to Pending.'],
     ])}
     ${section('💳','Debts & Payments',[
       ['How do I add a debt?','Go to the Debts tab → tap +. Enter the account name, type, current balance, credit limit (for credit cards), APR, minimum payment, and due date.'],
@@ -3916,12 +3917,14 @@ function renderInstructions(){
       ['What is ⚡ Sync Debts on Bills?','Creates a monthly bill for each debt\'s minimum payment automatically. Tap it once — it updates whenever your minimums change. Hover the ℹ️ for a full explanation.'],
       ['Does marking a bill paid update my debt?','Yes — bills linked to a debt (via Sync Debts) automatically log a debt payment and decrement the balance when marked paid. Undo reverses both.'],
       ['Can I collapse debt cards?','Yes — tap any debt card header or the ▼ chevron to collapse it and hide the details. Tap again to expand. All cards start expanded by default.'],
+      ['What happens to the minimum payment bill when a debt is paid off?','When a debt balance reaches $0, its auto-synced minimum payment bill is automatically removed from the Bills tab so it no longer shows as due.'],
     ])}
     ${section('🏠','Bills',[
       ['How do I add a bill?','Tap + on the Bills tab. Enter the name, amount, due day of the month, category, and frequency.'],
       ['What do the status labels mean?','Green "Paid" = paid this month. Yellow = due within 5 days. Red "Overdue" = past due date. No badge = upcoming and on track.'],
       ['What does the progress bar show?','How many of your monthly bills you\'ve paid so far this month, the dollar amount paid vs remaining, and the percentage complete.'],
       ['Can I pay all due bills at once?','Yes — when you have unpaid due or overdue bills, a Pay All Due button appears in the Bills tab header. Tap it to see a list of all due bills with a total, then confirm to mark them all paid at once.'],
+      ['How are bills ordered?','Unpaid bills always appear at the top sorted by due date (soonest first). When a bill is marked paid it moves to the bottom automatically.'],
     ])}
     ${section('🏦','Savings & Assets',[
       ['How do I create a savings pot?','Tap + on the Savings tab. Give it a name, emoji, optional goal, and Starting Balance if you already have money there. The starting balance counts toward your total saved but doesn\'t affect your running cash.'],
@@ -3934,9 +3937,10 @@ function renderInstructions(){
       ['How do I quickly log an expense?','Use the quick-add buttons at the top of the Expenses tab — tap a category button, enter the amount, tap Log It. Two taps total.'],
       ['Can I customize the quick-add buttons?','Tap the Edit button in the quick-add bar. Change the emoji, label, and category for each of the 6 shortcuts. Your preferences are saved.'],
       ['What does Repeat do on an expense?','Instantly duplicates that expense with today\'s date — great for recurring purchases like a weekly grocery run. No modal needed.'],
-      ['What are Spending Insights?','The 📊 Insights card at the top of the Expenses tab has three tabs: Categories (color-coded bars showing this month\'s breakdown — tap any bar to filter the list), Trends (sparklines per category showing spending over time), and Over Time (weekly or yearly bar chart of your spending history).'],
-      ['What time frames are available in the Trends and Over Time tabs?','Both tabs share the same time frame selector: Weekly, 3 Months, 6 Months, and Yearly. Weekly is selected by default. Tap any option to update the chart.'],
-      ['What are Monthly Budget Targets?','Set a spending limit per category — tap + Set target next to any category. A progress bar fills as you spend, turning yellow at 80% and red when over. Collapse or expand the card with the +/- toggle.'],
+      ['What is the Budget tab?','The Budget tab shows your monthly spending targets vs actual spend. At the top: total Budget, Spent, and Remaining with a color-coded progress bar. Below: a table of each category with its target, amount spent, remaining, and a % used bar. Green = on track, yellow = getting close, red = over budget. Status is pace-based — it accounts for how far through the month you are.'],
+      ['How do I set a budget target?','In the Budget tab, tap any value in the TARGET column to set or edit that category\'s monthly target. Enter an amount and tap ✓ to save. Tap the target again and clear the field to remove it.'],
+      ['What does \'Getting Close\' mean?','It means you\'re spending faster than your daily pace for that category and may exceed your target by month end — but you haven\'t gone over yet. \'Over Budget\' only appears when you\'ve actually exceeded the target dollar amount.'],
+      ['What is the Trends tab?','Shows per-category sparkline charts over time with Weekly, 3 Months, 6 Months, and Yearly time frames. Tap any category row to see the full purchase history for that category, grouped by month.'],
       ['How are expenses grouped?','Expenses are grouped by month with collapsible headers. The current month starts expanded. Tap any month header to collapse older history.'],
     ])}
     ${section('🔮','Forecast',[
