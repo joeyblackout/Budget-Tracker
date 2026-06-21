@@ -2774,12 +2774,11 @@ let insightsTimeframe='monthly';
 let activeFilter=null;
 let collapsedMonths=new Set();
 let expenseSearch='';
-let budgetChartMonth=null;
 
 const CAT_COLORS=['#4f8ef7','#2dd4a0','#f7c948','#f75a5a','#b07fff','#f7a94f','#64748b','#22c55e','#e879f9','#38bdf8','#fb923c','#a3e635'];
 
 function toggleInsights(){insightsOpen=!insightsOpen;localStorage.setItem('bt-insights-open',insightsOpen);renderExpenses();}
-function setInsightsTab(t){insightsTab=t;if(t!=='budget')budgetChartMonth=null;renderInsights();}
+function setInsightsTab(t){insightsTab=t;renderInsights();}
 function setInsightsTimeframe(t){insightsTimeframe=t;renderInsights();}
 function toggleMonth(mo){if(collapsedMonths.has(mo))collapsedMonths.delete(mo);else collapsedMonths.add(mo);renderExpenses();}
 function setExpenseFilter(cat){activeFilter=activeFilter===cat?null:cat;renderExpenses();}
@@ -2901,126 +2900,82 @@ function renderOverTimeInsights(){
   }
 }
 
-function selectBudgetMonth(mo){budgetChartMonth=mo;renderInsights();}
-
 function renderBudgetInsights(){
   const targetedCats=Object.keys(budgetTargets);
   if(targetedCats.length===0){
-    return`<div class="empty" style="padding:24px 0;text-align:center;"><p style="color:var(--muted);font-size:13px;">Set budget targets in the <strong>Categories</strong> tab to see your budget overview.</p></div>`;
+    return'<div class="empty" style="padding:24px 0;text-align:center;"><p style="color:var(--muted);font-size:13px;">Set budget targets in the <strong>Categories</strong> tab to see your budget overview.</p></div>';
   }
 
-  // Build 7 months: 6 prior + current
-  const now=new Date();
-  const months=[];
-  for(let i=6;i>=0;i--){
-    const d=new Date(now.getFullYear(),now.getMonth()-i,1);
-    months.push(d.toISOString().slice(0,7));
-  }
-  const currentMonth=months[months.length-1];
-  const activeMonth=budgetChartMonth||currentMonth;
+  const thisMonth=new Date().toISOString().slice(0,7);
 
-  // Per-month spending by category
-  const monthData=months.map(mo=>{
-    const mo_exp=expenses.filter(e=>(e.exp_date||'').startsWith(mo));
-    const byCat={};
-    mo_exp.forEach(e=>{if(!byCat[e.category])byCat[e.category]=0;byCat[e.category]+=parseFloat(e.amount||0);});
-    const total=Object.values(byCat).reduce((s,v)=>s+v,0);
-    return{mo,byCat,total};
+  // Spending this month by category
+  const byCat={};
+  expenses.filter(e=>(e.exp_date||'').startsWith(thisMonth)).forEach(e=>{
+    if(!byCat[e.category])byCat[e.category]=0;
+    byCat[e.category]+=parseFloat(e.amount||0);
   });
 
-  // Color map: use same CAT_COLORS order as Trends (sorted by all-time spend)
+  // Color map matching Trends tab order
   const catOrder=[...new Set(expenses.map(e=>e.category))];
   const catColorMap={};
   catOrder.forEach((c,i)=>{catColorMap[c]=CAT_COLORS[i%CAT_COLORS.length];});
 
-  // SVG stacked bar chart
-  const chartH=200,barW=30,gap=10,paddingLeft=8,paddingRight=90,paddingTop=14,paddingBottom=24;
-  const totalW=months.length*(barW+gap)-gap;
-  const svgW=totalW+paddingLeft+paddingRight;
+  // Summary figures
   const totalTarget=targetedCats.reduce((s,c)=>s+budgetTargets[c],0);
-  const maxVal=Math.max(...monthData.map(d=>d.total),totalTarget,1);
-
-  const moLabels=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-
-  const bars=monthData.map((d,bi)=>{
-    const isActive=d.mo===activeMonth;
-    const opacity=activeMonth&&!isActive?'0.45':'1';
-    const x=paddingLeft+bi*(barW+gap);
-    let yOff=chartH;
-    const segs=[];
-
-    // Budgeted categories first (in consistent color order)
-    targetedCats.forEach(cat=>{
-      const v=d.byCat[cat]||0;
-      if(v<=0)return;
-      const h=Math.max(1,(v/maxVal)*chartH);
-      yOff-=h;
-      const col=catColorMap[cat]||'var(--accent)';
-      segs.push('<rect x="'+x+'" y="'+(paddingTop+yOff)+'" width="'+barW+'" height="'+h+'" fill="'+col+'" opacity="'+opacity+'"/>');
-    });
-
-    // Unbudgeted spending
-    const unbudgeted=Object.entries(d.byCat).filter(([c])=>!budgetTargets[c]).reduce((s,[,v])=>s+v,0);
-    if(unbudgeted>0){
-      const h=Math.max(1,(unbudgeted/maxVal)*chartH);
-      yOff-=h;
-      segs.push('<rect x="'+x+'" y="'+(paddingTop+yOff)+'" width="'+barW+'" height="'+h+'" fill="var(--surface2)" stroke="var(--border)" stroke-width="0.5" opacity="'+opacity+'"/>');
-    }
-
-    // Month label
-    const moParts=d.mo.split('-');
-    const moLabel=moLabels[parseInt(moParts[1])-1];
-    const isCurrentMo=d.mo===currentMonth;
-    const labelColor=isActive?'var(--text)':'var(--muted)';
-    segs.push('<text x="'+(x+barW/2)+'" y="'+(paddingTop+chartH+14)+'" text-anchor="middle" font-size="9" fill="'+labelColor+'">'+(isCurrentMo?'Now':moLabel)+'</text>');
-
-    // Clickable overlay
-    segs.push('<rect x="'+x+'" y="'+paddingTop+'" width="'+barW+'" height="'+chartH+'" fill="transparent" style="cursor:pointer;" onclick="selectBudgetMonth(\''+d.mo+'\')"/>');
-
-    return segs.join('');
-  }).join('');
-
-  // Dashed target line
-  const targetLineY=paddingTop+chartH-(totalTarget/maxVal)*chartH;
-  const targetLine=totalTarget>0
-    ?'<line x1="'+paddingLeft+'" y1="'+targetLineY+'" x2="'+(paddingLeft+totalW)+'" y2="'+targetLineY+'" stroke="var(--warning)" stroke-width="1.5" stroke-dasharray="5,3"/>'
-     +'<text x="'+(paddingLeft+totalW+6)+'" y="'+(targetLineY+4)+'" font-size="9" fill="var(--warning)" font-weight="700">$'+Math.round(totalTarget)+'/mo</text>'
-    :'';
-
-  const chartSVG='<svg width="100%" viewBox="0 0 '+svgW+' '+(paddingTop+chartH+paddingBottom)+'" style="display:block;overflow:visible;">'+targetLine+bars+'</svg>';
-
-  // Reset button
-  const resetBtn=activeMonth!==currentMonth
-    ?'<button onclick="selectBudgetMonth(null)" style="font-size:11px;color:var(--accent);background:none;border:1px solid var(--accent);border-radius:99px;padding:3px 10px;cursor:pointer;font-weight:700;">This Month</button>'
-    :'';
-  const showingLabel=activeMonth===currentMonth?'This Month':moLabels[parseInt(activeMonth.split('-')[1])-1]+' '+activeMonth.split('-')[0];
-
-  // Category breakdown table for activeMonth
-  const activeData=monthData.find(d=>d.mo===activeMonth)||{byCat:{},total:0};
-  const tableCats=targetedCats.slice().sort((a,b)=>(activeData.byCat[b]||0)-(activeData.byCat[a]||0));
-  const totalSpent=Object.values(activeData.byCat).reduce((s,v)=>s+v,0);
-  const totalTargetedSpent=tableCats.reduce((s,c)=>s+(activeData.byCat[c]||0),0);
+  const totalTargetedSpent=targetedCats.reduce((s,c)=>s+(byCat[c]||0),0);
+  const totalAllSpent=Object.values(byCat).reduce((s,v)=>s+v,0);
   const totalRemaining=totalTarget-totalTargetedSpent;
+  const overallPct=Math.min((totalTargetedSpent/totalTarget)*100,100);
+  const spentColor=totalTargetedSpent>totalTarget?'var(--danger)':'var(--success)';
+  const remColor=totalRemaining<0?'var(--danger)':'var(--success)';
+  const barColor=overallPct>=100?'var(--danger)':overallPct>=80?'var(--warning)':'var(--success)';
+
+  const summary='<div style="background:var(--surface2);border-radius:var(--radius-sm);padding:14px 16px;margin-bottom:14px;">'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px;">'
+    +'<div style="text-align:center;">'
+      +'<div style="font-size:10px;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;color:var(--muted);margin-bottom:4px;">Budget</div>'
+      +'<div style="font-size:18px;font-weight:800;color:var(--text);">'+fmt(totalTarget)+'</div>'
+    +'</div>'
+    +'<div style="text-align:center;border-left:1px solid var(--border);border-right:1px solid var(--border);">'
+      +'<div style="font-size:10px;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;color:var(--muted);margin-bottom:4px;">Spent</div>'
+      +'<div style="font-size:18px;font-weight:800;color:'+spentColor+';">'+fmt(totalTargetedSpent)+'</div>'
+    +'</div>'
+    +'<div style="text-align:center;">'
+      +'<div style="font-size:10px;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;color:var(--muted);margin-bottom:4px;">Remaining</div>'
+      +'<div style="font-size:18px;font-weight:800;color:'+remColor+';">'+(totalRemaining<0?'-':'')+fmt(Math.abs(totalRemaining))+'</div>'
+    +'</div>'
+    +'</div>'
+    +'<div style="height:8px;background:var(--surface);border-radius:4px;overflow:hidden;">'
+      +'<div style="width:'+overallPct+'%;height:100%;background:'+barColor+';border-radius:4px;transition:width 0.3s;"></div>'
+    +'</div>'
+    +'<div style="display:flex;justify-content:space-between;margin-top:5px;">'
+      +'<span style="font-size:10px;color:var(--muted);">'+overallPct.toFixed(0)+'% used</span>'
+      +'<span style="font-size:10px;color:var(--muted);">This month</span>'
+    +'</div>'
+    +'</div>';
+
+  // Category breakdown table
+  const tableCats=targetedCats.slice().sort((a,b)=>(byCat[b]||0)-(byCat[a]||0));
 
   const tableRows=tableCats.map(cat=>{
     const tgt=budgetTargets[cat];
-    const spent=activeData.byCat[cat]||0;
+    const spent=byCat[cat]||0;
     const rem=tgt-spent;
     const pct=Math.min((spent/tgt)*100,100);
     const over=rem<0;
-    const remColor=over?'var(--danger)':'var(--success)';
-    const barColor=over?'var(--danger)':pct>=80?'var(--warning)':'var(--success)';
+    const rc=over?'var(--danger)':'var(--success)';
+    const bc=over?'var(--danger)':pct>=80?'var(--warning)':'var(--success)';
     const col=catColorMap[cat]||'var(--accent)';
     return'<tr>'
-      +'<td style="padding:7px 6px;font-size:12px;font-weight:600;"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:'+col+';margin-right:5px;"></span>'+esc(cat)+'</td>'
+      +'<td style="padding:7px 6px;font-size:12px;font-weight:600;"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:'+col+';margin-right:5px;vertical-align:middle;"></span>'+esc(cat)+'</td>'
       +'<td style="padding:7px 6px;font-size:12px;color:var(--muted);text-align:right;">'+fmt(tgt)+'</td>'
       +'<td style="padding:7px 6px;font-size:12px;text-align:right;">'+fmt(spent)+'</td>'
-      +'<td style="padding:7px 6px;font-size:12px;font-weight:700;color:'+remColor+';text-align:right;">'+(over?'-':'')+fmt(Math.abs(rem))+'</td>'
-      +'<td style="padding:7px 6px;min-width:60px;"><div style="height:5px;background:var(--surface2);border-radius:3px;overflow:hidden;"><div style="width:'+pct+'%;height:100%;background:'+barColor+';border-radius:3px;"></div></div></td>'
+      +'<td style="padding:7px 6px;font-size:12px;font-weight:700;color:'+rc+';text-align:right;">'+(over?'-':'')+fmt(Math.abs(rem))+'</td>'
+      +'<td style="padding:7px 6px;min-width:60px;"><div style="height:5px;background:var(--surface2);border-radius:3px;overflow:hidden;"><div style="width:'+pct+'%;height:100%;background:'+bc+';border-radius:3px;"></div></div></td>'
       +'</tr>';
   }).join('');
 
-  const unbudgetedSpend=totalSpent-totalTargetedSpent;
+  const unbudgetedSpend=totalAllSpent-totalTargetedSpent;
   const otherRow=unbudgetedSpend>0
     ?'<tr style="border-top:1px solid var(--border);">'
       +'<td style="padding:7px 6px;font-size:12px;color:var(--muted);">Other Spending</td>'
@@ -3031,16 +2986,16 @@ function renderBudgetInsights(){
       +'</tr>'
     :'';
 
-  const totalRemColor=totalRemaining<0?'var(--danger)':'var(--success)';
+  const totRemColor=totalRemaining<0?'var(--danger)':'var(--success)';
   const totalsRow='<tr style="border-top:2px solid var(--border);font-weight:700;">'
     +'<td style="padding:8px 6px;font-size:12px;">Total</td>'
     +'<td style="padding:8px 6px;font-size:12px;text-align:right;">'+fmt(totalTarget)+'</td>'
     +'<td style="padding:8px 6px;font-size:12px;text-align:right;">'+fmt(totalTargetedSpent)+'</td>'
-    +'<td style="padding:8px 6px;font-size:12px;color:'+totalRemColor+';text-align:right;">'+(totalRemaining<0?'-':'')+fmt(Math.abs(totalRemaining))+'</td>'
+    +'<td style="padding:8px 6px;font-size:12px;color:'+totRemColor+';text-align:right;">'+(totalRemaining<0?'-':'')+fmt(Math.abs(totalRemaining))+'</td>'
     +'<td></td>'
     +'</tr>';
 
-  const table='<div style="overflow-x:auto;margin-top:4px;">'
+  const table='<div style="overflow-x:auto;">'
     +'<table style="width:100%;border-collapse:collapse;">'
     +'<thead><tr style="border-bottom:1px solid var(--border);">'
     +'<th style="padding:5px 6px;font-size:10px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:var(--muted);text-align:left;">Category</th>'
@@ -3053,18 +3008,7 @@ function renderBudgetInsights(){
     +'</table>'
     +'</div>';
 
-  return'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">'
-    +'<span style="font-size:12px;font-weight:700;color:var(--muted);">'+showingLabel+'</span>'
-    +resetBtn
-    +'</div>'
-    +chartSVG
-    +'<div style="display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 14px;">'
-    +targetedCats.map(cat=>'<span style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--muted);">'
-      +'<span style="width:7px;height:7px;border-radius:50%;background:'+(catColorMap[cat]||'var(--accent)')+'"></span>'+esc(cat)+'</span>').join('')
-    +'<span style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--muted);">'
-    +'<span style="width:7px;height:7px;border-radius:2px;background:var(--surface2);border:1px solid var(--border);"></span>Other</span>'
-    +'</div>'
-    +table;
+  return summary+table;
 }
 
 function renderBarChart(data,type,targetAmount){
