@@ -1599,7 +1599,7 @@ function renderDashboard(){
     </div>`).join('')}
     <div class="balance-card">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">
-        <div class="balance-label" style="margin:0;">Running Balance</div>
+        <div class="balance-label" style="margin:0;">Available Balance</div>
         <div style="display:flex;gap:4px;">
           ${[['month','This Month'],['year','This Year'],['all','All Time']].map(([v,l])=>`<button onclick="dashBalancePeriod='${v}';renderDashboard();" style="padding:4px 10px;border-radius:99px;border:none;font-size:11px;font-weight:700;cursor:pointer;background:${dashBalancePeriod===v?'var(--success)':'var(--surface2)'};color:${dashBalancePeriod===v?'var(--bg)':'var(--muted)'};">${l}</button>`).join('')}
         </div>
@@ -2101,7 +2101,7 @@ function openSharedTxnModal(potId,type,potName){
   document.getElementById('shared-txn-notes').value='';
   const hint=document.getElementById('shared-txn-hint');
   if(type==='withdraw'){hint.textContent=`You can withdraw up to ${fmt(Math.max(0,myContribution(potId)))} (your contribution).`;}
-  else{hint.textContent='This pulls from your running balance.';}
+  else{hint.textContent='This pulls from your available balance.';}
   openModal('shared-txn-modal');
 }
 async function saveSharedTxn(){
@@ -3541,7 +3541,7 @@ function renderSetup(){
     </div>
     <div class="card">
       <div class="card-title">Starting Cash on Hand</div>
-      <p class="text-muted mb8">Set your current checking/cash balance. This is the foundation your running balance builds on.</p>
+      <p class="text-muted mb8">Set your current checking/cash balance. This is the foundation your available balance builds on.</p>
       <div class="field"><label>Current Cash ($)</label><input type="number" id="setting-starting-cash" placeholder="0.00" step="0.01" value="${myProfile?.starting_cash?myProfile.starting_cash:''}"/></div>
       <button class="btn btn-primary" onclick="saveStartingCash()">Save Cash</button>
     </div>
@@ -3953,10 +3953,10 @@ function renderInstructions(){
       ['What is the 🔔 bell icon?','The notification bell (top-right) shows a red badge when something needs your attention — overdue bills, paychecks to confirm, shared pot invites, or new community posts. Tap it to see everything in one place. Notifications clear when you close the panel.'],
     ])}
     ${section('📊','Dashboard',[
-      ['What is the Running Balance?','Your real cash on hand right now. It starts from your Starting Cash (set in Settings), adds paychecks you\'ve confirmed received, and subtracts everything you\'ve paid — debt, bills, expenses, and savings deposits.'],
+      ['What is the Available Balance?','Your real cash on hand right now. It starts from your Starting Cash (set in Settings), adds paychecks you\'ve confirmed received, and subtracts everything you\'ve paid — debt, bills, expenses, and savings deposits.'],
       ['What do the stat cards and balance lines do?','Every card and line is tappable. Total Debt shows each account, Raked In shows paycheck history, CC Utilization shows per-card usage, Debt Paid shows payment history, Bills Paid shows bill history, and Total Saved goes to Savings. Tap any to drill down.'],
       ['What is Net Worth?','The Net Worth card shows Total Assets (savings + shared pots + physical assets) minus Total Debt. It updates live as you make payments and deposits. Tap each line to see a breakdown.'],
-      ['What is the Bills This Month card?','Directly below your running balance, the Bills This Month card shows a progress bar of how many bills you\'ve paid this month, the dollar amount paid, and what\'s remaining. Tap it to go to the Bills tab.'],
+      ['What is the Bills This Month card?','Directly below your available balance, the Bills This Month card shows a progress bar of how many bills you\'ve paid this month, the dollar amount paid, and what\'s remaining. Tap it to go to the Bills tab.'],
     ])}
     ${section('💰','Payday Routine',[
       ['What is the Payday Routine?','A guided 4-step flow that appears on the Dashboard whenever you have unconfirmed paychecks. It walks you through confirming income, paying bills, logging debt payments, and allocating to savings — all in one session.'],
@@ -3968,7 +3968,7 @@ function renderInstructions(){
       ['How are pay periods labeled?','Named sources use per-source numbering — "Select Safety · Check 3" and "Per Diem · Check 5" are counted independently. Manually added periods with no source keep global "Pay Period X" numbering.'],
       ['How are periods grouped?','Pay periods are grouped by month with collapsible headers. The current month starts expanded. Tap any month header to expand or collapse it. Periods older than 7 days roll into a Past Periods accordion at the top.'],
       ['What does Pending mean?','A period is Pending when the pay date hasn\'t arrived yet. Income doesn\'t count toward your balance until you tap ✓ Received on payday — or "Different amount" if the actual paycheck varied.'],
-      ['What if I get paid early?','If you confirm a paycheck before its scheduled date, it counts toward your running balance immediately — you don\'t have to wait for the scheduled pay date to pass.'],
+      ['What if I get paid early?','If you confirm a paycheck before its scheduled date, it counts toward your available balance immediately — you don\'t have to wait for the scheduled pay date to pass.'],
       ['What is the totals bar?','The summary card at the top shows Confirmed (received so far), Expected (upcoming pending periods), and Pending (count of future periods). Use the source filter buttons to view one income source at a time.'],
       ['Can I see and edit confirmed paychecks?','Yes — tap the Confirmed amount in the totals bar to open a list of all confirmed paychecks. From there you can edit the amount or delete a confirmation to revert a period back to Pending.'],
     ])}
@@ -3990,7 +3990,7 @@ function renderInstructions(){
     ])}
     ${section('🏦','Savings & Assets',[
       ['How do I create a savings pot?','Tap + on the Savings tab. Give it a name, emoji, optional goal, and Starting Balance if you already have money there. The starting balance counts toward your total saved but doesn\'t affect your running cash.'],
-      ['How do deposits work?','Deposits pull from your running balance — money you\'re moving from checking into savings. Withdrawals add it back.'],
+      ['How do deposits work?','Deposits pull from your available balance — money you\'re moving from checking into savings. Withdrawals add it back.'],
       ['What are Shared Pots?','Savings pots you share with another member. Tap 🤝 Shared to create one and invite someone by their display name. Each person can only withdraw what they personally contributed. Invite notifications appear on the Dashboard and in the bell.'],
       ['How do I add a physical asset?','Tap 🏠 Asset at the top of the Savings tab. Add items like your car, investments, or a checking account balance with an estimated value. These count toward your Net Worth on the Dashboard.'],
       ['How do I update an asset value?','Tap Edit on any asset card and change the value. Net Worth updates immediately.'],
@@ -4006,7 +4006,7 @@ function renderInstructions(){
       ['How are expenses grouped?','Expenses are grouped by month with collapsible headers. The current month starts expanded. Tap any month header to collapse older history.'],
     ])}
     ${section('🔮','Forecast',[
-      ['How does the forecast work?','Starts from your current running balance, adds expected income from upcoming pay periods, subtracts recurring bills and debt minimums, and estimates variable spending based on your recent daily average.'],
+      ['How does the forecast work?','Starts from your current available balance, adds expected income from upcoming pay periods, subtracts recurring bills and debt minimums, and estimates variable spending based on your recent daily average.'],
       ['How do I change the time window?','Tap Biweekly, Monthly, 3 Months, 6 Months, Annual, or Custom at the top of the Forecast tab. Custom lets you pick exact from/to dates.'],
       ['What does the red warning mean?','Your projected balance dips below $0 at some point in the window. The warning shows exactly when and how low.'],
       ['How is the Projected Timeline organized?','Events are grouped by month with collapsible headers showing the net change for that month. Tap any month to expand or collapse its events.'],
@@ -4029,7 +4029,7 @@ function renderInstructions(){
     ])}
     ${section('⚙️','Settings & Getting Started',[
       ['How do I set my name?','Settings → Display Name. This shows in the Community feed and is how others find you to invite to shared pots. You\'ll be prompted to set this on your first login.'],
-      ['What is Starting Cash on Hand?','The money currently in your checking account. Set it once in Settings — your Running Balance builds on top of it. Update it anytime if your balance changes significantly.'],
+      ['What is Starting Cash on Hand?','The money currently in your checking account. Set it once in Settings — your Available Balance builds on top of it. Update it anytime if your balance changes significantly.'],
       ['How do I get the app on my iPhone home screen?','Open the app in Safari → tap the Share button → Add to Home Screen. It opens full-screen like a native app with its own icon.'],
       ['How do I get others set up?','Share the app URL with family members. They\'ll be prompted to create a password via email invite (sent from Supabase). On first login they\'ll set their display name, then they\'re ready to go.'],
     ])}`;
@@ -4046,14 +4046,14 @@ function greeting(){const h=new Date().getHours();if(h<12)return'Good morning';i
 function timeAgo(ts){if(!ts)return'';const d=new Date(ts);const secs=Math.floor((Date.now()-d.getTime())/1000);if(secs<60)return'just now';const mins=Math.floor(secs/60);if(mins<60)return mins+'m ago';const hrs=Math.floor(mins/60);if(hrs<24)return hrs+'h ago';const days=Math.floor(hrs/24);if(days<7)return days+'d ago';return d.toLocaleDateString('en-US',{month:'short',day:'numeric'});}
 // ONBOARDING
 const ONBOARDING_STEPS=[
-  {view:'dashboard',navBtn:null,title:'Dashboard',desc:'Your home base. See your running balance, net worth, debt progress, and everything at a glance.'},
+  {view:'dashboard',navBtn:null,title:'Dashboard',desc:'Your home base. See your available balance, net worth, debt progress, and everything at a glance.'},
   {view:'forecast',navBtn:'forecast',title:'Forecast',desc:'See your financial future. Projects your balance weeks or months ahead based on income, bills, and spending.'},
   {view:'weekly',navBtn:'weekly',title:'Income',desc:'Track your paychecks. Set up recurring income and confirm checks as you receive them.'},
   {view:'debts',navBtn:'debts',title:'Debts',desc:'Manage what you owe. Log payments, track balances, and see your payoff progress.'},
   {view:'bills',navBtn:'bills',title:'Bills',desc:'Never miss a bill. Track due dates, mark them paid, and sync minimums from your debts automatically.'},
   {view:'savings',navBtn:'savings',title:'Savings',desc:'Build your future. Create savings pots, set goals, and track deposits and withdrawals.'},
   {view:'expenses',navBtn:'expenses',title:'Expenses',desc:'Log your spending. Quick-add buttons make it fast, and Spending Insights shows where your money goes.'},
-  {view:'setup',navBtn:null,title:'Settings',desc:'Set your starting cash balance here first — it\'s the foundation your running balance builds on. You can also change your display name and app theme.'},
+  {view:'setup',navBtn:null,title:'Settings',desc:'Set your starting cash balance here first — it\'s the foundation your available balance builds on. You can also change your display name and app theme.'},
 ];
 let onboardingIdx=0;
 function showOnboardingSplash(){
