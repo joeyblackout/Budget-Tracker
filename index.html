@@ -1214,6 +1214,37 @@ function showBillsPaidBreakdown(){
   const rows=billPayments.slice(0,30).map(p=>{const b=bills.find(x=>x.id===p.bill_id);return`<div class="account-row"><div><div class="account-name">${b?esc(b.name):esc(p.notes||'Bill')}</div><div class="account-detail">${fmtDate(p.paid_date)}</div></div><div class="account-balance text-danger">-${fmt(p.amount)}</div></div>`;}).join('');
   openDashModal('Bills Paid',rows||'<div class="empty"><p>No bills marked paid yet.</p></div>','bills');
 }
+function showCatHistory(cat,col){
+  const sorted=[...expenses].filter(e=>e.category===cat).sort((a,b)=>a.exp_date<b.exp_date?1:-1);
+  const thisMo=new Date().toISOString().slice(0,7);
+  const moSpent=sorted.filter(e=>(e.exp_date||'').startsWith(thisMo)).reduce((s,e)=>s+parseFloat(e.amount||0),0);
+  const dot='<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:'+col+';margin-right:6px;flex-shrink:0;vertical-align:middle;"></span>';
+  if(sorted.length===0){
+    openDashModal(dot+esc(cat),'<div style="font-size:13px;color:var(--success);font-weight:700;margin-bottom:14px;">'+fmt(moSpent)+' spent this month</div><div class="empty"><p>No expenses in this category yet.</p></div>','expenses');
+    return;
+  }
+  const groups={};
+  sorted.forEach(e=>{const mk=(e.exp_date||'').slice(0,7);if(!groups[mk])groups[mk]=[];groups[mk].push(e);});
+  let html='<div style="font-size:13px;color:var(--success);font-weight:700;margin-bottom:14px;">'+fmt(moSpent)+' spent this month</div>';
+  Object.keys(groups).sort((a,b)=>a<b?1:-1).forEach(mk=>{
+    const [yr,mo]=mk.split('-');
+    const moName=new Date(parseInt(yr),parseInt(mo)-1,1).toLocaleString('default',{month:'long'});
+    const moTotal=groups[mk].reduce((s,e)=>s+parseFloat(e.amount||0),0);
+    html+='<div style="font-size:11px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:var(--muted);padding:10px 0 6px;border-top:1px solid var(--border);">'+moName+' '+yr+' &nbsp;·&nbsp; '+fmt(moTotal)+'</div>';
+    groups[mk].forEach(e=>{
+      const d=new Date((e.exp_date||'')+'T12:00:00');
+      const label=d.toLocaleString('default',{month:'short',day:'numeric'});
+      const desc=e.description&&e.description.trim()?esc(e.description):esc(cat);
+      html+='<div class="account-row"><div><div class="account-name">'+desc+'</div><div class="account-detail">'+label+(e.notes&&e.notes.trim()?' · '+esc(e.notes):'')+'</div></div><div class="account-balance text-danger">-'+fmt(e.amount)+'</div></div>';
+    });
+  });
+  const titleHtml=dot+esc(cat);
+  document.getElementById('dash-detail-title').innerHTML=titleHtml;
+  document.getElementById('dash-detail-content').innerHTML=html;
+  dashDetailNavTarget='expenses';
+  document.getElementById('dash-detail-nav-btn').style.display='none';
+  openModal('dash-detail-modal');
+}
 function showExpensesBreakdown(){
   const rows=expenses.slice(0,30).map(e=>`<div class="account-row"><div><div class="account-name">${esc(e.category)}</div><div class="account-detail">${esc(e.description||'')}${e.description?' · ':''}${fmtDate(e.exp_date)}</div></div><div class="account-balance text-danger">-${fmt(e.amount)}</div></div>`).join('');
   openDashModal('Recent Expenses',rows||'<div class="empty"><p>No expenses logged yet.</p></div>','expenses');
@@ -3238,7 +3269,7 @@ function renderTrendsInsights(){
       // For completed periods: under target = green (no pace to check), already checked >target above
       return'var(--success)';
     })();
-    return`<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);">
+    return`<div onclick="showCatHistory('${esc(cat).replace(/'/g,"\\'")}','${col}')" style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);cursor:pointer;" onmousedown="this.style.background='var(--surface2)'" onmouseup="this.style.background=''" onmouseleave="this.style.background='' " ontouchstart="this.style.background='var(--surface2)'" ontouchend="this.style.background=''">
       <div style="width:8px;height:8px;border-radius:50%;background:${col};flex-shrink:0;"></div>
       <div style="flex:1;min-width:0;"><div style="font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(cat)}</div><div style="font-size:11px;color:${latestLabelColor};font-weight:${periodTarget>0?'700':'400'};">${fmt(latestVal)} ${latestLabel}</div></div>
       <svg width="${svgWidth}" height="32" style="flex-shrink:0;overflow:visible;">
