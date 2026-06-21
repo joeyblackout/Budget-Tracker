@@ -855,7 +855,14 @@ function closeSidebar(){document.getElementById('sidebar').classList.remove('ope
 function sideNav(name){closeSidebar();switchView(name,null);}
 
 // DATA
-async function loadAll(){await Promise.all([loadDebts(),loadPayments(),loadExpenses(),loadWeeks(),loadPaychecks(),loadBills(),loadBillPayments(),loadPots(),loadSavingsTxns(),loadProfiles(),loadPosts(),loadReactions(),loadShared(),loadRecurring(),loadAssets()]);await topUpPeriods();renderDashboard();updateBillBadge();updateNotifBadge();startPolling();}
+async function cleanupPaidOffDebtBills(){
+  const phantom=bills.filter(b=>b.debt_id&&parseFloat((debts.find(d=>d.id===b.debt_id)||{}).balance||0)<=0);
+  if(phantom.length===0)return false;
+  for(const b of phantom){await sb.from('bills').delete().eq('id',b.id);}
+  await loadBills();
+  return true;
+}
+async function loadAll(){await Promise.all([loadDebts(),loadPayments(),loadExpenses(),loadWeeks(),loadPaychecks(),loadBills(),loadBillPayments(),loadPots(),loadSavingsTxns(),loadProfiles(),loadPosts(),loadReactions(),loadShared(),loadRecurring(),loadAssets()]);await topUpPeriods();await cleanupPaidOffDebtBills();renderDashboard();updateBillBadge();updateNotifBadge();startPolling();}
 async function topUpPeriods(){
   // Only extend recurring sources if the furthest period is within 10 months out
   if(recurringSources.length===0)return;
@@ -2283,13 +2290,19 @@ async function undoBillPayment(billId){
 async function syncDebtMinimums(){
   const debtsWithMin=debts.filter(d=>parseFloat(d.min_payment||0)>0);
   if(debtsWithMin.length===0){toast('No debts with minimum payments set');return;}
-  let added=0,updated=0;
-  for(const d of debtsWithMin){
+  let added=0,updated=0,removed=0;
+  for(const b of bills.filter(b=>b.debt_id)){
+    const d=debts.find(d=>d.id===b.debt_id);
+    if(d&&parseFloat(d.balance||0)<=0){await sb.from('bills').delete().eq('id',b.id);removed++;}
+  }
+  for(const d of debtsWithMin.filter(d=>parseFloat(d.balance||0)>0)){
     const existing=bills.find(b=>b.debt_id===d.id);
     if(existing){if(parseFloat(existing.amount)!==parseFloat(d.min_payment)||existing.due_day!==d.due_date){await sb.from('bills').update({amount:d.min_payment,due_day:d.due_date||null}).eq('id',existing.id);updated++;}}
     else{await sb.from('bills').insert({user_id:currentUser.id,name:d.name+' (Min Payment)',amount:d.min_payment,due_day:d.due_date||null,category:'Debt',recurring:'monthly',debt_id:d.id,notes:'Auto-synced from debt account'});added++;}
   }
-  await loadBills();renderBills();toast(`Synced! ${added} added, ${updated} updated`);
+  await loadBills();renderBills();
+  const parts=[];if(added)parts.push(`${added} added`);if(updated)parts.push(`${updated} updated`);if(removed)parts.push(`${removed} removed`);
+  toast('Synced! '+(parts.join(', ')||'nothing to change'));
 }
 
 // WEEKLY
@@ -2713,6 +2726,7 @@ async function savePayment(){
   const debt=debts.find(d=>d.id===debt_id);
   const{error}=await sb.from('payments').insert({user_id:currentUser.id,debt_id,amount,pay_date,pay_week_id:weekId||null,notes:document.getElementById('pay-notes').value.trim()||null});
   if(error){toast('Error: '+error.message);return;}
+  let debtBillRemoved=false;
   if(debt){const newBal=Math.max(0,parseFloat(debt.balance||0)-amount);await sb.from('debts').update({balance:newBal}).eq('id',debt_id);
     const oldBal=parseFloat(debt.balance||0);
     const lim=parseFloat(debt.credit_limit||0);
@@ -2721,13 +2735,14 @@ async function savePayment(){
     else if(lim>0){const oldUtil=(oldBal/lim)*100;const newUtil=(newBal/lim)*100;if(oldUtil>=30&&newUtil<30){await autoPost(`📉 ${name} got ${debt.name} under 30% utilization!`);}}
     const allOthers=debts.filter(d=>d.id!==debt_id);
     if(newBal===0&&allOthers.every(d=>parseFloat(d.balance||0)===0)){await autoPost(`🏆 ${name} is officially DEBT FREE! 🎊`);}
+    if(newBal===0){const lb=bills.find(b=>b.debt_id===debt_id);if(lb){await sb.from('bills').delete().eq('id',lb.id);debtBillRemoved=true;}}
   }
-  if(debt&&parseFloat(debt.min_payment||0)>0&&amount>=parseFloat(debt.min_payment||0)){const linkedBill=bills.find(b=>b.debt_id===debt_id);if(linkedBill){const thisMonth=pay_date.slice(0,7);const alreadyPaid=billPayments.find(p=>p.bill_id===linkedBill.id&&(p.paid_date||'').startsWith(thisMonth));if(!alreadyPaid){await sb.from('bill_payments').insert({user_id:currentUser.id,bill_id:linkedBill.id,amount,paid_date:pay_date,notes:`Auto: ${debt.name} payment`});}}}
+  if(!debtBillRemoved&&debt&&parseFloat(debt.min_payment||0)>0&&amount>=parseFloat(debt.min_payment||0)){const linkedBill=bills.find(b=>b.debt_id===debt_id);if(linkedBill){const thisMonth=pay_date.slice(0,7);const alreadyPaid=billPayments.find(p=>p.bill_id===linkedBill.id&&(p.paid_date||'').startsWith(thisMonth));if(!alreadyPaid){await sb.from('bill_payments').insert({user_id:currentUser.id,bill_id:linkedBill.id,amount,paid_date:pay_date,notes:`Auto: ${debt.name} payment`});}}}
   closeModal('payment-modal');
-  await Promise.all([loadPayments(),loadDebts(),loadBillPayments()]);
-  renderDebts();renderPayments();renderDashboard();updateBillBadge();
+  await Promise.all([loadPayments(),loadDebts(),loadBills(),loadBillPayments()]);
+  renderDebts();renderPayments();renderDashboard();renderBills();updateBillBadge();
   if(weekId)renderWeekly();
-  toast('Payment logged ✓');
+  toast(debtBillRemoved?'Debt paid off! Minimum payment bill removed ✓':'Payment logged ✓');
 }
 async function deletePayment(id){
   const payment=payments.find(p=>p.id===id);
