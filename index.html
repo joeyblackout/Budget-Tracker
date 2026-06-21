@@ -2223,12 +2223,12 @@ function renderWeekly(){
       const domId='wk-mo-'+mo.replace('-','');
       const open=startFirstOpen&&idx===0;
       return`<div style="margin-bottom:8px;">
-        <div onclick="const b=document.getElementById('${domId}');const a=document.getElementById('a-${domId}');if(b.style.display==='none'){b.style.display='block';a.textContent='▼';}else{b.style.display='none';a.textContent='▶';}" style="display:flex;justify-content:space-between;align-items:center;padding:13px 18px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);cursor:pointer;">
+        <div onclick="const b=document.getElementById('${domId}');const a=document.getElementById('a-${domId}');if(b.style.display==='none'){b.style.display='block';a.textContent='▼';}else{b.style.display='none';a.textContent='▶';}" style="display:flex;justify-content:space-between;align-items:center;padding:13px 18px;background:var(--surface2);border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:var(--radius);cursor:pointer;">
           <div>
-            <div style="font-size:14px;font-weight:700;">${moLabel}</div>
-            <div style="font-size:11px;color:var(--muted);">${mw.length} period${mw.length!==1?'s':''}${confirmed>0?` · ${fmt(confirmed)} confirmed`:''}${expected>0?` · ${fmt(expected)} expected`:''}</div>
+            <div style="font-size:15px;font-weight:800;color:var(--text);">${moLabel}</div>
+            <div style="font-size:11px;color:var(--accent);">${mw.length} period${mw.length!==1?'s':''}${confirmed>0?` · ${fmt(confirmed)} confirmed`:''}${expected>0?` · ${fmt(expected)} expected`:''}</div>
           </div>
-          <span id="a-${domId}" style="font-size:13px;color:var(--muted);">${open?'▼':'▶'}</span>
+          <span id="a-${domId}" style="font-size:13px;color:var(--accent);">${open?'▼':'▶'}</span>
         </div>
         <div id="${domId}" style="display:${open?'block':'none'};margin-top:4px;">${mw.map(buildCard).join('')}</div>
       </div>`;
@@ -2261,9 +2261,9 @@ function renderWeekly(){
   let html=filterBar+totalsBar;
   if(archived.length>0){
     html+=`<div style="margin-bottom:8px;">
-      <button onclick="toggleWeek('archived-periods')" style="width:100%;display:flex;justify-content:space-between;align-items:center;padding:14px 18px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);cursor:pointer;color:var(--text);">
-        <span style="font-size:14px;font-weight:700;color:var(--muted);">🗂️ Past Periods (${archived.length})</span>
-        <span style="font-size:12px;color:var(--muted);">tap to expand</span>
+      <button onclick="toggleWeek('archived-periods')" style="width:100%;display:flex;justify-content:space-between;align-items:center;padding:14px 18px;background:var(--surface2);border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:var(--radius);cursor:pointer;color:var(--text);">
+        <span style="font-size:15px;font-weight:800;color:var(--text);">🗂️ Past Periods</span>
+        <span style="font-size:11px;color:var(--accent);">${archived.length} period${archived.length!==1?'s':''} · tap to expand</span>
       </button>
       <div id="archived-periods" style="display:none;">${buildMonthGroups(archived,false)}</div>
     </div>`;
