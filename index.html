@@ -1631,9 +1631,10 @@ function renderDashboard(){
     </div>
     ${(()=>{
       const tCats=Object.keys(budgetTargets);
+      const tMoLabel=(()=>{const n=new Date();return n.toLocaleString('default',{month:'long'})+' '+n.getFullYear();})();
       if(tCats.length===0){
         return'<div class="card" onclick="switchView(\'expenses\',null);setTimeout(()=>{insightsTab=\'budget\';insightsOpen=true;renderInsights();},100);" style="cursor:pointer;">'
-          +'<div class="card-title">Expenses Budget This Month</div>'
+          +'<div class="card-title">Expenses Budget · '+tMoLabel+'</div>'
           +'<div style="font-size:13px;color:var(--muted);text-align:center;padding:6px 0;">No budget targets set — tap to add them</div>'
           +'</div>';
       }
@@ -1658,7 +1659,7 @@ function renderDashboard(){
       const tIncNet=tIncMo-tBillsMo;
       const tIncNetCol=tIncNet>=0?'var(--success)':'var(--danger)';
       return'<div class="card" onclick="switchView(\'expenses\',null);setTimeout(()=>{insightsTab=\'budget\';insightsOpen=true;renderInsights();},100);" style="cursor:pointer;">'
-        +'<div class="card-title">Expenses Budget This Month</div>'
+        +'<div class="card-title">Expenses Budget · '+tMoLabel+'</div>'
         +'<div style="text-align:center;margin-bottom:12px;">'
           +'<div class="stat-label" style="font-size:11px;margin-bottom:5px;">Income Less Bills</div>'
           +'<div style="font-size:26px;font-weight:800;color:'+tIncNetCol+';">'+(tIncNet<0?'-':'')+fmt(Math.abs(tIncNet))+'</div>'
@@ -1684,7 +1685,7 @@ function renderDashboard(){
         +'</div>'
         +'<div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted);">'
           +'<span>'+tPct.toFixed(0)+'% used</span>'
-          +'<span>This month</span>'
+          +'<span>'+tMoLabel+'</span>'
         +'</div>'
         +'</div>';
     })()}
@@ -3079,7 +3080,9 @@ function renderBudgetInsights(){
   const incomeNetBills=incomeThisMo-billsThisMo;
   const incomeNetCol=incomeNetBills>=0?'var(--success)':'var(--danger)';
 
+  const _moLabelB=(()=>{const n=new Date();return n.toLocaleString('default',{month:'long'})+' '+n.getFullYear();})();
   const summary='<div style="background:var(--surface2);border-radius:var(--radius-sm);padding:14px 16px;margin-bottom:14px;">'
+    +'<div style="font-size:11px;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;color:var(--muted);margin-bottom:10px;">Expenses Budget · '+_moLabelB+'</div>'
     +'<div style="text-align:center;margin-bottom:12px;">'
       +'<div style="font-size:11px;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;color:var(--muted);margin-bottom:5px;">Income Less Bills</div>'
       +'<div style="font-size:26px;font-weight:800;color:'+incomeNetCol+';">'+(incomeNetBills<0?'-':'')+fmt(Math.abs(incomeNetBills))+'</div>'
@@ -3105,7 +3108,7 @@ function renderBudgetInsights(){
     +'</div>'
     +'<div style="display:flex;justify-content:space-between;margin-top:5px;">'
       +'<span style="font-size:10px;color:var(--muted);">'+overallPct.toFixed(0)+'% used</span>'
-      +'<span style="font-size:10px;color:var(--muted);">This month</span>'
+      +'<span style="font-size:10px;color:var(--muted);">'+_moLabelB+'</span>'
     +'</div>'
     +'</div>';
 
