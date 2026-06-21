@@ -1447,6 +1447,20 @@ function renderDashboard(){
         <div class="balance-line" onclick="switchView('savings',null)"><span class="balance-line-label">Saved Total</span><span class="balance-line-val text-success">${fmt(totalInPots)}</span></div>
       </div>
     </div>
+    <div class="card" onclick="switchView('bills',null)" style="cursor:pointer;">
+      <div class="card-title">Bills This Month</div>
+      <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:8px;">
+        <div><div class="stat-label">Paid This Month</div><div style="font-size:20px;font-weight:800;color:var(--success);">${fmt(monthlyPaidAmt)}</div></div>
+        <div style="text-align:right;"><div class="stat-label">Remaining</div><div style="font-size:20px;font-weight:800;color:${monthlyRemaining>0?'var(--danger)':'var(--success)'};">${fmt(monthlyRemaining)}</div></div>
+      </div>
+      <div class="progress-bar" style="height:10px;margin-bottom:8px;">
+        <div class="progress-fill" style="width:${billsProgress}%;background:${billsProgress>=100?'var(--success)':'linear-gradient(90deg,var(--accent),var(--success))'}"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted);">
+        <span>${monthlyPaidCount} of ${monthlyBills.length} bills paid</span>
+        <span style="font-weight:700;color:${billsProgress>=100?'var(--success)':'var(--muted)'};">${billsProgress.toFixed(0)}% complete · ${fmt(monthlyTotal)}/mo</span>
+      </div>
+    </div>
     ${(()=>{const pp=getPendingPaydays();return pp.length>0?`<div class="card" onclick="openPaydayMode()" style="cursor:pointer;border-color:var(--success);background:rgba(45,212,160,0.08);box-shadow:0 0 12px rgba(45,212,160,0.3);margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;gap:12px;">
       <div style="flex:1;min-width:0;">
         <div style="font-size:18px;font-weight:800;color:var(--success);">Payday Routine</div>
@@ -1468,22 +1482,7 @@ function renderDashboard(){
         <div style="text-align:right;font-size:11px;color:var(--accent);margin-top:4px;font-weight:700;">${progress.toFixed(1)}% complete</div>
       </div>
     </div>
-    <div class="card" onclick="switchView('bills',null)" style="cursor:pointer;">
-      <div class="card-title">Bills This Month</div>
-      <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:8px;">
-        <div><div class="stat-label">Paid This Month</div><div style="font-size:20px;font-weight:800;color:var(--success);">${fmt(monthlyPaidAmt)}</div></div>
-        <div style="text-align:right;"><div class="stat-label">Remaining</div><div style="font-size:20px;font-weight:800;color:${monthlyRemaining>0?'var(--danger)':'var(--success)'};">${fmt(monthlyRemaining)}</div></div>
-      </div>
-      <div class="progress-bar" style="height:10px;margin-bottom:8px;">
-        <div class="progress-fill" style="width:${billsProgress}%;background:${billsProgress>=100?'var(--success)':'linear-gradient(90deg,var(--accent),var(--success))'}"></div>
-      </div>
-      <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted);">
-        <span>${monthlyPaidCount} of ${monthlyBills.length} bills paid</span>
-        <span style="font-weight:700;color:${billsProgress>=100?'var(--success)':'var(--muted)'};">${billsProgress.toFixed(0)}% complete · ${fmt(monthlyTotal)}/mo</span>
-      </div>
-    </div>
-    ${renderNetWorth()}
-    ${renderPayoffCalc()}`;
+    ${renderNetWorth()}`;
 }
 
 // SAVINGS
