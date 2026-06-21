@@ -1111,6 +1111,27 @@ function showIncomeBreakdown(){
   const rows=confirmed.map(p=>{const w=weeks.find(x=>x.id===p.pay_week_id);return`<div class="account-row"><div><div class="account-name">${fmt(p.amount)}</div><div class="account-detail">${fmtDate(p.pay_date)}${w?.source_name?' · '+esc(w.source_name):''}${p.notes&&p.notes!=='Recurring income'?' · '+esc(p.notes):''}</div></div></div>`;}).join('');
   openDashModal('Income Received',rows||'<div class="empty"><p>No paychecks logged yet.</p></div>','weekly');
 }
+function showConfirmedIncomeModal(){
+  const srcCount={};const checkNums={};
+  [...paychecks].sort((a,b)=>a.pay_date<b.pay_date?-1:1).forEach(p=>{
+    const w=weeks.find(x=>x.id===p.pay_week_id);
+    const src=w?.source_name||'';
+    if(src){if(!srcCount[src])srcCount[src]=0;srcCount[src]++;checkNums[p.id]=`${esc(src)} · Check ${srcCount[src]}`;}
+    else{if(!srcCount['__global'])srcCount['__global']=0;srcCount['__global']++;checkNums[p.id]=`Pay Period ${srcCount['__global']}`;}
+  });
+  const sorted=[...paychecks].sort((a,b)=>a.pay_date<b.pay_date?1:-1);
+  const rows=sorted.length===0?'<div class="empty"><p>No confirmed income yet.</p></div>':sorted.map(p=>`<div class="account-row" style="align-items:center;gap:8px;"><div style="flex:1;min-width:0;"><div class="account-name" style="color:var(--success);">${fmt(p.amount)}</div><div class="account-detail">${checkNums[p.id]||'Income'} · ${fmtDate(p.pay_date)}</div></div><div style="display:flex;gap:4px;flex-shrink:0;"><button class="del-btn" onclick="editPaycheck('${p.id}',${p.amount},'${p.pay_date}','${esc(p.notes||'')}')">Edit</button><button class="del-btn" style="color:var(--danger);" onclick="deletePaycheckFromConfirmed('${p.id}')">Delete</button></div></div>`).join('');
+  openDashModal('Confirmed Income',rows,'weekly');
+}
+async function deletePaycheckFromConfirmed(id){
+  if(!confirm('Remove this confirmed paycheck?'))return;
+  const{error}=await sb.from('paychecks').delete().eq('id',id);
+  if(error){toast('Error: '+error.message);return;}
+  await loadPaychecks();
+  renderWeekly();renderDashboard();
+  toast('Paycheck removed');
+  showConfirmedIncomeModal();
+}
 function showDebtPaidBreakdown(){
   const rows=payments.slice(0,30).map(p=>{const d=debts.find(x=>x.id===p.debt_id);return`<div class="account-row"><div><div class="account-name">${d?esc(d.name):'Unknown'}</div><div class="account-detail">${fmtDate(p.pay_date)}${p.notes?' · '+esc(p.notes):''}</div></div><div class="account-balance text-success">-${fmt(p.amount)}</div></div>`;}).join('');
   openDashModal('Debt Payment History',rows||'<div class="empty"><p>No payments logged yet.</p></div>','payments');
@@ -2294,7 +2315,7 @@ function renderWeekly(){
   const expectedTotal=pendingPeriods.reduce((s,w)=>s+parseFloat(w.expected_amount||0),0);
   const totalsBar=`<div class="card" style="margin-bottom:14px;">
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
-      <div><div class="stat-label">Confirmed</div><div style="font-size:18px;font-weight:800;color:var(--success);">${fmt(confirmedTotal)}</div></div>
+      <div onclick="showConfirmedIncomeModal()" style="cursor:pointer;"><div class="stat-label">Confirmed</div><div style="font-size:18px;font-weight:800;color:var(--success);">${fmt(confirmedTotal)}</div></div>
       <div><div class="stat-label">Expected</div><div style="font-size:18px;font-weight:800;color:var(--warning);">${fmt(expectedTotal)}</div></div>
       <div><div class="stat-label">Pending</div><div style="font-size:18px;font-weight:800;color:var(--muted);">${pendingPeriods.length} period${pendingPeriods.length!==1?'s':''}</div></div>
     </div>
@@ -2473,6 +2494,7 @@ async function saveEditPaycheck(){
   if(error){toast('Error: '+error.message);return;}
   closeModal('edit-paycheck-modal');
   await loadPaychecks();renderWeekly();renderDashboard();toast('Paycheck updated ✓');
+  if(document.getElementById('dash-detail-modal').classList.contains('open'))showConfirmedIncomeModal();
 }
 function openPaymentModalForWeek(weekId){document.getElementById('pay-date').value=today();document.getElementById('pay-amount').value='';document.getElementById('pay-notes').value='';const sel=document.getElementById('pay-account');sel.innerHTML='<option value="">— Select account —</option>'+debts.map(d=>`<option value="${d.id}">${esc(d.name)}</option>`).join('');document.getElementById('payment-modal').dataset.weekId=weekId;openModal('payment-modal');}
 function openExpenseModalForWeek(weekId){document.getElementById('exp-date').value=today();document.getElementById('exp-amount').value='';document.getElementById('exp-desc').value='';document.getElementById('exp-notes').value='';document.getElementById('expense-modal').dataset.weekId=weekId;openModal('expense-modal');}
