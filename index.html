@@ -2882,6 +2882,7 @@ function renderDebts(){
         <div><div class="pill-label">APR</div><div style="font-size:16px;font-weight:700;">${parseFloat(d.apr||0).toFixed(1)}%</div></div>
       </div>
       ${u!==null?`<div class="progress-wrap mt8"><div class="progress-label"><span>Utilization</span><span class="${u>100?'text-danger':u>30?'text-warning':'text-success'}">${u.toFixed(1)}%</span></div><div class="progress-bar"><div class="progress-fill" style="width:${Math.min(u,100)}%;background:${u>100?'var(--danger)':u>30?'var(--warning)':'var(--success)'}"></div></div></div>`:''}
+      ${(()=>{if(u!==null||debtPaid<=0)return'';const orig=bal+debtPaid;const pct=Math.min((debtPaid/orig)*100,100);const col=pct>=66?'var(--success)':pct>=33?'var(--warning)':'var(--danger)';return`<div class="progress-wrap mt8"><div class="progress-label"><span>Payoff Progress</span><span style="color:${col};font-weight:700;">${pct.toFixed(1)}% paid</span></div><div class="progress-bar"><div class="progress-fill" style="width:${pct}%;background:${col}"></div></div></div>`;})()}
       <div class="divider"></div>
       <div style="display:flex;justify-content:space-between;align-items:center;">
         <div style="display:flex;gap:16px;">
