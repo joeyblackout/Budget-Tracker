@@ -3505,21 +3505,21 @@ function renderInstructions(){
     </div>
     ${section('🧭','Navigation',[
       ['How do I get around the app?','The bottom bar has your most-used tabs: Forecast, Debts, Income, Bills, Savings, and Expenses. Tap the ☰ hamburger icon (top-left) to open the full sidebar with every section including Community, Settings, and more.'],
-      ['How do I get back to the Dashboard?','Tap the 💰 Budget Tracker title in the top bar from anywhere in the app — it always routes you back to the Dashboard.'],
+      ['How do I get back to the Dashboard?','Tap the Budget Tracker logo in the top bar from anywhere in the app — it always routes you back to the Dashboard.'],
       ['What is the 🔔 bell icon?','The notification bell (top-right) shows a red badge when something needs your attention — overdue bills, paychecks to confirm, shared pot invites, or new community posts. Tap it to see everything in one place. Notifications clear when you close the panel.'],
     ])}
     ${section('📊','Dashboard',[
       ['What is the Running Balance?','Your real cash on hand right now. It starts from your Starting Cash (set in Settings), adds paychecks you\'ve confirmed received, and subtracts everything you\'ve paid — debt, bills, expenses, and savings deposits.'],
       ['What do the stat cards and balance lines do?','Every card and line is tappable. Total Debt shows each account, Raked In shows paycheck history, CC Utilization shows per-card usage, Debt Paid shows payment history, Bills Paid shows bill history, and Total Saved goes to Savings. Tap any to drill down.'],
-      ['What is Net Worth?','Below the payoff progress bar, Net Worth = Total Assets (savings + shared pots + physical assets) minus Total Debt. It updates live as you make payments and deposits. Tap each line to see a breakdown.'],
-      ['What is the Payoff Calculator?','Below Net Worth, the Avalanche and Snowball cards show two debt payoff strategies — how long each takes and how much interest you\'d pay. The "+$200/mo" card shows how much faster you\'d finish with extra payments.'],
-      ['Account Summary vs Savings Pots','Toggle between your debt accounts and your savings pots (including shared pots) using the buttons near the bottom of the dashboard.'],
+      ['What is Net Worth?','The Net Worth card shows Total Assets (savings + shared pots + physical assets) minus Total Debt. It updates live as you make payments and deposits. Tap each line to see a breakdown.'],
+      ['What is the Bills This Month card?','Directly below your running balance, the Bills This Month card shows a progress bar of how many bills you\'ve paid this month, the dollar amount paid, and what\'s remaining. Tap it to go to the Bills tab.'],
     ])}
     ${section('📅','Income',[
       ['How do I set up recurring income?','Tap 🔁 Recurring at the top of the Income tab. Add a source with your pay amount, frequency, next pay date, and optional end date. The app auto-creates pay periods for the next 12 months.'],
       ['How are pay periods labeled?','Named sources use per-source numbering — "Select Safety · Check 3" and "Per Diem · Check 5" are counted independently. Manually added periods with no source keep global "Pay Period X" numbering.'],
       ['How are periods grouped?','Pay periods are grouped by month with collapsible headers. The current month starts expanded. Tap any month header to expand or collapse it. Periods older than 7 days roll into a Past Periods accordion at the top.'],
       ['What does Pending mean?','A period is Pending when the pay date hasn\'t arrived yet. Income doesn\'t count toward your balance until you tap ✓ Received on payday — or "Different amount" if the actual paycheck varied.'],
+      ['What if I get paid early?','If you confirm a paycheck before its scheduled date, it counts toward your running balance immediately — you don\'t have to wait for the scheduled pay date to pass.'],
       ['What is the totals bar?','The summary card at the top shows Confirmed (received so far), Expected (upcoming pending periods), and Pending (count of future periods). Use the source filter buttons to view one income source at a time.'],
     ])}
     ${section('💳','Debts & Payments',[
@@ -3534,6 +3534,7 @@ function renderInstructions(){
       ['How do I add a bill?','Tap + on the Bills tab. Enter the name, amount, due day of the month, category, and frequency.'],
       ['What do the status labels mean?','Green "Paid" = paid this month. Yellow = due within 5 days. Red "Overdue" = past due date. No badge = upcoming and on track.'],
       ['What does the progress bar show?','How many of your monthly bills you\'ve paid so far this month, the dollar amount paid vs remaining, and the percentage complete.'],
+      ['Can I pay all due bills at once?','Yes — when you have unpaid due or overdue bills, a Pay All Due button appears in the Bills tab header. Tap it to see a list of all due bills with a total, then confirm to mark them all paid at once.'],
     ])}
     ${section('🏦','Savings & Assets',[
       ['How do I create a savings pot?','Tap + on the Savings tab. Give it a name, emoji, optional goal, and Starting Balance if you already have money there. The starting balance counts toward your total saved but doesn\'t affect your running cash.'],
@@ -3576,7 +3577,6 @@ function renderInstructions(){
     ${section('⚙️','Settings & Getting Started',[
       ['How do I set my name?','Settings → Display Name. This shows in the Community feed and is how others find you to invite to shared pots. You\'ll be prompted to set this on your first login.'],
       ['What is Starting Cash on Hand?','The money currently in your checking account. Set it once in Settings — your Running Balance builds on top of it. Update it anytime if your balance changes significantly.'],
-      ['How do I change the app theme?','Settings → Color Scheme. Choose from 6 themes (Midnight Blue, Forest, Crimson, Violet, Slate, Gold). Saved on your device.'],
       ['How do I get the app on my iPhone home screen?','Open the app in Safari → tap the Share button → Add to Home Screen. It opens full-screen like a native app with its own icon.'],
       ['How do I get others set up?','Share the app URL with family members. They\'ll be prompted to create a password via email invite (sent from Supabase). On first login they\'ll set their display name, then they\'re ready to go.'],
     ])}`;
