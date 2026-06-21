@@ -1069,9 +1069,8 @@ function renderForecast(){
       <div class="field" style="margin:0;flex:1;min-width:130px;"><label>To</label><input type="date" id="forecast-end" value="${forecastCustomEnd}" style="width:100%;background:var(--bg);border:1.5px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:14px;padding:10px 12px;"/></div>
       <button class="btn btn-primary" style="padding:11px 18px;width:auto;" onclick="applyCustomForecast()">Apply</button>
     </div>`:''}
-    <div style="font-size:12px;color:var(--muted);margin-bottom:10px;font-weight:600;">${dateRangeLabel}</div>
     <div class="balance-card">
-      <div class="balance-label">Projected Balance · ${winLabel}</div>
+      <div class="balance-label">Projected Balance · ${winLabel} · ${dateRangeLabel}</div>
       <div class="balance-amount ${endBalance>=0?'text-success':'text-danger'}">${fmt(endBalance)}</div>
       <div style="font-size:12px;color:var(--muted);margin-bottom:14px;">Starting from ${fmt(startBalance)} cash on hand today</div>
       <div class="balance-breakdown">
