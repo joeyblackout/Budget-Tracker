@@ -2434,23 +2434,34 @@ function renderTrendsInsights(){
       labels.push(`${monday.toLocaleString('default',{month:'short'})} ${monday.getDate()}`);
     }
     svgWidth=350;ptSpacing=50;
+  } else if(trendsWindow==='monthly'){
+    // Last 4 weeks, Mon–Sun
+    periods=[];labels=[];
+    for(let i=3;i>=0;i--){
+      const monday=new Date(now);
+      monday.setDate(now.getDate()-now.getDay()+1-i*7);
+      const sunday=new Date(monday);sunday.setDate(monday.getDate()+6);
+      periods.push({start:monday.toISOString().slice(0,10),end:sunday.toISOString().slice(0,10)});
+      const mo=monday.toLocaleString('default',{month:'short'});
+      labels.push(i===0?'This Wk':`${mo} ${monday.getDate()}–${sunday.getDate()}`);
+    }
+    svgWidth=150;ptSpacing=50;
   } else {
-    const count=trendsWindow==='6mo'?6:trendsWindow==='monthly'?12:3;
+    const count=trendsWindow==='6mo'?6:3;
     periods=Array.from({length:count},(_,i)=>{const d=new Date(now.getFullYear(),now.getMonth()-(count-1-i),1);return{month:d.toISOString().slice(0,7)};});
     labels=periods.map((p,i)=>{
       if(i===periods.length-1)return'This mo';
       if(i===periods.length-2)return'Last mo';
       const d=new Date(p.month+'-01');return d.toLocaleString('default',{month:'short'});
     });
-    svgWidth=trendsWindow==='monthly'?330:trendsWindow==='6mo'?250:100;
-    ptSpacing=trendsWindow==='monthly'?30:50;
+    svgWidth=trendsWindow==='6mo'?250:100;ptSpacing=50;
   }
-  const getVal=(cat,p)=>trendsWindow==='weekly'
+  const getVal=(cat,p)=>p.start
     ?expenses.filter(e=>e.category===cat&&(e.exp_date||'')>=p.start&&(e.exp_date||'')<=p.end).reduce((s,e)=>s+parseFloat(e.amount||0),0)
     :expenses.filter(e=>e.category===cat&&(e.exp_date||'').startsWith(p.month)).reduce((s,e)=>s+parseFloat(e.amount||0),0);
-  // Projected spend card (monthly modes only)
+  // Projected spend card (3mo/6mo only)
   let projCard='';
-  if(trendsWindow!=='weekly'){
+  if(trendsWindow==='3mo'||trendsWindow==='6mo'){
     const dayOfMonth=now.getDate();
     const daysInMonth=new Date(now.getFullYear(),now.getMonth()+1,0).getDate();
     const thisMonthSpend=expenses.filter(e=>(e.exp_date||'').startsWith(periods[periods.length-1].month)).reduce((s,e)=>s+parseFloat(e.amount||0),0);
@@ -2476,7 +2487,7 @@ function renderTrendsInsights(){
     const trendColor=trend>5?'var(--danger)':trend<-5?'var(--success)':'var(--muted)';
     const col=CAT_COLORS[ci%CAT_COLORS.length];
     const latestVal=vals[vals.length-1];
-    const latestLabel=trendsWindow==='weekly'?'this wk':'this mo';
+    const latestLabel=trendsWindow==='weekly'||trendsWindow==='monthly'?'this wk':'this mo';
 
     return`<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);">
       <div style="width:8px;height:8px;border-radius:50%;background:${col};flex-shrink:0;"></div>
@@ -2493,7 +2504,7 @@ function renderTrendsInsights(){
     ${projCard}
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;">${windowBtns}</div>
     <div style="font-size:11px;font-weight:700;letter-spacing:0.08em;color:var(--muted);text-transform:uppercase;margin-bottom:8px;">Category Trends — ${titleMap[trendsWindow]}</div>
-    <div style="display:flex;justify-content:flex-end;gap:${trendsWindow==='weekly'?'28':'16'}px;font-size:10px;color:var(--muted);margin-bottom:4px;">
+    <div style="display:flex;justify-content:flex-end;gap:${trendsWindow==='weekly'||trendsWindow==='monthly'?'28':'16'}px;font-size:10px;color:var(--muted);margin-bottom:4px;">
       ${labels.map(l=>`<span>${l}</span>`).join('')}
     </div>
     ${catRows}`;
