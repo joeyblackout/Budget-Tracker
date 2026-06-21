@@ -944,6 +944,11 @@ let forecastWindow='3month';
 let forecastCustomStart='',forecastCustomEnd='';
 function setForecastWindow(w){
   forecastWindow=w;
+  if(w==='custom'&&!forecastCustomStart){
+    forecastCustomStart=today();
+    const d=new Date();d.setDate(d.getDate()+30);
+    forecastCustomEnd=d.toISOString().slice(0,10);
+  }
   const customRow=document.getElementById('forecast-custom-row');
   if(customRow)customRow.style.display=w==='custom'?'flex':'none';
   renderForecast();
