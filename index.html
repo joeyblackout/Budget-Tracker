@@ -198,10 +198,15 @@ select option{background:var(--surface);color:var(--text);}
 .badge{display:inline-block;font-size:10px;font-weight:700;padding:3px 8px;border-radius:99px;margin-left:6px;background:rgba(45,212,160,0.2);color:var(--success);vertical-align:middle;}
 .paycheck-row{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--border);}
 .paycheck-row:last-child{border-bottom:none;}
-#loading-screen{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:400;}
-.spinner{width:40px;height:40px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 0.7s linear infinite;margin-bottom:16px;}
-@keyframes spin{to{transform:rotate(360deg);}}
-.loading-text{font-size:14px;color:var(--muted);}
+#loading-screen{position:fixed;inset:0;background:#080808;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:400;gap:0;opacity:1;transition:opacity 0.3s ease;}
+#loading-screen.fade-out{opacity:0;}
+.load-logo{width:56px;height:56px;border-radius:12px;box-shadow:0 0 24px rgba(45,212,160,0.4);margin-bottom:14px;}
+.load-wordmark{font-size:24px;font-weight:800;letter-spacing:-0.5px;margin-bottom:20px;line-height:1;}
+.load-wordmark span{color:#2dd4a0;}
+.load-bar-wrap{width:120px;height:3px;background:#272727;border-radius:99px;overflow:hidden;margin-bottom:14px;}
+.load-bar{width:50%;height:100%;background:#2dd4a0;border-radius:99px;animation:shimmer 1.2s ease-in-out infinite;}
+@keyframes shimmer{0%{transform:translateX(-100%);}100%{transform:translateX(200%);}}
+.loading-text{font-size:13px;color:#666666;}
 #toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--surface2);border:1px solid var(--border);border-radius:99px;padding:12px 22px;font-size:14px;font-weight:600;z-index:300;opacity:0;transition:all 0.25s;white-space:nowrap;pointer-events:none;}
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
 /* COMMUNITY */
@@ -223,7 +228,12 @@ select option{background:var(--surface);color:var(--text);}
 </style>
 </head>
 <body>
-<div id="loading-screen"><div class="spinner"></div><div class="loading-text">Loading…</div></div>
+<div id="loading-screen">
+  <img src="favicon.ico" class="load-logo" alt="">
+  <div class="load-wordmark">Budget <span>Tracker</span></div>
+  <div class="load-bar-wrap"><div class="load-bar"></div></div>
+  <div class="loading-text">Loading your finances…</div>
+</div>
 
 <!-- WELCOME / NAME SETUP -->
 <div id="welcome-screen" style="display:none;min-height:100dvh;flex-direction:column;align-items:center;justify-content:center;padding:24px;background:radial-gradient(ellipse at 50% 0%,#1a1f35 0%,var(--bg) 70%);">
@@ -751,8 +761,14 @@ window.addEventListener('DOMContentLoaded',async()=>{
   });
 });
 
+function hideLoadingScreen(){
+  const ls=document.getElementById('loading-screen');
+  if(ls.style.display==='none')return;
+  ls.classList.add('fade-out');
+  setTimeout(()=>{ls.style.display='none';ls.classList.remove('fade-out');},320);
+}
 function hideAllScreens(){
-  document.getElementById('loading-screen').style.display='none';
+  hideLoadingScreen();
   document.getElementById('auth-screen').style.display='none';
   document.getElementById('welcome-screen').style.display='none';
   document.getElementById('set-password-screen').style.display='none';
@@ -761,11 +777,12 @@ function hideAllScreens(){
 }
 function showAuth(){hideAllScreens();document.getElementById('auth-screen').style.display='flex';}
 async function showApp(){
-  document.getElementById('loading-screen').style.display='block';
+  const ls=document.getElementById('loading-screen');
+  ls.style.display='flex';ls.style.opacity='1';ls.classList.remove('fade-out');
   document.getElementById('auth-screen').style.display='none';
   await loadProfiles();
   if(!myProfile?.display_name){
-    document.getElementById('loading-screen').style.display='none';
+    hideLoadingScreen();
     document.getElementById('welcome-screen').style.display='flex';
     return;
   }
