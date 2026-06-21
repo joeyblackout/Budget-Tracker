@@ -3087,15 +3087,16 @@ function renderBudgetInsights(){
     const col=catColorMap[cat]||'var(--accent)';
     const isEditing=budgetEditingCat===cat;
     const tgtCell=isEditing
-      ?'<td style="padding:5px 6px;">'
+      ?'<td onclick="event.stopPropagation()" style="padding:5px 6px;">'
         +'<div style="display:flex;align-items:center;gap:4px;">'
           +'<input id="budget-inline-input" type="number" min="0" step="1" value="'+tgt+'" style="width:72px;padding:3px 6px;border:1px solid var(--accent);border-radius:var(--radius-sm);background:var(--surface);color:var(--text);font-size:12px;" onkeydown="if(event.key===\'Enter\')confirmBudgetEdit(\''+esc(cat)+'\');if(event.key===\'Escape\')cancelBudgetEdit();" autofocus/>'
           +'<button onclick="confirmBudgetEdit(\''+esc(cat)+'\')" style="background:var(--success);border:none;border-radius:4px;color:#000;font-size:12px;font-weight:700;padding:3px 7px;cursor:pointer;line-height:1;">✓</button>'
           +'<button onclick="cancelBudgetEdit()" style="background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--muted);font-size:12px;font-weight:700;padding:3px 7px;cursor:pointer;line-height:1;">✗</button>'
         +'</div>'
         +'</td>'
-      :'<td onclick="startBudgetEdit(\''+esc(cat)+'\')" style="padding:7px 6px;font-size:12px;color:var(--muted);text-align:right;cursor:pointer;">'+fmt(tgt)+'</td>';
-    return'<tr>'
+      :'<td onclick="event.stopPropagation();startBudgetEdit(\''+esc(cat)+'\')" style="padding:7px 6px;font-size:12px;color:var(--muted);text-align:right;cursor:pointer;">'+fmt(tgt)+'</td>';
+    const trOpen=isEditing?'<tr>':'<tr onclick="showCatHistory(\''+esc(cat).replace(/'/g,"\\'")+'\',\''+col+'\')" style="cursor:pointer;" onmousedown="this.style.background=\'var(--surface2)\'" onmouseup="this.style.background=\'\'" onmouseleave="this.style.background=\'\'" ontouchstart="this.style.background=\'var(--surface2)\'" ontouchend="this.style.background=\'\'">';
+    return trOpen
       +'<td style="padding:7px 6px;font-size:12px;font-weight:600;"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:'+col+';margin-right:5px;vertical-align:middle;"></span>'+esc(cat)+'</td>'
       +tgtCell
       +'<td style="padding:7px 6px;font-size:12px;text-align:right;">'+fmt(spent)+'</td>'
@@ -3111,15 +3112,16 @@ function renderBudgetInsights(){
     const col=catColorMap[cat]||'var(--muted)';
     const isEditing=budgetEditingCat===cat;
     const tgtCell=isEditing
-      ?'<td style="padding:5px 6px;">'
+      ?'<td onclick="event.stopPropagation()" style="padding:5px 6px;">'
         +'<div style="display:flex;align-items:center;gap:4px;">'
           +'<input id="budget-inline-input" type="number" min="0" step="1" placeholder="0" style="width:72px;padding:3px 6px;border:1px solid var(--accent);border-radius:var(--radius-sm);background:var(--surface);color:var(--text);font-size:12px;" onkeydown="if(event.key===\'Enter\')confirmBudgetEdit(\''+esc(cat)+'\');if(event.key===\'Escape\')cancelBudgetEdit();" autofocus/>'
           +'<button onclick="confirmBudgetEdit(\''+esc(cat)+'\')" style="background:var(--success);border:none;border-radius:4px;color:#000;font-size:12px;font-weight:700;padding:3px 7px;cursor:pointer;line-height:1;">✓</button>'
           +'<button onclick="cancelBudgetEdit()" style="background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--muted);font-size:12px;font-weight:700;padding:3px 7px;cursor:pointer;line-height:1;">✗</button>'
         +'</div>'
         +'</td>'
-      :'<td onclick="startBudgetEdit(\''+esc(cat)+'\')" style="padding:7px 6px;font-size:11px;color:var(--muted);text-align:right;cursor:pointer;font-style:italic;">— Set —</td>';
-    return'<tr style="opacity:0.7;">'
+      :'<td onclick="event.stopPropagation();startBudgetEdit(\''+esc(cat)+'\')" style="padding:7px 6px;font-size:11px;color:var(--muted);text-align:right;cursor:pointer;font-style:italic;">— Set —</td>';
+    const trOpen=isEditing?'<tr style="opacity:0.7;">':'<tr style="opacity:0.7;cursor:pointer;" onclick="showCatHistory(\''+esc(cat).replace(/'/g,"\\'")+'\',\''+col+'\')" onmousedown="this.style.background=\'var(--surface2)\'" onmouseup="this.style.background=\'\'" onmouseleave="this.style.background=\'\'" ontouchstart="this.style.background=\'var(--surface2)\'" ontouchend="this.style.background=\'\'">';
+    return trOpen
       +'<td style="padding:7px 6px;font-size:12px;font-weight:600;"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:'+col+';margin-right:5px;vertical-align:middle;"></span>'+esc(cat)+'</td>'
       +tgtCell
       +'<td style="padding:7px 6px;font-size:12px;text-align:right;color:var(--muted);">'+fmt(spent)+'</td>'
