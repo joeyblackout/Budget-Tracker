@@ -1807,7 +1807,7 @@ function renderSavings(){
           <button class="pot-btn-deposit" onclick="openSharedTxnModal('${p.id}','deposit','${esc(p.name)}')">+ Deposit</button>
           <button class="pot-btn-withdraw" onclick="openSharedTxnModal('${p.id}','withdraw','${esc(p.name)}')">- Withdraw</button>
           <button class="pot-btn-history" onclick="openSharedHistory('${p.id}','${esc(p.name)}')">History</button>
-          ${p.owner_id===currentUser.id?`<button class="pot-btn-transfer" onclick="openInviteModal('${p.id}')">+ Invite</button>`:''}
+          ${p.owner_id===currentUser.id?`<button class="pot-btn-transfer" onclick="openInviteModal('${p.id}')">+ Invite</button>`:`<button class="pot-btn-withdraw" onclick="leaveSharedPot('${p.id}')">Leave</button>`}
         </div>
       </div>`;
     }).join('');
@@ -2058,6 +2058,11 @@ async function deleteSharedPot(id){
   if(!confirm('Delete this shared pot? All members lose access and history is erased.'))return;
   await sb.from('shared_pots').delete().eq('id',id);
   await loadShared();renderSavings();renderDashboard();toast('Shared pot deleted');
+}
+async function leaveSharedPot(potId){
+  if(!confirm("Leave this shared pot? You'll lose access to the history and can't rejoin unless re-invited."))return;
+  await sb.from('shared_members').delete().eq('pot_id',potId).eq('user_id',currentUser.id);
+  await loadShared();renderSavings();renderDashboard();toast('You left the pot');
 }
 
 function openInviteModal(potId){
