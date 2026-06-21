@@ -218,6 +218,7 @@ select option{background:var(--surface);color:var(--text);}
 .reaction-btn.reacted{border-color:var(--accent);background:rgba(79,142,247,0.12);}
 .reaction-count{font-size:12px;font-weight:700;color:var(--muted);}
 .reaction-btn.reacted .reaction-count{color:var(--accent);}
+.onboarding-highlight{outline:2px solid var(--accent);outline-offset:3px;border-radius:8px;}
 </style>
 </head>
 <body>
@@ -409,6 +410,17 @@ select option{background:var(--surface);color:var(--text);}
 </div>
 
 <div id="toast"></div>
+<!-- ONBOARDING SPLASH -->
+<div id="onboarding-splash" style="display:none;position:fixed;inset:0;z-index:600;background:var(--bg);flex-direction:column;align-items:center;justify-content:center;padding:32px 24px;text-align:center;">
+  <div style="font-size:56px;margin-bottom:20px;">💰</div>
+  <h2 style="font-size:24px;font-weight:800;color:var(--text);margin-bottom:12px;letter-spacing:-0.02em;">Welcome to Budget Tracker</h2>
+  <p style="font-size:15px;color:var(--muted);line-height:1.6;max-width:300px;margin:0 auto 40px;">Let's take 2 minutes to show you around so you know exactly where everything lives.</p>
+  <button onclick="startOnboardingTour()" style="width:100%;max-width:300px;padding:16px;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;border:none;border-radius:var(--radius-sm);font-size:16px;font-weight:700;cursor:pointer;display:block;margin:0 auto 12px;">Show me around</button>
+  <button onclick="dismissOnboarding()" style="width:100%;max-width:300px;padding:14px;background:transparent;color:var(--muted);border:none;font-size:14px;cursor:pointer;display:block;margin:0 auto;">Skip for now</button>
+</div>
+<!-- ONBOARDING TOUR -->
+<div id="onboarding-dim" style="display:none;position:fixed;inset:0;z-index:498;background:rgba(0,0,0,0.7);pointer-events:none;"></div>
+<div id="onboarding-card" style="display:none;position:fixed;left:16px;right:16px;bottom:calc(env(safe-area-inset-bottom,0px) + 80px);z-index:500;background:var(--surface);border:2px solid var(--accent);border-radius:var(--radius);padding:20px 18px;pointer-events:auto;box-shadow:0 4px 32px rgba(0,0,0,0.4);"></div>
 
 <!-- WEEK MODAL -->
 <div class="modal-overlay" id="week-modal"><div class="modal">
@@ -761,7 +773,7 @@ async function saveWelcomeName(){
   hideAllScreens();
   document.getElementById('app-screen').classList.add('visible');
   document.getElementById('sidebar-email').textContent=currentUser.email;
-  loadAll();
+  loadAll();showOnboardingSplash();
 }
 async function saveInvitePassword(){
   const pw=document.getElementById('invite-password').value;
@@ -776,7 +788,7 @@ async function saveInvitePassword(){
   hideAllScreens();
   document.getElementById('app-screen').classList.add('visible');
   document.getElementById('sidebar-email').textContent=currentUser.email;
-  loadAll();
+  loadAll();showOnboardingSplash();
 }
 
 // AUTH
@@ -3569,6 +3581,67 @@ function esc(str){if(!str)return'';return String(str).replace(/&/g,'&amp;').repl
 function capFirst(str){if(!str)return'';return str.charAt(0).toUpperCase()+str.slice(1);}
 function greeting(){const h=new Date().getHours();if(h<12)return'Good morning';if(h<18)return'Good afternoon';return'Good evening';}
 function timeAgo(ts){if(!ts)return'';const d=new Date(ts);const secs=Math.floor((Date.now()-d.getTime())/1000);if(secs<60)return'just now';const mins=Math.floor(secs/60);if(mins<60)return mins+'m ago';const hrs=Math.floor(mins/60);if(hrs<24)return hrs+'h ago';const days=Math.floor(hrs/24);if(days<7)return days+'d ago';return d.toLocaleDateString('en-US',{month:'short',day:'numeric'});}
+// ONBOARDING
+const ONBOARDING_STEPS=[
+  {view:'dashboard',navBtn:null,title:'💰 Dashboard',desc:'Your home base. See your running balance, net worth, debt progress, and everything at a glance.'},
+  {view:'forecast',navBtn:'forecast',title:'🔮 Forecast',desc:'See your financial future. Projects your balance weeks or months ahead based on income, bills, and spending.'},
+  {view:'weekly',navBtn:'weekly',title:'📅 Income',desc:'Track your paychecks. Set up recurring income and confirm checks as you receive them.'},
+  {view:'debts',navBtn:'debts',title:'💳 Debts',desc:'Manage what you owe. Log payments, track balances, and see your payoff progress.'},
+  {view:'bills',navBtn:'bills',title:'🏠 Bills',desc:'Never miss a bill. Track due dates, mark them paid, and sync minimums from your debts automatically.'},
+  {view:'savings',navBtn:'savings',title:'🏦 Savings',desc:'Build your future. Create savings pots, set goals, and track deposits and withdrawals.'},
+  {view:'expenses',navBtn:'expenses',title:'🧾 Expenses',desc:'Log your spending. Quick-add buttons make it fast, and Spending Insights shows where your money goes.'},
+  {view:'setup',navBtn:null,title:'⚙️ Settings',desc:'Set your starting cash balance here first — it\'s the foundation your running balance builds on. You can also change your display name and app theme.'},
+];
+let onboardingIdx=0;
+function showOnboardingSplash(){
+  if(localStorage.getItem('bt-onboarded'))return;
+  document.getElementById('onboarding-splash').style.display='flex';
+}
+function startOnboardingTour(){
+  document.getElementById('onboarding-splash').style.display='none';
+  onboardingIdx=0;
+  renderOnboardingStep();
+}
+function clearOnboardingHighlight(){
+  document.querySelectorAll('.onboarding-highlight').forEach(function(el){el.classList.remove('onboarding-highlight');});
+  document.querySelector('.nav').style.zIndex='';
+}
+function renderOnboardingStep(){
+  const total=ONBOARDING_STEPS.length;
+  const step=ONBOARDING_STEPS[onboardingIdx];
+  const isLast=onboardingIdx===total-1;
+  clearOnboardingHighlight();
+  switchView(step.view,null);
+  if(step.navBtn){
+    document.querySelector('.nav').style.zIndex='499';
+    const btn=document.querySelector('.nav-btn[data-view="'+step.navBtn+'"]');
+    if(btn)btn.classList.add('onboarding-highlight');
+  }
+  document.getElementById('onboarding-dim').style.display='block';
+  const card=document.getElementById('onboarding-card');
+  if(isLast){
+    card.innerHTML='<div style="text-align:center;padding:8px 0 4px;"><div style="font-size:32px;margin-bottom:12px;">🎉</div><div style="font-size:18px;font-weight:800;color:var(--text);margin-bottom:10px;">You\'re ready to go!</div><p style="font-size:13px;color:var(--muted);line-height:1.6;margin-bottom:20px;">Start by setting your Starting Cash in Settings, then add your debts and recurring income. The app will take it from here.</p><button onclick="finishOnboarding()" style="width:100%;padding:14px;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;border:none;border-radius:var(--radius-sm);font-size:15px;font-weight:700;cursor:pointer;">Let\'s go →</button></div>';
+  }else{
+    var prev=onboardingIdx>0?'<button onclick="onboardingStep(-1)" style="flex:1;padding:11px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;font-weight:700;cursor:pointer;">← Prev</button>':'';
+    card.innerHTML='<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;"><div style="font-size:16px;font-weight:800;color:var(--text);">'+step.title+'</div><div style="font-size:11px;font-weight:700;color:var(--muted);white-space:nowrap;margin-left:8px;">'+(onboardingIdx+1)+' of '+total+'</div></div><div style="font-size:13px;color:var(--muted);line-height:1.6;margin-bottom:16px;">'+step.desc+'</div><div style="display:flex;gap:8px;">'+prev+'<button onclick="dismissOnboarding()" style="padding:11px 14px;background:transparent;color:var(--muted);border:none;font-size:13px;cursor:pointer;">Skip</button><button onclick="onboardingStep(1)" style="flex:1;padding:11px;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;border:none;border-radius:var(--radius-sm);font-size:13px;font-weight:700;cursor:pointer;">Next →</button></div>';
+  }
+  card.style.display='block';
+}
+function onboardingStep(dir){
+  onboardingIdx=Math.max(0,Math.min(ONBOARDING_STEPS.length-1,onboardingIdx+dir));
+  renderOnboardingStep();
+}
+function dismissOnboarding(){
+  localStorage.setItem('bt-onboarded','1');
+  document.getElementById('onboarding-splash').style.display='none';
+  document.getElementById('onboarding-dim').style.display='none';
+  document.getElementById('onboarding-card').style.display='none';
+  clearOnboardingHighlight();
+}
+function finishOnboarding(){
+  dismissOnboarding();
+  switchView('setup',null);
+}
 </script>
 </body>
 </html>
