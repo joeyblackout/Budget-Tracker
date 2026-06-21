@@ -2476,7 +2476,7 @@ async function confirmPayAllDue(){
       const debt=debts.find(d=>d.id===b.debt_id);
       if(debt){
         const newBal=Math.max(0,parseFloat(debt.balance||0)-parseFloat(b.amount));
-        await sb.from('debts').update({balance:newBal}).eq('id',debt.id);
+        await sb.from('debts').update(newBal===0?{balance:0,min_payment:0}:{balance:newBal}).eq('id',debt.id);
         await sb.from('payments').insert({user_id:currentUser.id,debt_id:debt.id,amount:parseFloat(b.amount),pay_date:today(),notes:`Min payment via ${b.name}`});
       }
     }
@@ -2494,7 +2494,7 @@ async function markBillPaid(billId,billName,amount){
     const debt=debts.find(d=>d.id===bill.debt_id);
     if(debt){
       const newBal=Math.max(0,parseFloat(debt.balance||0)-parseFloat(amount));
-      await sb.from('debts').update({balance:newBal}).eq('id',debt.id);
+      await sb.from('debts').update(newBal===0?{balance:0,min_payment:0}:{balance:newBal}).eq('id',debt.id);
       await sb.from('payments').insert({user_id:currentUser.id,debt_id:debt.id,amount:parseFloat(amount),pay_date:today(),notes:`Min payment via ${billName}`});
       await Promise.all([loadDebts(),loadPayments()]);
     }
@@ -2967,7 +2967,7 @@ async function savePayment(){
   const{error}=await sb.from('payments').insert({user_id:currentUser.id,debt_id,amount,pay_date,pay_week_id:weekId||null,notes:document.getElementById('pay-notes').value.trim()||null});
   if(error){toast('Error: '+error.message);return;}
   let debtBillRemoved=false;
-  if(debt){const newBal=Math.max(0,parseFloat(debt.balance||0)-amount);await sb.from('debts').update({balance:newBal}).eq('id',debt_id);
+  if(debt){const newBal=Math.max(0,parseFloat(debt.balance||0)-amount);await sb.from('debts').update(newBal===0?{balance:0,min_payment:0}:{balance:newBal}).eq('id',debt_id);
     const oldBal=parseFloat(debt.balance||0);
     const lim=parseFloat(debt.credit_limit||0);
     const name=myProfile?.display_name||'Someone';
