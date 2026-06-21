@@ -2020,6 +2020,16 @@ function renderBills(){
       </div>
     </div>`;
   };
+  const sortBills=(arr)=>{
+    const isPaidFn=id=>billPayments.some(p=>p.bill_id===id&&(p.paid_date||'').startsWith(thisMonth));
+    const lastPaid=id=>{const p=[...billPayments].filter(x=>x.bill_id===id&&(x.paid_date||'').startsWith(thisMonth)).sort((a,b)=>b.paid_date<a.paid_date?-1:1)[0];return p?p.paid_date:'';};
+    return[...arr].sort((a,b)=>{
+      const ap=isPaidFn(a.id),bp=isPaidFn(b.id);
+      if(ap!==bp)return ap?1:-1;
+      if(!ap)return(parseInt(a.due_day||0))-(parseInt(b.due_day||0));
+      return lastPaid(b.id).localeCompare(lastPaid(a.id));
+    });
+  };
   const groupToggle=`<div style="display:flex;gap:6px;margin-bottom:12px;">
     ${['type','category'].map(g=>`<button onclick="billsGroupBy='${g}';renderBills();" style="padding:4px 12px;border-radius:99px;border:1px solid var(--border);background:${billsGroupBy===g?'var(--accent)':'transparent'};color:${billsGroupBy===g?'#fff':'var(--muted)'};font-size:11px;font-weight:700;cursor:pointer;">${g==='type'?'By Type':'By Category'}</button>`).join('')}
   </div>`;
@@ -2038,12 +2048,12 @@ function renderBills(){
         </div>
         <span style="font-size:16px;color:var(--muted);">${isOpen?'▲':'▼'}</span>
       </div>
-      ${isOpen?`<div class="card" style="padding:0 18px;margin-top:2px;border-top-left-radius:0;border-top-right-radius:0;">${group.map(billCard).join('')}</div>`:''}`;
+      ${isOpen?`<div class="card" style="padding:0 18px;margin-top:2px;border-top-left-radius:0;border-top-right-radius:0;">${sortBills(group).map(billCard).join('')}</div>`:''}`;
     }).join('');
   } else {
     groupedHTML=`
-      ${monthly.length>0?`<div class="card-title">Monthly</div><div class="card" style="padding:0 18px;">${monthly.map(billCard).join('')}</div>`:''}
-      ${other.length>0?`<div class="card-title" style="margin-top:8px;">Other</div><div class="card" style="padding:0 18px;">${other.map(billCard).join('')}</div>`:''}`;
+      ${monthly.length>0?`<div class="card-title">Monthly</div><div class="card" style="padding:0 18px;">${sortBills(monthly).map(billCard).join('')}</div>`:''}
+      ${other.length>0?`<div class="card-title" style="margin-top:8px;">Other</div><div class="card" style="padding:0 18px;">${sortBills(other).map(billCard).join('')}</div>`:''}`;
   }
   el.innerHTML=`
         <div><div class="stat-label">Paid This Month</div><div style="font-size:20px;font-weight:800;color:var(--success);">${fmt(monthlyPaidThisMonth)}</div></div>
