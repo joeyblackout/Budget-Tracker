@@ -1004,7 +1004,7 @@ function renderForecast(){
       const dd=Math.min(parseInt(b.due_day),new Date(y,m+1,0).getDate());
       const billDate=new Date(y,m,dd);
       if(billDate>todayDate&&billDate<=endDate){
-        events.push({date:billDate.toISOString().slice(0,10),amount:-parseFloat(b.amount||0),label:b.name,type:'bill'});
+        events.push({date:billDate.toISOString().slice(0,10),amount:-parseFloat(b.amount||0),label:b.name,type:b.debt_id?'debt':'bill'});
       }
     });
     cursor.setMonth(cursor.getMonth()+1);cursor.setDate(1);
