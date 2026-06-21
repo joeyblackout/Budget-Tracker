@@ -668,10 +668,21 @@ select option{background:var(--surface);color:var(--text);}
 </div></div>
 
 <!-- PAYDAY MODE MODAL -->
-<div class="modal-overlay" id="payday-modal"><div class="modal" style="max-height:85vh;overflow-y:auto;">
-  <div class="modal-handle"></div>
-  <div id="payday-modal-content"></div>
-</div></div>
+<div id="routine-overlay" style="display:none;position:fixed;inset:0;z-index:500;background:var(--bg);flex-direction:column;">
+  <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid var(--border);flex-shrink:0;">
+    <div style="display:flex;align-items:center;gap:10px;">
+      <img src="favicon.ico" style="width:28px;height:28px;border-radius:6px;" alt="">
+      <span style="font-size:18px;font-weight:800;letter-spacing:-0.02em;"><span style="color:var(--text);">Budget</span> <span style="color:var(--success);">Tracker</span></span>
+    </div>
+    <button onclick="routineCloseX()" style="background:none;border:none;color:var(--muted);font-size:22px;cursor:pointer;padding:4px 8px;line-height:1;">✕</button>
+  </div>
+  <div id="routine-progress" style="flex-shrink:0;"></div>
+  <div id="routine-content" style="flex:1;overflow-y:auto;padding:18px;"></div>
+  <div style="display:flex;gap:10px;padding:14px 18px;border-top:1px solid var(--border);flex-shrink:0;background:var(--bg);">
+    <button id="routine-back-btn" onclick="routineBack()" class="btn btn-ghost" style="flex:1;">Exit</button>
+    <button id="routine-next-btn" onclick="routineNext()" class="btn btn-primary" style="flex:1;">Next →</button>
+  </div>
+</div>
 <!-- PAY ALL DUE MODAL -->
 <div class="modal-overlay" id="pay-all-due-modal"><div class="modal">
   <div class="modal-handle"></div>
@@ -886,7 +897,7 @@ async function cleanupPaidOffDebtBills(){
   await loadBills();
   return true;
 }
-async function loadAll(){await Promise.all([loadDebts(),loadPayments(),loadExpenses(),loadWeeks(),loadPaychecks(),loadBills(),loadBillPayments(),loadPots(),loadSavingsTxns(),loadProfiles(),loadPosts(),loadReactions(),loadShared(),loadRecurring(),loadAssets(),loadBudgetTargets()]);await topUpPeriods();await migrateDiningCategory();await cleanupPaidOffDebtBills();renderDashboard();updateBillBadge();updateNotifBadge();startPolling();}
+async function loadAll(){await Promise.all([loadDebts(),loadPayments(),loadExpenses(),loadWeeks(),loadPaychecks(),loadBills(),loadBillPayments(),loadPots(),loadSavingsTxns(),loadProfiles(),loadPosts(),loadReactions(),loadShared(),loadRecurring(),loadAssets(),loadBudgetTargets()]);await topUpPeriods();await migrateDiningCategory();await cleanupPaidOffDebtBills();renderDashboard();updateBillBadge();updateNotifBadge();startPolling();await openPaydayRoutine();}
 async function topUpPeriods(){
   // Only extend recurring sources if the furthest period is within 10 months out
   if(recurringSources.length===0)return;
@@ -1264,291 +1275,356 @@ function showUtilBreakdown(){
 }
 
 // PAYDAY MODE
-let paydayStep=1;
-let paydayWeeks=[];
-let paydayConfirmedAmount=0;
-let paydayBillsPaid=0;
-let paydayDebtsPaid=0;
-let paydaySaved=0;
+let routineWeeks=[];
+let routinePaychecks={};
+let routineBillsPaid=[];
+let routineDebtPayments={};
+let routineSavings={};
+let routineStep=1;
+let routineStep1Modes={};
+let routinePaycheckTotal=0;
+let routineBillsTotal=0;
+let routineDebtsTotal=0;
+let routineSubmittedStep=0;
 
 function getPendingPaydays(){
   const todayStr=today();
-  return weeks.filter(w=>w.pay_date<=todayStr&&paychecks.filter(p=>p.pay_week_id===w.id).length===0);
+  return weeks.filter(w=>w.pay_date<=todayStr&&!paychecks.some(p=>p.pay_week_id===w.id));
 }
 
-async function openPaydayMode(){
-  paydayWeeks=getPendingPaydays();
-  if(paydayWeeks.length===0)return;
-  paydayStep=1;paydayConfirmedAmount=0;paydayBillsPaid=0;paydayDebtsPaid=0;paydaySaved=0;
-  openModal('payday-modal');
-  // Ensure bills data is fresh before modal renders
+async function openPaydayRoutine(){
+  routineWeeks=getPendingPaydays();
+  if(routineWeeks.length===0)return;
+  routinePaychecks={};routineBillsPaid=[];routineDebtPayments={};routineSavings={};
+  routineStep=1;routineSubmittedStep=0;routinePaycheckTotal=0;routineBillsTotal=0;routineDebtsTotal=0;
+  routineStep1Modes={};
+  routineWeeks.forEach(w=>{routineStep1Modes[w.id]=parseFloat(w.expected_amount||0)>0?'exp':'cus';});
   await Promise.all([loadBills(),loadBillPayments()]);
-  renderPaydayStep();
+  document.getElementById('routine-overlay').style.display='flex';
+  renderRoutine();
 }
 
-function renderPaydayStep(){
-  const el=document.getElementById('payday-modal-content');
-  if(!el)return;
-  const prog=`<div style="display:flex;align-items:center;gap:8px;margin-bottom:18px;">
-    ${[1,2,3,4].map(n=>`<div style="display:flex;align-items:center;gap:6px;">
-      <div style="width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;background:${n<=paydayStep?'var(--accent)':'var(--surface2)'};color:${n<=paydayStep?'#fff':'var(--muted)'};">${n}</div>
-      <span style="font-size:12px;font-weight:${n===paydayStep?'700':'400'};color:${n===paydayStep?'var(--text)':'var(--muted)'};">${['Paycheck','Bills','Debts','Savings'][n-1]}</span>
-    </div>${n<4?'<div style="flex:1;height:2px;background:'+( n<paydayStep?'var(--accent)':'var(--border)')+'"></div>':''}`).join('')}
-  </div>`;
-  if(paydayStep===1)el.innerHTML=prog+renderPaydayStep1();
-  else if(paydayStep===2)el.innerHTML=prog+renderPaydayStep2();
-  else if(paydayStep===3)el.innerHTML=prog+renderPaydayStep3();
-  else el.innerHTML=prog+renderPaydayStep4();
+function routineCloseX(){
+  if(routineSubmittedStep===0){if(!confirm("Exit payday routine? Your progress won't be saved."))return;}
+  document.getElementById('routine-overlay').style.display='none';
 }
 
-function renderPaydayStep1(){
-  const rows=paydayWeeks.map(w=>{
-    const expected=parseFloat(w.expected_amount||0);
-    return`<div style="background:rgba(247,201,72,0.08);border:1px solid rgba(247,201,72,0.3);border-radius:var(--radius-sm);padding:14px;margin-bottom:10px;">
-      <div style="font-size:13px;font-weight:700;margin-bottom:4px;">${esc(w.source_name||'Pay Period')} · ${fmtDate(w.pay_date)}</div>
-      ${expected>0?`<div style="font-size:22px;font-weight:800;color:var(--warning);margin-bottom:12px;">${fmt(expected)}</div>
-        <div style="display:flex;gap:8px;">
-          <button class="btn btn-success" style="flex:1;padding:11px;" onclick="paydayConfirmExpected('${w.id}',${expected},'${w.pay_date}')">✓ Received ${fmt(expected)}</button>
-          <button class="btn btn-ghost" style="flex:1;padding:11px;" onclick="paydayDifferentAmount('${w.id}','${w.pay_date}')">Different amount</button>
-        </div>`
-      :`<input id="payday-custom-${w.id}" type="number" placeholder="Enter amount" step="0.01" min="0" style="width:100%;box-sizing:border-box;padding:9px 10px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:14px;margin-bottom:8px;">
-        <button class="btn btn-success" style="width:100%;" onclick="paydayConfirmCustom('${w.id}','${w.pay_date}')">✓ Confirm</button>`}
-    </div>`;
-  }).join('');
-  return`<div class="modal-title" style="margin-bottom:14px;">Confirm Your Paycheck</div>${rows}
-    <button class="btn btn-ghost" style="width:100%;margin-top:4px;" onclick="closeModal('payday-modal')">Exit</button>`;
+function routineBack(){
+  if(routineStep===1){if(!confirm("Exit payday routine? Your progress won't be saved."))return;document.getElementById('routine-overlay').style.display='none';return;}
+  routineStep--;renderRoutine();
 }
 
-async function paydayConfirmExpected(weekId,amount,payDate){
-  await sb.from('paychecks').insert({user_id:currentUser.id,pay_week_id:weekId,amount,pay_date:payDate,notes:'Recurring income'});
-  paydayConfirmedAmount+=amount;
-  paydayWeeks=paydayWeeks.filter(w=>w.id!==weekId);
+async function routineNext(){
+  if(routineStep===1)await routineStep1Next();
+  else if(routineStep===2)await routineStep2Next();
+  else if(routineStep===3)await routineStep3Next();
+  else if(routineStep===4)await routineStep4Next();
+  else await routineFinish();
+}
+
+function renderRoutine(){
+  const STEPS=['Paycheck','Bills','Debts','Savings','Review'];
+  const segs=STEPS.map((_,i)=>'<div style="flex:1;height:6px;border-radius:3px;background:'+(i<routineStep?'var(--accent)':'var(--surface2)')+'"></div>').join('<div style="width:4px;"></div>');
+  const progEl=document.getElementById('routine-progress');
+  if(progEl)progEl.innerHTML='<div style="padding:12px 18px 0;">'
+    +'<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--muted);margin-bottom:6px;">Step '+routineStep+' of 5</div>'
+    +'<div style="display:flex;align-items:center;gap:4px;margin-bottom:8px;">'+segs+'</div>'
+    +'<div style="font-size:15px;font-weight:800;padding-bottom:12px;border-bottom:1px solid var(--border);">'+STEPS[routineStep-1]+'</div>'
+    +'</div>';
+  const el=document.getElementById('routine-content');
+  if(el){
+    if(routineStep===1)el.innerHTML=renderRoutineStep1();
+    else if(routineStep===2)el.innerHTML=renderRoutineStep2();
+    else if(routineStep===3)el.innerHTML=renderRoutineStep3();
+    else if(routineStep===4)el.innerHTML=renderRoutineStep4();
+    else el.innerHTML=renderRoutineStep5();
+  }
+  const backBtn=document.getElementById('routine-back-btn');
+  const nextBtn=document.getElementById('routine-next-btn');
+  if(backBtn)backBtn.textContent=routineStep===1?'Exit':'← Back';
+  if(nextBtn){nextBtn.style.display=routineStep===5?'none':'';nextBtn.textContent='Next →';nextBtn.disabled=false;}
+}
+
+function renderRoutineStep1(){
+  let html='<div style="font-size:16px;font-weight:700;margin-bottom:4px;">💵 Confirm Your Paycheck</div>'
+    +'<div style="font-size:12px;color:var(--muted);margin-bottom:16px;">How much did you receive?</div>';
+  routineWeeks.forEach(w=>{
+    const weekId=w.id;
+    const exp=parseFloat(w.expected_amount||0);
+    const hasExp=exp>0;
+    const mode=routineStep1Modes[weekId]||'cus';
+    const expSel=mode==='exp';
+    const accBg='rgba(45,212,160,0.12)';const accBor='1.5px solid var(--accent)';const accCol='var(--accent)';
+    const offBg='var(--surface2)';const offBor='1.5px solid var(--border)';const offCol='var(--muted)';
+    html+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px;margin-bottom:10px;">';
+    html+='<div style="font-size:14px;font-weight:700;margin-bottom:2px;">'+esc(w.source_name||'Pay Period')+'</div>';
+    html+='<div style="font-size:11px;color:var(--muted);margin-bottom:12px;">'+fmtDate(w.pay_date)+(hasExp?' · Expected: '+fmt(exp):'')+'</div>';
+    html+='<div style="display:flex;gap:6px;margin-bottom:10px;">';
+    html+='<button id="routine-pill-exp-'+weekId+'" onclick="routineSelectPill(\''+weekId+'\',\'exp\')" '
+      +'style="flex:1;padding:9px;border-radius:var(--radius-sm);border:'+(expSel?accBor:offBor)+';background:'+(expSel?accBg:offBg)+';color:'+(expSel?accCol:offCol)+';font-size:12px;font-weight:700;cursor:pointer;">'
+      +(hasExp?'Received '+fmt(exp):'Received')+'</button>';
+    html+='<button id="routine-pill-cus-'+weekId+'" onclick="routineSelectPill(\''+weekId+'\',\'cus\')" '
+      +'style="flex:1;padding:9px;border-radius:var(--radius-sm);border:'+(!expSel?accBor:offBor)+';background:'+(!expSel?accBg:offBg)+';color:'+(!expSel?accCol:offCol)+';font-size:12px;font-weight:700;cursor:pointer;">'
+      +'Different amount</button>';
+    html+='</div>';
+    html+='<input id="routine-custom-'+weekId+'" type="number" min="0" step="0.01" placeholder="Enter amount received" '
+      +'style="width:100%;box-sizing:border-box;padding:9px 10px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:14px;display:'+(!expSel?'block':'none')+'">';
+    html+='</div>';
+  });
+  return html;
+}
+
+function routineSelectPill(weekId,mode){
+  routineStep1Modes[weekId]=mode;
+  const expBtn=document.getElementById('routine-pill-exp-'+weekId);
+  const cusBtn=document.getElementById('routine-pill-cus-'+weekId);
+  const inp=document.getElementById('routine-custom-'+weekId);
+  const accBg='rgba(45,212,160,0.12)';const accBor='var(--accent)';const accCol='var(--accent)';
+  const offBg='var(--surface2)';const offBor='var(--border)';const offCol='var(--muted)';
+  if(mode==='exp'){
+    if(expBtn){expBtn.style.background=accBg;expBtn.style.borderColor=accBor;expBtn.style.color=accCol;}
+    if(cusBtn){cusBtn.style.background=offBg;cusBtn.style.borderColor=offBor;cusBtn.style.color=offCol;}
+    if(inp)inp.style.display='none';
+  }else{
+    if(cusBtn){cusBtn.style.background=accBg;cusBtn.style.borderColor=accBor;cusBtn.style.color=accCol;}
+    if(expBtn){expBtn.style.background=offBg;expBtn.style.borderColor=offBor;expBtn.style.color=offCol;}
+    if(inp){inp.style.display='block';setTimeout(()=>inp.focus(),50);}
+  }
+}
+
+async function routineStep1Next(){
+  if(routineSubmittedStep>=1){routineStep=2;renderRoutine();return;}
+  const btn=document.getElementById('routine-next-btn');
+  if(btn){btn.disabled=true;btn.textContent='Saving…';}
+  for(const w of routineWeeks){
+    const weekId=w.id;
+    const mode=routineStep1Modes[weekId]||'cus';
+    let amount;
+    if(mode==='exp'){amount=parseFloat(w.expected_amount||0);}
+    else{const inp=document.getElementById('routine-custom-'+weekId);amount=parseFloat(inp?.value||0);}
+    if(!amount||amount<=0){toast('Enter a valid amount for '+esc(w.source_name||'Pay Period'));if(btn){btn.disabled=false;btn.textContent='Next →';}return;}
+    await sb.from('paychecks').insert({user_id:currentUser.id,pay_week_id:weekId,amount,pay_date:w.pay_date,notes:mode==='exp'?'Recurring income':null});
+    routinePaychecks[weekId]=amount;
+  }
+  routinePaycheckTotal=Object.values(routinePaychecks).reduce((s,v)=>s+v,0);
   await loadPaychecks();
-  if(paydayWeeks.length===0){paydayStep=2;renderPaydayStep();}
-  else renderPaydayStep();
+  routineSubmittedStep=1;routineStep=2;renderRoutine();
 }
 
-function paydayDifferentAmount(weekId,payDate){
-  const w=paydayWeeks.find(x=>x.id===weekId);
-  if(!w)return;
-  // Replace expected card with input
-  w.expected_amount=0;
-  renderPaydayStep();
+function getRoutineBillsList(){
+  const thisMonth=new Date().toISOString().slice(0,7);
+  return bills.filter(b=>{
+    if(b.debt_id)return false;
+    if(!isBillDueThisMonth(b))return false;
+    if(billPayments.some(p=>p.bill_id===b.id&&(p.paid_date||'').startsWith(thisMonth)))return false;
+    return true;
+  });
 }
 
-async function paydayConfirmCustom(weekId,payDate){
-  const inp=document.getElementById('payday-custom-'+weekId);
-  const amount=parseFloat(inp?.value||0);
-  if(!amount||amount<=0){toast('Enter a valid amount');return;}
-  await sb.from('paychecks').insert({user_id:currentUser.id,pay_week_id:weekId,amount,pay_date:payDate,notes:null});
-  paydayConfirmedAmount+=amount;
-  paydayWeeks=paydayWeeks.filter(w=>w.id!==weekId);
-  await loadPaychecks();
-  if(paydayWeeks.length===0){paydayStep=2;renderPaydayStep();}
-  else renderPaydayStep();
+function routineUpdateBillChip(){
+  const el=document.getElementById('routine-remaining-chip');if(!el)return;
+  const due=getRoutineBillsList();
+  let checked=0;
+  due.forEach(b=>{const cb=document.getElementById('routine-bill-'+b.id);if(cb&&cb.checked)checked+=parseFloat(b.amount||0);});
+  const rem=routinePaycheckTotal-checked;
+  el.textContent='Paycheck remaining: '+fmt(rem);el.style.color=rem>=0?'var(--accent)':'var(--danger)';
 }
 
-function renderPaydayStep2(){
-  const due=getDueBills();
+function renderRoutineStep2(){
+  const due=getRoutineBillsList();
+  let html='<div style="font-size:16px;font-weight:700;margin-bottom:10px;">🏠 Pay Your Bills</div>';
+  if(routinePaycheckTotal>0)html+='<div id="routine-remaining-chip" style="display:inline-block;padding:4px 10px;border-radius:20px;background:rgba(45,212,160,0.12);font-size:12px;font-weight:700;color:var(--accent);margin-bottom:14px;">Paycheck remaining: '+fmt(routinePaycheckTotal)+'</div>';
   if(due.length===0){
-    return`<div class="modal-title" style="margin-bottom:14px;">Pay Due Bills</div>
-      <div style="background:rgba(45,212,160,0.08);border:1px solid rgba(45,212,160,0.3);border-radius:var(--radius-sm);padding:16px;text-align:center;margin-bottom:14px;">
-        <div style="font-size:22px;margin-bottom:6px;">✓</div>
-        <div style="font-weight:700;margin-bottom:4px;">No bills due right now</div>
-        <div style="font-size:12px;color:var(--muted);">All caught up for this month.</div>
-      </div>
-      <button class="btn btn-primary" style="width:100%;" onclick="paydayStep=3;renderPaydayStep();">Continue to Debts →</button>
-      <button class="btn btn-ghost" style="width:100%;margin-top:8px;" onclick="closeModal('payday-modal')">Exit</button>`;
+    html+='<div style="background:rgba(45,212,160,0.08);border:1px solid rgba(45,212,160,0.3);border-radius:var(--radius-sm);padding:16px;text-align:center;">'
+      +'<div style="font-size:22px;margin-bottom:6px;">✓</div>'
+      +'<div style="font-weight:700;margin-bottom:4px;">No bills due right now</div>'
+      +'<div style="font-size:12px;color:var(--muted);">All caught up for this month.</div></div>';
+    return html;
   }
-  const total=due.reduce((s,b)=>s+parseFloat(b.amount||0),0);
-  const rows=due.map(b=>`<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border);">
-    <input type="checkbox" id="payday-bill-${b.id}" checked style="width:18px;height:18px;flex-shrink:0;cursor:pointer;" onchange="paydayUpdateBillTotal()">
-    <div style="flex:1;font-size:13px;">${esc(b.name)}</div>
-    <div style="font-weight:700;color:var(--danger);">-${fmt(b.amount)}</div>
-  </div>`).join('');
-  return`<div class="modal-title" style="margin-bottom:14px;">Pay Due Bills</div>
-    <div style="margin-bottom:12px;">${rows}</div>
-    <div id="payday-bill-total" style="display:flex;justify-content:space-between;font-size:14px;font-weight:800;padding:10px 0;margin-bottom:14px;">
-      <span>Selected Total</span><span style="color:var(--danger);">-${fmt(total)}</span>
-    </div>
-    <div style="display:flex;gap:8px;">
-      <button class="btn btn-ghost" style="flex:1;" onclick="paydaySkipBills()">Skip</button>
-      <button class="btn btn-success" style="flex:1;" onclick="paydayPayBills()">Pay Selected</button>
-    </div>
-    <button class="btn btn-ghost" style="width:100%;margin-top:8px;" onclick="closeModal('payday-modal')">Exit</button>`;
+  due.forEach(b=>{
+    html+='<div style="display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid var(--border);">';
+    html+='<input type="checkbox" id="routine-bill-'+b.id+'" checked style="width:18px;height:18px;flex-shrink:0;cursor:pointer;accent-color:var(--accent);" onchange="routineUpdateBillChip()">';
+    html+='<div style="flex:1;font-size:13px;font-weight:600;">'+esc(b.name)+'</div>';
+    html+='<div style="font-size:13px;font-weight:700;color:var(--danger);">-'+fmt(b.amount)+'</div></div>';
+  });
+  return html;
 }
 
-function paydayUpdateBillTotal(){
-  const due=getDueBills();
-  const checked=due.filter(b=>document.getElementById('payday-bill-'+b.id)?.checked);
-  const total=checked.reduce((s,b)=>s+parseFloat(b.amount||0),0);
-  const el=document.getElementById('payday-bill-total');
-  if(el)el.innerHTML=`<span>Selected Total</span><span style="color:var(--danger);">-${fmt(total)}</span>`;
-}
-
-async function paydayPayBills(){
-  const due=getDueBills();
-  const checked=due.filter(b=>document.getElementById('payday-bill-'+b.id)?.checked);
+async function routineStep2Next(){
+  if(routineSubmittedStep>=2){routineStep=3;renderRoutine();return;}
+  const due=getRoutineBillsList();
+  const checked=due.filter(b=>{const cb=document.getElementById('routine-bill-'+b.id);return cb&&cb.checked;});
+  const btn=document.getElementById('routine-next-btn');
+  if(btn){btn.disabled=true;btn.textContent='Saving…';}
+  let total=0;
   for(const b of checked){
-    await sb.from('bill_payments').insert({user_id:currentUser.id,bill_id:b.id,amount:parseFloat(b.amount),paid_date:today(),notes:b.name});
-    if(b.debt_id){
-      const debt=debts.find(d=>d.id===b.debt_id);
-      if(debt){
-        const newBal=Math.max(0,parseFloat(debt.balance||0)-parseFloat(b.amount));
-        await sb.from('debts').update({balance:newBal}).eq('id',debt.id);
-        await sb.from('payments').insert({user_id:currentUser.id,debt_id:debt.id,amount:parseFloat(b.amount),pay_date:today(),notes:`Min payment via ${b.name}`});
-      }
-    }
+    const amt=parseFloat(b.amount||0);
+    await sb.from('bill_payments').insert({user_id:currentUser.id,bill_id:b.id,amount:amt,paid_date:today(),notes:b.name});
+    routineBillsPaid.push({id:b.id,name:b.name,amount:amt});
+    total+=amt;
   }
-  paydayBillsPaid=checked.length;
+  routineBillsTotal=total;
   await Promise.all([loadBillPayments(),loadDebts(),loadPayments()]);
-  paydayStep=3;renderPaydayStep();
+  routineSubmittedStep=2;routineStep=3;renderRoutine();
 }
 
-function paydaySkipBills(){paydayStep=3;renderPaydayStep();}
+function routineUpdateDebtChip(){
+  const el=document.getElementById('routine-remaining-chip');if(!el)return;
+  const activeDebts=debts.filter(d=>parseFloat(d.balance||0)>0);
+  let debtTotal=0;
+  activeDebts.forEach(d=>{const inp=document.getElementById('routine-debt-'+d.id);debtTotal+=parseFloat(inp?.value||0)||0;});
+  const rem=routinePaycheckTotal-routineBillsTotal-debtTotal;
+  el.textContent='Paycheck remaining: '+fmt(rem);el.style.color=rem>=0?'var(--accent)':'var(--danger)';
+}
 
-function renderPaydayStep3(){
-  if(debts.length===0){
-    paydayStep=4;renderPaydayStep();return'';
+function renderRoutineStep3(){
+  const activeDebts=debts.filter(d=>parseFloat(d.balance||0)>0);
+  const baseRem=routinePaycheckTotal-routineBillsTotal;
+  let html='<div style="font-size:16px;font-weight:700;margin-bottom:10px;">💳 Make Debt Payments</div>';
+  html+='<div id="routine-remaining-chip" style="display:inline-block;padding:4px 10px;border-radius:20px;background:rgba(45,212,160,0.12);font-size:12px;font-weight:700;color:var(--accent);margin-bottom:14px;">Paycheck remaining: '+fmt(baseRem)+'</div>';
+  if(activeDebts.length===0){
+    html+='<div style="background:rgba(45,212,160,0.08);border:1px solid rgba(45,212,160,0.3);border-radius:var(--radius-sm);padding:16px;text-align:center;">'
+      +'<div style="font-size:22px;margin-bottom:6px;">✓</div><div style="font-weight:700;">No active debts</div></div>';
+    return html;
   }
-  const rows=debts.map(d=>{
+  activeDebts.forEach(d=>{
     const min=parseFloat(d.min_payment||0);
-    return`<div style="padding:10px 0;border-bottom:1px solid var(--border);">
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
-        <div style="flex:1;min-width:0;">
-          <div style="font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(d.name)}</div>
-          <div style="font-size:11px;color:var(--muted);">Balance: ${fmt(d.balance)} · APR ${parseFloat(d.apr||0).toFixed(1)}%</div>
-        </div>
-        <input id="payday-debt-${d.id}" type="number" min="0" step="0.01" value="${min>0?min:''}" placeholder="$0"
-          style="width:90px;padding:7px 8px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:13px;text-align:right;"
-          oninput="paydayUpdateDebtTotal()">
-      </div>
-    </div>`;
-  }).join('');
-  const initTotal=debts.reduce((s,d)=>s+parseFloat(d.min_payment||0),0);
-  return`<div class="modal-title" style="margin-bottom:14px;">Pay Debts</div>
-    <div style="margin-bottom:12px;">${rows}</div>
-    <div id="payday-debt-total" style="display:flex;justify-content:space-between;font-size:14px;font-weight:800;padding:10px 0;margin-bottom:14px;">
-      <span>Total Payments</span><span style="color:var(--danger);">-${fmt(initTotal)}</span>
-    </div>
-    <div style="display:flex;gap:8px;">
-      <button class="btn btn-ghost" style="flex:1;" onclick="paydaySkipDebts()">Skip</button>
-      <button class="btn btn-success" style="flex:1;" onclick="paydayLogDebtPayments()">Log Payments</button>
-    </div>
-    <button class="btn btn-ghost" style="width:100%;margin-top:8px;" onclick="closeModal('payday-modal')">Exit</button>`;
+    html+='<div style="display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid var(--border);">';
+    html+='<div style="flex:1;min-width:0;">';
+    html+='<div style="font-size:13px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+esc(d.name)+'</div>';
+    html+='<div style="font-size:11px;color:var(--muted);">Balance: '+fmt(d.balance)+' · Min: '+fmt(min)+'</div></div>';
+    html+='<input id="routine-debt-'+d.id+'" type="number" min="0" step="0.01" value="'+(min>0?min:'')+'" placeholder="$0" '
+      +'style="width:88px;padding:7px 8px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:13px;text-align:right;" '
+      +'oninput="routineUpdateDebtChip()"></div>';
+  });
+  return html;
 }
 
-function paydayUpdateDebtTotal(){
-  const total=debts.reduce((s,d)=>{const v=parseFloat(document.getElementById('payday-debt-'+d.id)?.value||0)||0;return s+v;},0);
-  const el=document.getElementById('payday-debt-total');
-  if(el)el.innerHTML=`<span>Total Payments</span><span style="color:var(--danger);">-${fmt(total)}</span>`;
-}
-
-async function paydayLogDebtPayments(){
-  let count=0;
-  for(const d of debts){
-    const amount=parseFloat(document.getElementById('payday-debt-'+d.id)?.value||0)||0;
+async function routineStep3Next(){
+  if(routineSubmittedStep>=3){routineStep=4;renderRoutine();return;}
+  const btn=document.getElementById('routine-next-btn');
+  if(btn){btn.disabled=true;btn.textContent='Saving…';}
+  let total=0;
+  const activeDebts=debts.filter(d=>parseFloat(d.balance||0)>0);
+  for(const d of activeDebts){
+    const inp=document.getElementById('routine-debt-'+d.id);
+    const amount=parseFloat(inp?.value||0)||0;
     if(amount<=0)continue;
     const newBal=Math.max(0,parseFloat(d.balance||0)-amount);
     await sb.from('debts').update({balance:newBal}).eq('id',d.id);
     await sb.from('payments').insert({user_id:currentUser.id,debt_id:d.id,amount,pay_date:today(),notes:'Payday payment'});
-    count++;
+    routineDebtPayments[d.id]={name:d.name,amount};
+    total+=amount;
   }
-  paydayDebtsPaid=count;
+  routineDebtsTotal=total;
   await Promise.all([loadDebts(),loadPayments()]);
   if(typeof renderDebts==='function')renderDebts();
-  paydayStep=4;renderPaydayStep();
+  routineSubmittedStep=3;routineStep=4;renderRoutine();
 }
 
-function paydaySkipDebts(){paydayStep=4;renderPaydayStep();}
+function routineUpdateSavingsChip(){
+  const el=document.getElementById('routine-remaining-chip');if(!el)return;
+  let savTotal=0;
+  pots.forEach(p=>{const inp=document.getElementById('routine-pot-'+p.id);savTotal+=parseFloat(inp?.value||0)||0;});
+  const rem=routinePaycheckTotal-routineBillsTotal-routineDebtsTotal-savTotal;
+  el.textContent='Paycheck remaining: '+fmt(rem);el.style.color=rem>=0?'var(--accent)':'var(--danger)';
+}
 
-function renderPaydayStep4(){
+function renderRoutineStep4(){
+  const baseRem=routinePaycheckTotal-routineBillsTotal-routineDebtsTotal;
+  let html='<div style="font-size:16px;font-weight:700;margin-bottom:10px;">🏦 Move to Savings</div>';
+  html+='<div id="routine-remaining-chip" style="display:inline-block;padding:4px 10px;border-radius:20px;background:rgba(45,212,160,0.12);font-size:12px;font-weight:700;color:var(--accent);margin-bottom:14px;">Paycheck remaining: '+fmt(baseRem)+'</div>';
   if(pots.length===0){
-    return`<div class="modal-title" style="margin-bottom:14px;">All Done!</div>
-      ${renderPaydaySummary(0)}
-      <button class="btn btn-primary" style="width:100%;margin-top:14px;" onclick="paydayFinish()">Close</button>`;
+    html+='<div style="background:var(--surface2);border-radius:var(--radius-sm);padding:16px;text-align:center;color:var(--muted);font-size:13px;">No savings pots yet. Skip to finish.</div>';
+    return html;
   }
   const potTotals={};
-  savingsTxns.forEach(t=>{if(!potTotals[t.pot_id])potTotals[t.pot_id]=0;potTotals[t.pot_id]+=(t.type==='deposit'||t.type==='transfer_in')?parseFloat(t.amount||0):-(parseFloat(t.amount||0));});
-  const rows=pots.map(p=>{
+  savingsTxns.forEach(t=>{if(!potTotals[t.pot_id])potTotals[t.pot_id]=0;potTotals[t.pot_id]+=(t.type==='deposit'||t.type==='transfer_in')?parseFloat(t.amount||0):-parseFloat(t.amount||0);});
+  pots.forEach(p=>{
     const bal=Math.max(0,potTotals[p.id]||0);
     const goal=parseFloat(p.goal_amount||0);
-    return`<div style="padding:10px 0;border-bottom:1px solid var(--border);">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-        <div>
-          <div style="font-size:13px;font-weight:700;">${p.emoji||'💰'} ${esc(p.name)}</div>
-          <div style="font-size:11px;color:var(--muted);">${fmt(bal)} saved${goal>0?' · Goal: '+fmt(goal):''}</div>
-        </div>
-        <input id="payday-pot-${p.id}" type="number" min="0" step="0.01" placeholder="$0"
-          style="width:90px;padding:7px 8px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:13px;text-align:right;"
-          oninput="paydayUpdateSavingsTotal()">
-      </div>
-    </div>`;
-  }).join('');
-  const allocLabel=paydayConfirmedAmount>0?`of ${fmt(paydayConfirmedAmount)} received`:'';
-  return`<div class="modal-title" style="margin-bottom:14px;">Allocate to Savings</div>
-    <div style="margin-bottom:12px;">${rows}</div>
-    <div id="payday-savings-total" style="display:flex;justify-content:space-between;font-size:14px;font-weight:800;padding:10px 0;margin-bottom:14px;">
-      <span>Allocating</span><span style="color:var(--success);">${fmt(0)} ${allocLabel}</span>
-    </div>
-    <div style="display:flex;gap:8px;">
-      <button class="btn btn-ghost" style="flex:1;" onclick="paydayFinish()">Skip</button>
-      <button class="btn btn-success" style="flex:1;" onclick="paydaySaveDeposits()">Save &amp; Finish</button>
-    </div>`;
+    html+='<div style="display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid var(--border);">';
+    html+='<div style="flex:1;min-width:0;">';
+    html+='<div style="font-size:13px;font-weight:700;">'+(p.emoji||'💰')+' '+esc(p.name)+'</div>';
+    html+='<div style="font-size:11px;color:var(--muted);">'+(goal>0?fmt(bal)+' of '+fmt(goal)+' goal':fmt(bal)+' saved')+'</div></div>';
+    html+='<input id="routine-pot-'+p.id+'" type="number" min="0" step="0.01" placeholder="$0" '
+      +'style="width:88px;padding:7px 8px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:13px;text-align:right;" '
+      +'oninput="routineUpdateSavingsChip()"></div>';
+  });
+  return html;
 }
 
-function paydayUpdateSavingsTotal(){
-  const total=pots.reduce((s,p)=>{const v=parseFloat(document.getElementById('payday-pot-'+p.id)?.value||0)||0;return s+v;},0);
-  const el=document.getElementById('payday-savings-total');
-  const allocLabel=paydayConfirmedAmount>0?`of ${fmt(paydayConfirmedAmount)} received`:'';
-  if(el)el.innerHTML=`<span>Allocating</span><span style="color:var(--success);">${fmt(total)} ${allocLabel}</span>`;
-}
-
-async function paydaySaveDeposits(){
-  let saved=0;
+async function routineStep4Next(){
+  if(routineSubmittedStep>=4){routineStep=5;renderRoutine();return;}
+  const btn=document.getElementById('routine-next-btn');
+  if(btn){btn.disabled=true;btn.textContent='Saving…';}
   for(const p of pots){
-    const amount=parseFloat(document.getElementById('payday-pot-'+p.id)?.value||0)||0;
+    const inp=document.getElementById('routine-pot-'+p.id);
+    const amount=parseFloat(inp?.value||0)||0;
     if(amount<=0)continue;
     await sb.from('savings_transactions').insert({user_id:currentUser.id,pot_id:p.id,type:'deposit',amount,txn_date:today(),notes:'Payday deposit'});
-    saved+=amount;
+    routineSavings[p.id]={name:p.name,amount};
   }
-  paydaySaved=saved;
   await loadSavingsTxns();
-  paydayFinish();
+  routineSubmittedStep=4;routineStep=5;renderRoutine();
 }
 
-function renderPaydaySummary(savedAmt){
-  const totalIncome=paychecks.reduce((s,p)=>s+parseFloat(p.amount||0),0);
-  const totalExpenses=expenses.reduce((s,e)=>s+parseFloat(e.amount||0),0);
-  const totalPaid=payments.reduce((s,p)=>s+parseFloat(p.amount||0),0);
-  const totalBillsPaid=billPayments.reduce((s,b)=>s+parseFloat(b.amount||0),0);
-  const totalSaved=savingsTxns.filter(t=>t.type==='deposit'&&t.notes!=='__starting_balance__').reduce((s,t)=>s+parseFloat(t.amount||0),0)-savingsTxns.filter(t=>t.type==='withdraw').reduce((s,t)=>s+parseFloat(t.amount||0),0);
-  const startingCash=myProfile?.starting_cash?parseFloat(myProfile.starting_cash):0;
-  const mySharedNet=sharedTxns.filter(t=>t.user_id===currentUser.id).reduce((s,t)=>s+(t.type==='deposit'?parseFloat(t.amount||0):-(parseFloat(t.amount||0))),0);
-  const newBal=startingCash+totalIncome-totalPaid-totalExpenses-totalBillsPaid-totalSaved-mySharedNet;
-  return`<div style="background:rgba(45,212,160,0.08);border:1px solid rgba(45,212,160,0.3);border-radius:var(--radius-sm);padding:16px;">
-    <div style="font-size:14px;font-weight:700;margin-bottom:10px;">Payday complete!</div>
-    ${paydayConfirmedAmount>0?`<div style="display:flex;justify-content:space-between;font-size:13px;padding:5px 0;"><span style="color:var(--muted);">Paycheck confirmed</span><span style="color:var(--success);font-weight:700;">+${fmt(paydayConfirmedAmount)}</span></div>`:''}
-    ${paydayBillsPaid>0?`<div style="display:flex;justify-content:space-between;font-size:13px;padding:5px 0;"><span style="color:var(--muted);">${paydayBillsPaid} bill${paydayBillsPaid!==1?'s':''} paid</span><span style="color:var(--danger);font-weight:700;">bills cleared</span></div>`:''}
-    ${paydayDebtsPaid>0?`<div style="display:flex;justify-content:space-between;font-size:13px;padding:5px 0;"><span style="color:var(--muted);">${paydayDebtsPaid} debt payment${paydayDebtsPaid!==1?'s':''} logged</span><span style="color:var(--danger);font-weight:700;">balances updated</span></div>`:''}
-    ${savedAmt>0?`<div style="display:flex;justify-content:space-between;font-size:13px;padding:5px 0;"><span style="color:var(--muted);">Saved</span><span style="color:var(--accent);font-weight:700;">+${fmt(savedAmt)}</span></div>`:''}
-    <div style="border-top:1px solid var(--border);margin-top:8px;padding-top:8px;display:flex;justify-content:space-between;font-size:15px;font-weight:800;"><span>New Balance</span><span style="color:${newBal>=0?'var(--success)':'var(--danger)'};">${fmt(newBal)}</span></div>
-  </div>`;
-}
-
-async function paydayFinish(){
-  closeModal('payday-modal');
-  await Promise.all([loadPaychecks(),loadBillPayments(),loadDebts(),loadPayments(),loadSavingsTxns()]);
-  renderDashboard();renderBills();updateBillBadge();if(typeof renderDebts==='function')renderDebts();
-  if(paydayBillsPaid>0||paydayDebtsPaid>0||paydaySaved>0){
-    const parts=[];
-    if(paydayBillsPaid>0)parts.push(`${paydayBillsPaid} bill${paydayBillsPaid!==1?'s':''} paid`);
-    if(paydayDebtsPaid>0)parts.push(`${paydayDebtsPaid} debt payment${paydayDebtsPaid!==1?'s':''} logged`);
-    if(paydaySaved>0)parts.push(`${fmt(paydaySaved)} saved`);
-    toast('Payday complete — '+parts.join(', ')+' ✓');
-  } else {
-    toast('Payday routine complete ✓');
+function renderRoutineStep5(){
+  const billEntries=routineBillsPaid;
+  const debtEntries=Object.values(routineDebtPayments);
+  const savEntries=Object.values(routineSavings);
+  const billsTotal=billEntries.reduce((s,b)=>s+b.amount,0);
+  const debtsTotal=debtEntries.reduce((s,d)=>s+d.amount,0);
+  const savTotal=savEntries.reduce((s,sv)=>s+sv.amount,0);
+  const remaining=routinePaycheckTotal-billsTotal-debtsTotal-savTotal;
+  const remColor=remaining>=0?'var(--success)':'var(--danger)';
+  let html='<div style="font-size:16px;font-weight:700;margin-bottom:16px;">✅ Payday Summary</div>';
+  html+='<div style="background:var(--surface);border-radius:var(--radius-sm);padding:14px;margin-bottom:10px;">';
+  html+='<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--muted);margin-bottom:8px;">Income Confirmed</div>';
+  routineWeeks.forEach(w=>{
+    html+='<div style="display:flex;justify-content:space-between;font-size:13px;padding:4px 0;">';
+    html+='<span>'+esc(w.source_name||'Pay Period')+'</span>';
+    html+='<span style="color:var(--success);font-weight:700;">+'+fmt(routinePaychecks[w.id]||0)+'</span></div>';
+  });
+  if(routineWeeks.length>1){
+    html+='<div style="border-top:1px solid var(--border);margin-top:6px;padding-top:6px;display:flex;justify-content:space-between;font-size:13px;font-weight:800;">';
+    html+='<span>Total</span><span style="color:var(--success);">+'+fmt(routinePaycheckTotal)+'</span></div>';
   }
+  html+='</div>';
+  if(billEntries.length>0){
+    html+='<div style="background:var(--surface);border-radius:var(--radius-sm);padding:14px;margin-bottom:10px;">';
+    html+='<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--muted);margin-bottom:8px;">Bills Paid</div>';
+    billEntries.forEach(b=>{html+='<div style="display:flex;justify-content:space-between;font-size:13px;padding:4px 0;"><span>'+esc(b.name)+'</span><span style="color:var(--danger);font-weight:700;">-'+fmt(b.amount)+'</span></div>';});
+    html+='<div style="border-top:1px solid var(--border);margin-top:6px;padding-top:6px;display:flex;justify-content:space-between;font-size:13px;font-weight:800;">';
+    html+='<span>Total</span><span style="color:var(--danger);">-'+fmt(billsTotal)+'</span></div></div>';
+  }
+  if(debtEntries.length>0){
+    html+='<div style="background:var(--surface);border-radius:var(--radius-sm);padding:14px;margin-bottom:10px;">';
+    html+='<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--muted);margin-bottom:8px;">Debt Payments</div>';
+    debtEntries.forEach(d=>{html+='<div style="display:flex;justify-content:space-between;font-size:13px;padding:4px 0;"><span>'+esc(d.name)+'</span><span style="color:var(--danger);font-weight:700;">-'+fmt(d.amount)+'</span></div>';});
+    html+='<div style="border-top:1px solid var(--border);margin-top:6px;padding-top:6px;display:flex;justify-content:space-between;font-size:13px;font-weight:800;">';
+    html+='<span>Total</span><span style="color:var(--danger);">-'+fmt(debtsTotal)+'</span></div></div>';
+  }
+  if(savEntries.length>0){
+    html+='<div style="background:var(--surface);border-radius:var(--radius-sm);padding:14px;margin-bottom:10px;">';
+    html+='<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--muted);margin-bottom:8px;">Savings Deposited</div>';
+    savEntries.forEach(sv=>{html+='<div style="display:flex;justify-content:space-between;font-size:13px;padding:4px 0;"><span>'+esc(sv.name)+'</span><span style="color:var(--accent);font-weight:700;">+'+fmt(sv.amount)+'</span></div>';});
+    html+='<div style="border-top:1px solid var(--border);margin-top:6px;padding-top:6px;display:flex;justify-content:space-between;font-size:13px;font-weight:800;">';
+    html+='<span>Total</span><span style="color:var(--accent);">+'+fmt(savTotal)+'</span></div></div>';
+  }
+  html+='<div style="background:var(--surface);border-radius:var(--radius-sm);padding:14px;margin-bottom:24px;">';
+  html+='<div style="display:flex;justify-content:space-between;font-size:16px;font-weight:800;">';
+  html+='<span>Remaining in Paycheck</span><span style="color:'+remColor+';">'+fmt(remaining)+'</span></div></div>';
+  html+='<button onclick="routineFinish()" class="btn btn-primary" style="width:100%;padding:14px;font-size:15px;font-weight:700;">Done</button>';
+  return html;
+}
+
+async function routineFinish(){
+  document.getElementById('routine-overlay').style.display='none';
+  await Promise.all([loadPaychecks(),loadBillPayments(),loadDebts(),loadPayments(),loadSavingsTxns()]);
+  renderDashboard();renderBills();updateBillBadge();
+  if(typeof renderDebts==='function')renderDebts();
+  toast('Payday routine complete ✓');
 }
 function renderDashboard(){
   const el=document.getElementById('dashboard-content');
@@ -1689,13 +1765,6 @@ function renderDashboard(){
         +'</div>'
         +'</div>';
     })()}
-    ${(()=>{const pp=getPendingPaydays();return pp.length>0?`<div class="card" onclick="openPaydayMode()" style="cursor:pointer;border-color:var(--success);background:rgba(45,212,160,0.08);box-shadow:0 0 12px rgba(45,212,160,0.3);margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;gap:12px;">
-      <div style="flex:1;min-width:0;">
-        <div style="font-size:18px;font-weight:800;color:var(--success);">Payday Routine</div>
-        <div style="font-size:12px;color:var(--muted);margin-top:3px;">${pp.length} paycheck${pp.length!==1?'s':''} ready to confirm</div>
-      </div>
-      <button onclick="event.stopPropagation();openPaydayMode();" style="flex-shrink:0;background:var(--success);color:var(--bg);border:none;border-radius:var(--radius-sm);padding:9px 16px;font-size:13px;font-weight:800;cursor:pointer;white-space:nowrap;">Start →</button>
-    </div>`:'';})()}
     <div class="card" style="padding:0;overflow:hidden;margin-bottom:14px;">
       <div style="display:flex;">
         <div onclick="showDebtBreakdown()" style="flex:1;padding:14px 16px;cursor:pointer;">
