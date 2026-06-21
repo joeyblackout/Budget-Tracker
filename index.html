@@ -693,7 +693,7 @@ select option{background:var(--surface);color:var(--text);}
   <div class="modal-handle"></div><div class="modal-title">Edit Expense</div>
   <input type="hidden" id="edit-exp-id"/>
   <div class="field"><label>Date</label><input type="date" id="edit-exp-date"/></div>
-  <div class="field"><label>Category</label><select id="edit-exp-category"><option>Groceries</option><option>Gas Station</option><option>Dining / DoorDash</option><option>Nicotine</option><option>Laundry</option><option>Medical / Pharmacy</option><option>Personal Care</option><option>Clothing</option><option>Entertainment</option><option>Household Supplies</option><option>Transportation / Rideshare</option><option>Subscriptions</option><option>Other</option></select></div>
+  <div class="field"><label>Category</label><select id="edit-exp-category"><optgroup label="Food"><option>Groceries</option><option>Dining</option><option>DoorDash</option></optgroup><option>Gas Station</option><option>Nicotine</option><option>Laundry</option><option>Medical / Pharmacy</option><option>Personal Care</option><option>Clothing</option><option>Entertainment</option><option>Household Supplies</option><option>Transportation / Rideshare</option><option>Subscriptions</option><option>Other</option></select></div>
   <div class="field"><label>Description</label><input type="text" id="edit-exp-desc" placeholder="e.g. Walmart run"/></div>
   <div class="field"><label>Amount ($)</label><input type="number" id="edit-exp-amount" placeholder="0.00" step="0.01" min="0"/></div>
   <div class="field"><label>Notes</label><input type="text" id="edit-exp-notes" placeholder="Optional notes…"/></div>
@@ -716,7 +716,7 @@ select option{background:var(--surface);color:var(--text);}
 <div class="modal-overlay" id="expense-modal"><div class="modal">
   <div class="modal-handle"></div><div class="modal-title">Log Expense</div>
   <div class="field"><label>Date</label><input type="date" id="exp-date"/></div>
-  <div class="field"><label>Category</label><select id="exp-category"><option>Groceries</option><option>Gas Station</option><option>Dining / DoorDash</option><option>Nicotine</option><option>Laundry</option><option>Medical / Pharmacy</option><option>Personal Care</option><option>Clothing</option><option>Entertainment</option><option>Household Supplies</option><option>Transportation / Rideshare</option><option>Subscriptions</option><option>Other</option></select></div>
+  <div class="field"><label>Category</label><select id="exp-category"><optgroup label="Food"><option>Groceries</option><option>Dining</option><option>DoorDash</option></optgroup><option>Gas Station</option><option>Nicotine</option><option>Laundry</option><option>Medical / Pharmacy</option><option>Personal Care</option><option>Clothing</option><option>Entertainment</option><option>Household Supplies</option><option>Transportation / Rideshare</option><option>Subscriptions</option><option>Other</option></select></div>
   <div class="field"><label>Description</label><input type="text" id="exp-desc" placeholder="e.g. Walmart run"/></div>
   <div class="field"><label>Amount ($)</label><input type="number" id="exp-amount" placeholder="0.00" step="0.01" min="0"/></div>
   <div class="field"><label>Notes</label><textarea id="exp-notes" placeholder="Optional notes…"></textarea></div>
@@ -855,6 +855,11 @@ function closeSidebar(){document.getElementById('sidebar').classList.remove('ope
 function sideNav(name){closeSidebar();switchView(name,null);}
 
 // DATA
+async function migrateDiningCategory(){
+  if(!expenses.some(e=>e.category==='Dining / DoorDash'))return;
+  await sb.from('expenses').update({category:'Dining'}).eq('user_id',currentUser.id).eq('category','Dining / DoorDash');
+  await loadExpenses();
+}
 async function cleanupPaidOffDebtBills(){
   const phantom=bills.filter(b=>b.debt_id&&parseFloat((debts.find(d=>d.id===b.debt_id)||{}).balance||0)<=0);
   if(phantom.length===0)return false;
@@ -862,7 +867,7 @@ async function cleanupPaidOffDebtBills(){
   await loadBills();
   return true;
 }
-async function loadAll(){await Promise.all([loadDebts(),loadPayments(),loadExpenses(),loadWeeks(),loadPaychecks(),loadBills(),loadBillPayments(),loadPots(),loadSavingsTxns(),loadProfiles(),loadPosts(),loadReactions(),loadShared(),loadRecurring(),loadAssets()]);await topUpPeriods();await cleanupPaidOffDebtBills();renderDashboard();updateBillBadge();updateNotifBadge();startPolling();}
+async function loadAll(){await Promise.all([loadDebts(),loadPayments(),loadExpenses(),loadWeeks(),loadPaychecks(),loadBills(),loadBillPayments(),loadPots(),loadSavingsTxns(),loadProfiles(),loadPosts(),loadReactions(),loadShared(),loadRecurring(),loadAssets()]);await topUpPeriods();await migrateDiningCategory();await cleanupPaidOffDebtBills();renderDashboard();updateBillBadge();updateNotifBadge();startPolling();}
 async function topUpPeriods(){
   // Only extend recurring sources if the furthest period is within 10 months out
   if(recurringSources.length===0)return;
@@ -2973,7 +2978,7 @@ function renderTrendsInsights(){
 const DEFAULT_QUICK_ADDS=[
   {emoji:'⛽',label:'Gas',category:'Gas Station',desc:''},
   {emoji:'🛒',label:'Groceries',category:'Groceries',desc:''},
-  {emoji:'🍔',label:'Food',category:'Dining / DoorDash',desc:''},
+  {emoji:'🍔',label:'Dining',category:'Dining',desc:''},
   {emoji:'🚬',label:'Nicotine',category:'Nicotine',desc:''},
   {emoji:'🧺',label:'Laundry',category:'Laundry',desc:''},
   {emoji:'🎮',label:'Fun',category:'Entertainment',desc:''},
@@ -3015,7 +3020,7 @@ async function repeatExpense(id){
 }
 function openQuickAddEditor(){
   const qa=getQuickAdds();
-  const cats=['Groceries','Gas Station','Dining / DoorDash','Nicotine','Laundry','Medical / Pharmacy','Personal Care','Clothing','Entertainment','Household Supplies','Transportation / Rideshare','Subscriptions','Other'];
+  const cats=['Groceries','Dining','DoorDash','Gas Station','Nicotine','Laundry','Medical / Pharmacy','Personal Care','Clothing','Entertainment','Household Supplies','Transportation / Rideshare','Subscriptions','Other'];
   const rows=qa.map((q,i)=>`<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
     <input type="text" value="${esc(q.emoji)}" id="qe-emoji-${i}" style="width:48px;background:var(--bg);border:1.5px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:18px;padding:8px;text-align:center;" maxlength="2"/>
     <input type="text" value="${esc(q.label)}" id="qe-label-${i}" style="width:80px;background:var(--bg);border:1.5px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:14px;padding:8px;"/>
@@ -3424,7 +3429,7 @@ function renderBudgetTargets(){
   const monthExpenses=expenses.filter(e=>(e.exp_date||'').startsWith(thisMonth));
   const byCategory={};
   monthExpenses.forEach(e=>{if(!byCategory[e.category])byCategory[e.category]=0;byCategory[e.category]+=parseFloat(e.amount||0);});
-  const cats=['Groceries','Gas Station','Dining / DoorDash','Nicotine','Entertainment','Household Supplies','Other'];
+  const cats=['Groceries','Dining','DoorDash','Gas Station','Nicotine','Entertainment','Household Supplies','Other'];
   // Count any over-budget categories for badge when collapsed
   const overCount=cats.filter(cat=>{const t=budgetTargets[cat];return t&&(byCategory[cat]||0)>t;}).length;
   return`<div class="card" style="margin-bottom:14px;">
