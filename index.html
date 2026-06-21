@@ -539,7 +539,7 @@ select option{background:var(--surface);color:var(--text);}
   <div class="field"><label>Amount ($)</label><input type="number" id="bill-amount" placeholder="0.00" step="0.01" min="0"/></div>
   <div class="field"><label>Due Day of Month</label><input type="number" id="bill-due-day" placeholder="e.g. 15" min="1" max="31"/></div>
   <div class="field"><label>Category</label><select id="bill-category"><option>Housing</option><option>Utilities</option><option>Insurance</option><option>Subscriptions</option><option>Phone</option><option>Internet</option><option>Transportation</option><option>Debt</option><option>Other</option></select></div>
-  <div class="field"><label>Recurring</label><select id="bill-recurring"><option value="monthly">Monthly</option><option value="weekly">Weekly</option><option value="biweekly">Every 2 Weeks</option><option value="quarterly">Quarterly</option><option value="annually">Annually</option><option value="once">One Time</option></select></div>
+  <div class="field"><label>Recurring</label><select id="bill-recurring"><option value="monthly">Monthly</option><option value="weekly">Weekly</option><option value="biweekly">Every 2 Weeks</option><option value="quarterly">Quarterly</option><option value="semi-annual">Semi-Annual</option><option value="annually">Annually</option><option value="once">One Time</option></select></div>
   <div class="field"><label>Notes (optional)</label><input type="text" id="bill-notes" placeholder="Optional notes…"/></div>
   <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal('bill-modal')">Cancel</button><button class="btn btn-primary" onclick="saveBill()">Save</button></div>
 </div></div>
@@ -1025,11 +1025,12 @@ function renderForecast(){
     }
   });
   // Recurring bills by due day each month in the window
-  const recurringBills=bills.filter(b=>b.recurring==='monthly'&&b.due_day);
+  const recurringBills=bills.filter(b=>b.due_day&&b.recurring!=='once');
   let cursor=new Date(todayDate);
   while(cursor<=endDate){
     const y=cursor.getFullYear(),m=cursor.getMonth();
     recurringBills.forEach(b=>{
+      if(!isBillDueInMonth(b,y,m))return;
       const dd=Math.min(parseInt(b.due_day),new Date(y,m+1,0).getDate());
       const billDate=new Date(y,m,dd);
       if(billDate>todayDate&&billDate<=endDate){
@@ -1569,7 +1570,7 @@ function renderDashboard(){
   const thisYearStr=new Date().getFullYear().toString();
   const dispBillsPaid=dashBalancePeriod==='month'?billPayments.filter(p=>(p.paid_date||'').startsWith(thisMonthStr)).reduce((s,p)=>s+parseFloat(p.amount||0),0):dashBalancePeriod==='year'?billPayments.filter(p=>(p.paid_date||'').startsWith(thisYearStr)).reduce((s,p)=>s+parseFloat(p.amount||0),0):totalBillsPaid;
   const dispExpenses=dashBalancePeriod==='month'?expenses.filter(e=>(e.exp_date||'').startsWith(thisMonthStr)).reduce((s,e)=>s+parseFloat(e.amount||0),0):dashBalancePeriod==='year'?expenses.filter(e=>(e.exp_date||'').startsWith(thisYearStr)).reduce((s,e)=>s+parseFloat(e.amount||0),0):totalExpenses;
-  const monthlyBills=bills.filter(b=>b.recurring==='monthly');
+  const monthlyBills=bills.filter(isBillDueThisMonth);
   const monthlyTotal=monthlyBills.reduce((s,b)=>s+parseFloat(b.amount||0),0);
   const monthlyPaidAmt=billPayments.filter(p=>(p.paid_date||'').startsWith(thisMonthStr)).reduce((s,p)=>s+parseFloat(p.amount||0),0);
   const monthlyPaidCount=monthlyBills.filter(b=>billPayments.some(p=>p.bill_id===b.id&&(p.paid_date||'').startsWith(thisMonthStr))).length;
@@ -1646,8 +1647,7 @@ function renderDashboard(){
       const _tConfirmedWkIds=new Set(paychecks.map(p=>p.pay_week_id));
       const tIncMo=paychecks.filter(p=>(p.pay_date||'').startsWith(tMo)).reduce((s,p)=>s+parseFloat(p.amount||0),0)
         +weeks.filter(w=>(w.pay_date||'').startsWith(tMo)&&!_tConfirmedWkIds.has(w.id)).reduce((s,w)=>s+parseFloat(w.expected_amount||0),0);
-      const tDaysInMo=new Date(_tNow.getFullYear(),_tNow.getMonth()+1,0).getDate();
-      const tBillsMo=bills.filter(b=>parseInt(b.due_day||1)<=tDaysInMo).reduce((s,b)=>s+parseFloat(b.amount||0),0);
+      const tBillsMo=bills.filter(isBillDueThisMonth).reduce((s,b)=>s+parseFloat(b.amount||0),0);
       const tIncNet=tIncMo-tBillsMo;
       const tIncNetCol=tIncNet>=0?'var(--success)':'var(--danger)';
       return'<div class="card" onclick="switchView(\'expenses\',null);setTimeout(()=>{insightsTab=\'budget\';insightsOpen=true;renderInsights();},100);" style="cursor:pointer;">'
@@ -2178,6 +2178,19 @@ async function autoPost(message){
 }
 
 // BILLS
+function isBillDueInMonth(b,year,month){
+  const rec=b.recurring||'monthly';
+  if(rec==='monthly'||rec==='weekly'||rec==='biweekly')return true;
+  if(rec==='once')return false;
+  const ref=b.created_at?new Date(b.created_at):new Date();
+  const elapsed=(year-ref.getFullYear())*12+(month-ref.getMonth());
+  if(elapsed<0)return false;
+  if(rec==='quarterly')return elapsed%3===0;
+  if(rec==='semi-annual')return elapsed%6===0;
+  if(rec==='annually')return elapsed%12===0;
+  return true;
+}
+function isBillDueThisMonth(b){const n=new Date();return isBillDueInMonth(b,n.getFullYear(),n.getMonth());}
 function renderBills(){
   const el=document.getElementById('bills-list');
   const payAllBtn=document.getElementById('pay-all-due-btn');
@@ -2187,9 +2200,10 @@ function renderBills(){
   const thisMonth=new Date().toISOString().slice(0,7);
   const monthly=bills.filter(b=>b.recurring==='monthly');
   const other=bills.filter(b=>b.recurring!=='monthly');
-  const monthlyTotal=monthly.reduce((s,b)=>s+parseFloat(b.amount||0),0);
+  const dueThisMonth=bills.filter(isBillDueThisMonth);
+  const monthlyTotal=dueThisMonth.reduce((s,b)=>s+parseFloat(b.amount||0),0);
   const monthlyPaidThisMonth=billPayments.filter(p=>(p.paid_date||'').startsWith(thisMonth)).reduce((s,b)=>s+parseFloat(b.amount||0),0);
-  const monthlyPaidCount=monthly.filter(b=>billPayments.some(p=>p.bill_id===b.id&&(p.paid_date||'').startsWith(thisMonth))).length;
+  const monthlyPaidCount=dueThisMonth.filter(b=>billPayments.some(p=>p.bill_id===b.id&&(p.paid_date||'').startsWith(thisMonth))).length;
   const monthlyRemaining=Math.max(0,monthlyTotal-monthlyPaidThisMonth);
   const progress=monthlyTotal>0?Math.min((monthlyPaidThisMonth/monthlyTotal)*100,100):0;
   const billCard=(b)=>{
@@ -2202,7 +2216,7 @@ function renderBills(){
     return`<div class="bill-row" style="${isPaid?'opacity:0.6':''}">
       <div style="flex:1;">
         <div class="bill-name">${esc(b.name)} ${isPaid?'<span style="font-size:11px;color:var(--success);font-weight:700;">✓ Paid</span>':''}</div>
-        <div class="bill-meta">${esc(b.category)}${b.due_day?' · Due day '+b.due_day:''}${(()=>{const last=billPayments.filter(p=>p.bill_id===b.id).sort((a,c)=>a.paid_date<c.paid_date?1:-1)[0];return last?' · Last paid '+fmtDate(last.paid_date):'';})()}${b.notes?' · '+esc(b.notes):''}</div>
+        <div class="bill-meta">${esc(b.category)}${b.due_day?' · Due day '+b.due_day:''}${(()=>{const rl={'weekly':'Weekly','biweekly':'Every 2 Weeks','quarterly':'Quarterly','semi-annual':'Semi-Annual','annually':'Annually','once':'One Time'};return b.recurring&&b.recurring!=='monthly'?' · '+(rl[b.recurring]||capFirst(b.recurring)):'';})()}${(()=>{const last=billPayments.filter(p=>p.bill_id===b.id).sort((a,c)=>a.paid_date<c.paid_date?1:-1)[0];return last?' · Last paid '+fmtDate(last.paid_date):'';})()}${b.notes?' · '+esc(b.notes):''}</div>
         <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px;">
           ${isPaid?`<span class="bill-recur" style="background:rgba(45,212,160,0.15);color:var(--success);">Paid ${fmt(paidAmount)}</span>`
             :dueSoon?`<span class="bill-due-soon">Due in ${dueDay-todayDay} days</span>`
@@ -2264,7 +2278,7 @@ function renderBills(){
         <div class="progress-fill" style="width:${progress}%;background:${progress>=100?'var(--success)':'linear-gradient(90deg,var(--accent),var(--success))'}"></div>
       </div>
       <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted);">
-        <span>${monthlyPaidCount} of ${monthly.length} bills paid</span>
+        <span>${monthlyPaidCount} of ${dueThisMonth.length} bills paid</span>
         <span style="font-weight:700;color:${progress>=100?'var(--success)':'var(--muted)'};">${progress.toFixed(0)}% complete · ${fmt(monthlyTotal)}/mo total</span>
       </div>
     </div>
@@ -3040,8 +3054,7 @@ function renderBudgetInsights(){
   const _confirmedWkIds=new Set(paychecks.map(p=>p.pay_week_id));
   const incomeThisMo=paychecks.filter(p=>(p.pay_date||'').startsWith(thisMonth)).reduce((s,p)=>s+parseFloat(p.amount||0),0)
     +weeks.filter(w=>(w.pay_date||'').startsWith(thisMonth)&&!_confirmedWkIds.has(w.id)).reduce((s,w)=>s+parseFloat(w.expected_amount||0),0);
-  const daysInThisMo=new Date(new Date().getFullYear(),new Date().getMonth()+1,0).getDate();
-  const billsThisMo=bills.filter(b=>parseInt(b.due_day||1)<=daysInThisMo).reduce((s,b)=>s+parseFloat(b.amount||0),0);
+  const billsThisMo=bills.filter(isBillDueThisMonth).reduce((s,b)=>s+parseFloat(b.amount||0),0);
   const incomeNetBills=incomeThisMo-billsThisMo;
   const incomeNetCol=incomeNetBills>=0?'var(--success)':'var(--danger)';
 
