@@ -252,6 +252,18 @@ select option{background:var(--surface);color:var(--text);}
   </div>
 </div>
 
+<!-- RESET PASSWORD (password recovery flow) -->
+<div id="reset-password-screen" style="display:none;min-height:100dvh;flex-direction:column;align-items:center;justify-content:center;padding:24px;background:radial-gradient(ellipse at 50% 0%,var(--surface2) 0%,var(--bg) 70%);">
+  <div class="auth-logo">Budget Tracker</div>
+  <div class="auth-card">
+    <div style="font-size:17px;font-weight:700;margin-bottom:8px;text-align:center;"><i class="ti ti-lock-open"></i> Set New Password</div>
+    <div class="field" style="margin-top:18px;"><label>New Password</label><input type="password" id="reset-password-new" placeholder="Min 8 characters"/></div>
+    <div class="field"><label>Confirm Password</label><input type="password" id="reset-password-confirm" placeholder="Re-enter password"/></div>
+    <button class="btn btn-primary" onclick="saveResetPassword()">Save Password</button>
+    <div id="reset-password-msg" class="auth-msg"></div>
+  </div>
+</div>
+
 <!-- AUTH -->
 <div id="auth-screen" style="display:none;">
   <div style="display:flex;align-items:center;gap:14px;justify-content:center;margin-bottom:40px;">
@@ -731,8 +743,11 @@ window.addEventListener('DOMContentLoaded',async()=>{
   isInviteFlow=/[#&]type=invite/.test(window.location.hash);
   const {data:{session}}=await sb.auth.getSession();
   if(session?.user){currentUser=session.user;showApp();}else showAuth();
-  sb.auth.onAuthStateChange((_e,session)=>{
-    if(session?.user){currentUser=session.user;showApp();}else{currentUser=null;showAuth();}
+  sb.auth.onAuthStateChange((event,session)=>{
+    if(event==='PASSWORD_RECOVERY'){
+      hideAllScreens();
+      document.getElementById('reset-password-screen').style.display='flex';
+    }else if(session?.user){currentUser=session.user;showApp();}else{currentUser=null;showAuth();}
   });
 });
 
@@ -741,6 +756,7 @@ function hideAllScreens(){
   document.getElementById('auth-screen').style.display='none';
   document.getElementById('welcome-screen').style.display='none';
   document.getElementById('set-password-screen').style.display='none';
+  document.getElementById('reset-password-screen').style.display='none';
   document.getElementById('app-screen').classList.remove('visible');
 }
 function showAuth(){hideAllScreens();document.getElementById('auth-screen').style.display='flex';}
@@ -790,6 +806,19 @@ async function saveInvitePassword(){
   document.getElementById('app-screen').classList.add('visible');
   document.getElementById('sidebar-email').textContent=currentUser.email;
   loadAll();showOnboardingSplash();
+}
+
+async function saveResetPassword(){
+  const pw=document.getElementById('reset-password-new').value;
+  const pw2=document.getElementById('reset-password-confirm').value;
+  const msg=document.getElementById('reset-password-msg');
+  if(pw.length<8){showMsg(msg,'error','Password must be at least 8 characters.');return;}
+  if(pw!==pw2){showMsg(msg,'error','Passwords do not match.');return;}
+  showMsg(msg,'','Saving…');
+  const{error}=await sb.auth.updateUser({password:pw});
+  if(error){showMsg(msg,'error',error.message);return;}
+  showMsg(msg,'success','Password updated! Signing you in…');
+  setTimeout(()=>showApp(),1200);
 }
 
 // AUTH
