@@ -724,8 +724,6 @@ let posts=[],reactions=[],profiles=[],myProfile=null;
 let sharedPots=[],sharedMembers=[],sharedTxns=[],sharedInvites=[];
 let assets=[];
 let recurringSources=[];
-let dashSection='overview';
-let snapshotOpen=localStorage.getItem('bt-snapshot-open')!=='false';
 
 let isInviteFlow=false;
 window.addEventListener('DOMContentLoaded',async()=>{
@@ -1163,7 +1161,6 @@ function showUtilBreakdown(){
   const rows=ccDebts.map(d=>{const u=(parseFloat(d.balance||0)/parseFloat(d.credit_limit||1))*100;return`<div class="account-row"><div><div class="account-name">${esc(d.name)}</div><div class="account-detail">${fmt(d.balance)} of ${fmt(d.credit_limit)} limit</div><div class="progress-bar" style="width:100px;margin-top:4px;"><div class="progress-fill" style="width:${Math.min(u,100)}%;background:${u>100?'var(--danger)':u>30?'var(--warning)':'var(--success)'}"></div></div></div><div class="account-balance ${u>100?'text-danger':u>30?'text-warning':'text-success'}">${u.toFixed(1)}%</div></div>`;}).join('');
   openDashModal('CC Utilization',rows||'<div class="empty"><p>No credit cards added yet.</p></div>','debts');
 }
-function setDashSection(s){dashSection=s;renderDashboard();}
 
 // PAYDAY MODE
 let paydayStep=1;
@@ -1416,44 +1413,13 @@ function renderDashboard(){
   savingsTxns.forEach(t=>{if(!potTotals[t.pot_id])potTotals[t.pot_id]=0;potTotals[t.pot_id]+=(t.type==='deposit'||t.type==='transfer_in')?parseFloat(t.amount||0):-(parseFloat(t.amount||0));});
   const totalInPots=Object.values(potTotals).reduce((s,v)=>s+Math.max(0,v),0);
 
-  let sectionContent='';
-  if(dashSection==='overview'){
-    sectionContent=`
-      <div class="card">
-        <div onclick="snapshotOpen=!snapshotOpen;localStorage.setItem('bt-snapshot-open',snapshotOpen);renderDashboard();" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none;${snapshotOpen?'margin-bottom:8px;':''}">
-          <div class="card-title" style="margin:0;">Account Snapshot</div>
-          <span style="font-size:14px;color:var(--muted);">${snapshotOpen?'▲':'▼'}</span>
-        </div>
-        ${snapshotOpen?debts.map(d=>{const bal=parseFloat(d.balance||0);const lim=parseFloat(d.credit_limit||0);const u=lim>0?(bal/lim)*100:null;return`<div class="account-row"><div><div class="account-name">${esc(d.name)}</div><div class="account-detail">${esc(d.type)} · APR ${parseFloat(d.apr||0).toFixed(1)}% · Min ${fmt(d.min_payment||0)}</div>${u!==null?`<span class="util-badge ${u>100?'util-over':u>30?'util-high':'util-ok'}">${u.toFixed(0)}% util</span>`:''}</div><div class="account-balance ${bal>0?'text-danger':''}">${fmt(bal)}</div></div>`;}).join(''):''}
-      </div>`;
-  } else if(dashSection==='savings'){
-    // Shared pot balances
-    const sharedPotTotals={};
-    sharedTxns.forEach(t=>{if(!sharedPotTotals[t.pot_id])sharedPotTotals[t.pot_id]=0;sharedPotTotals[t.pot_id]+=(t.type==='deposit'?parseFloat(t.amount||0):-(parseFloat(t.amount||0)));});
-    sectionContent=`
-      <div class="card">
-        <div class="card-title">Personal Pots</div>
-        ${pots.length===0?`<div style="text-align:center;padding:20px;color:var(--muted);font-size:14px;">No pots yet — add one in the Savings tab</div>`:
-        pots.map(p=>{
-          const bal=Math.max(0,potTotals[p.id]||0);
-          const goal=parseFloat(p.goal_amount||0);
-          const prog=goal>0?Math.min((bal/goal)*100,100):null;
-          return`<div class="account-row" onclick="switchView('savings',null)" style="cursor:pointer;"><div><div class="account-name">${p.emoji||'💰'} ${esc(p.name)}</div>${goal>0?`<div class="account-detail">Goal: ${fmt(goal)}</div>`:''}${prog!==null?`<div style="margin-top:6px;"><div class="progress-bar" style="width:120px;"><div class="progress-fill" style="width:${prog}%"></div></div></div>`:''}</div><div class="account-balance text-success">${fmt(bal)}</div></div>`;
-        }).join('')}
-      </div>
-      ${sharedPots.length>0?`<div class="card">
-        <div class="card-title">Shared Pots</div>
-        ${sharedPots.map(p=>{
-          const bal=Math.max(0,sharedPotTotals[p.id]||0);
-          const mine=Math.max(0,sharedTxns.filter(t=>t.pot_id===p.id&&t.user_id===currentUser.id).reduce((s,t)=>s+(t.type==='deposit'?parseFloat(t.amount||0):-(parseFloat(t.amount||0))),0));
-          const goal=parseFloat(p.goal_amount||0);
-          const prog=goal>0?Math.min((bal/goal)*100,100):null;
-          const members=sharedMembers.filter(m=>m.pot_id===p.id);
-          const others=members.filter(m=>m.user_id!==currentUser.id).map(m=>displayName(m.user_id));
-          return`<div class="account-row" onclick="switchView('savings',null)" style="cursor:pointer;"><div><div class="account-name">${p.emoji||'🤝'} ${esc(p.name)}</div><div class="account-detail">${others.length>0?'With: '+others.join(', '):'Just you'} · Your share: ${fmt(mine)}</div>${prog!==null?`<div style="margin-top:6px;"><div class="progress-bar" style="width:120px;"><div class="progress-fill" style="width:${prog}%"></div></div></div>`:''}</div><div class="account-balance text-success">${fmt(bal)}</div></div>`;
-        }).join('')}
-      </div>`:''}`;
-  }
+  const thisMonthStr=new Date().toISOString().slice(0,7);
+  const monthlyBills=bills.filter(b=>b.recurring==='monthly');
+  const monthlyTotal=monthlyBills.reduce((s,b)=>s+parseFloat(b.amount||0),0);
+  const monthlyPaidAmt=billPayments.filter(p=>(p.paid_date||'').startsWith(thisMonthStr)).reduce((s,p)=>s+parseFloat(p.amount||0),0);
+  const monthlyPaidCount=monthlyBills.filter(b=>billPayments.some(p=>p.bill_id===b.id&&(p.paid_date||'').startsWith(thisMonthStr))).length;
+  const monthlyRemaining=Math.max(0,monthlyTotal-monthlyPaidAmt);
+  const billsProgress=monthlyTotal>0?Math.min((monthlyPaidAmt/monthlyTotal)*100,100):0;
 
   el.innerHTML=`
     <div style="margin-bottom:16px;">
@@ -1502,11 +1468,20 @@ function renderDashboard(){
         <div style="text-align:right;font-size:11px;color:var(--accent);margin-top:4px;font-weight:700;">${progress.toFixed(1)}% complete</div>
       </div>
     </div>
-    <div class="toggle-row">
-      <button class="toggle-btn ${dashSection==='overview'?'active':''}" onclick="setDashSection('overview')">Account Summary</button>
-      <button class="toggle-btn ${dashSection==='savings'?'active':''}" onclick="setDashSection('savings')">Savings Pots</button>
+    <div class="card" onclick="switchView('bills',null)" style="cursor:pointer;">
+      <div class="card-title">Bills This Month</div>
+      <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:8px;">
+        <div><div class="stat-label">Paid This Month</div><div style="font-size:20px;font-weight:800;color:var(--success);">${fmt(monthlyPaidAmt)}</div></div>
+        <div style="text-align:right;"><div class="stat-label">Remaining</div><div style="font-size:20px;font-weight:800;color:${monthlyRemaining>0?'var(--danger)':'var(--success)'};">${fmt(monthlyRemaining)}</div></div>
+      </div>
+      <div class="progress-bar" style="height:10px;margin-bottom:8px;">
+        <div class="progress-fill" style="width:${billsProgress}%;background:${billsProgress>=100?'var(--success)':'linear-gradient(90deg,var(--accent),var(--success))'}"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted);">
+        <span>${monthlyPaidCount} of ${monthlyBills.length} bills paid</span>
+        <span style="font-weight:700;color:${billsProgress>=100?'var(--success)':'var(--muted)'};">${billsProgress.toFixed(0)}% complete · ${fmt(monthlyTotal)}/mo</span>
+      </div>
     </div>
-    ${sectionContent}
     ${renderNetWorth()}
     ${renderPayoffCalc()}`;
 }
