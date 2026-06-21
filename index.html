@@ -862,7 +862,7 @@ function switchView(name,btn){
   if(name==='bills')renderBills();
   if(name==='savings')renderSavings();
   if(name==='community')renderCommunity();
-  if(name==='expenses')renderExpenses();
+  if(name==='expenses'){collapsedMonths=new Set();renderExpenses();}
   if(name==='setup')renderSetup();
   if(name==='instructions')renderInstructions();
   if(name==='paycalc')renderPaycalc();
@@ -3433,7 +3433,7 @@ function filterExpenses(){
   if(expenses.length===0){el.innerHTML=`<div class="empty"><div class="icon"><i class="ti ti-receipt"></i></div><p>No expenses yet. Use the quick buttons above or tap <strong>+</strong> to log one.</p></div>`;return;}
   const groups={};filtered.forEach(e=>{const mo=(e.exp_date||'').slice(0,7);if(!groups[mo])groups[mo]=[];groups[mo].push(e);});
   const groupEntries=Object.entries(groups).sort((a,b)=>a[0]<b[0]?1:-1);
-  groupEntries.forEach(([mo],i)=>{if(i>0&&!collapsedMonths.has('_opened_'+mo))collapsedMonths.add(mo);});
+  groupEntries.forEach(([mo])=>{if(!collapsedMonths.has('_opened_'+mo))collapsedMonths.add(mo);});
   el.innerHTML=(Object.keys(groups).length===0?`<div style="text-align:center;padding:20px;color:var(--muted);">${q?`No results for "<strong>${esc(expenseSearch)}</strong>".`:'No expenses in this category.'} <button onclick="expenseSearch='';document.getElementById('expense-search-input').value='';renderExpenseXBtn();filterExpenses();setExpenseFilter(null);" style="background:none;border:none;color:var(--accent);cursor:pointer;font-weight:700;">Clear</button></div>`:groupEntries.map(([mo,list])=>{
     const moTotal=list.reduce((s,e)=>s+parseFloat(e.amount||0),0);
     const isCollapsed=collapsedMonths.has(mo);
