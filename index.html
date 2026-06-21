@@ -1285,8 +1285,7 @@ async function paydaySaveDeposits(){
 }
 
 function renderPaydaySummary(savedAmt){
-  const todayStr=today();
-  const totalIncome=paychecks.filter(p=>(p.pay_date||'')<=todayStr).reduce((s,p)=>s+parseFloat(p.amount||0),0);
+  const totalIncome=paychecks.reduce((s,p)=>s+parseFloat(p.amount||0),0);
   const totalExpenses=expenses.reduce((s,e)=>s+parseFloat(e.amount||0),0);
   const totalPaid=payments.reduce((s,p)=>s+parseFloat(p.amount||0),0);
   const totalBillsPaid=billPayments.reduce((s,b)=>s+parseFloat(b.amount||0),0);
@@ -1324,7 +1323,7 @@ function renderDashboard(){
   const startDebt=totalDebt+totalPaid;
   const progress=startDebt>0?Math.min((totalPaid/startDebt)*100,100):0;
   const todayStr=today();
-  const totalIncome=paychecks.filter(p=>(p.pay_date||'')<=todayStr).reduce((s,p)=>s+parseFloat(p.amount||0),0);
+  const totalIncome=paychecks.reduce((s,p)=>s+parseFloat(p.amount||0),0);
   const totalExpenses=expenses.reduce((s,e)=>s+parseFloat(e.amount||0),0);
   const totalBillsPaid=billPayments.reduce((s,b)=>s+parseFloat(b.amount||0),0);
   const totalSaved=savingsTxns.filter(t=>t.type==='deposit'&&t.notes!=='__starting_balance__').reduce((s,t)=>s+parseFloat(t.amount||0),0)-savingsTxns.filter(t=>t.type==='withdraw').reduce((s,t)=>s+parseFloat(t.amount||0),0);
@@ -2243,13 +2242,12 @@ function renderWeekly(){
   const active=sorted.filter(w=>w.pay_date>=cutoffStr&&(incomeFilter==='all'||w.source_name===incomeFilter||!w.source_name));
   const archived=sorted.filter(w=>w.pay_date<cutoffStr&&(incomeFilter==='all'||w.source_name===incomeFilter||!w.source_name));
   // Totals bar
-  const todayStr2=today();
   const confirmedTotal=paychecks.filter(p=>{
     const w=weeks.find(x=>x.id===p.pay_week_id);
-    return (p.pay_date||'')<=todayStr2&&(incomeFilter==='all'||w?.source_name===incomeFilter||!w?.source_name);
+    return incomeFilter==='all'||w?.source_name===incomeFilter||!w?.source_name;
   }).reduce((s,p)=>s+parseFloat(p.amount||0),0);
   const allFiltered=[...active,...archived];
-  const pendingPeriods=allFiltered.filter(w=>w.pay_date>todayStr2&&paychecks.filter(p=>p.pay_week_id===w.id).length===0);
+  const pendingPeriods=allFiltered.filter(w=>paychecks.filter(p=>p.pay_week_id===w.id).length===0);
   const expectedTotal=pendingPeriods.reduce((s,w)=>s+parseFloat(w.expected_amount||0),0);
   const totalsBar=`<div class="card" style="margin-bottom:14px;">
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
