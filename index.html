@@ -867,7 +867,7 @@ async function cleanupPaidOffDebtBills(){
   await loadBills();
   return true;
 }
-async function loadAll(){await Promise.all([loadDebts(),loadPayments(),loadExpenses(),loadWeeks(),loadPaychecks(),loadBills(),loadBillPayments(),loadPots(),loadSavingsTxns(),loadProfiles(),loadPosts(),loadReactions(),loadShared(),loadRecurring(),loadAssets()]);await topUpPeriods();await migrateDiningCategory();await cleanupPaidOffDebtBills();renderDashboard();updateBillBadge();updateNotifBadge();startPolling();}
+async function loadAll(){await Promise.all([loadDebts(),loadPayments(),loadExpenses(),loadWeeks(),loadPaychecks(),loadBills(),loadBillPayments(),loadPots(),loadSavingsTxns(),loadProfiles(),loadPosts(),loadReactions(),loadShared(),loadRecurring(),loadAssets(),loadBudgetTargets()]);await topUpPeriods();await migrateDiningCategory();await cleanupPaidOffDebtBills();renderDashboard();updateBillBadge();updateNotifBadge();startPolling();}
 async function topUpPeriods(){
   // Only extend recurring sources if the furthest period is within 10 months out
   if(recurringSources.length===0)return;
@@ -2810,12 +2810,28 @@ function renderInsights(){
   if(insightsTab==='categories') content=renderCategoryInsights();
   else if(insightsTab==='overtime') content=renderOverTimeInsights();
   else content=renderTrendsInsights();
+  // Budget targets summary banner
+  const thisMonthKey=new Date().toISOString().slice(0,7);
+  const byCatBanner={};
+  expenses.filter(e=>(e.exp_date||'').startsWith(thisMonthKey)).forEach(e=>{if(!byCatBanner[e.category])byCatBanner[e.category]=0;byCatBanner[e.category]+=parseFloat(e.amount||0);});
+  const targetedCats=Object.keys(budgetTargets);
+  let banner='';
+  if(targetedCats.length>0){
+    const onTrack=targetedCats.filter(c=>(byCatBanner[c]||0)/budgetTargets[c]<0.8).length;
+    const over=targetedCats.filter(c=>(byCatBanner[c]||0)>=budgetTargets[c]).length;
+    const warn=targetedCats.length-onTrack-over;
+    const bannerColor=over>0?'var(--danger)':warn>0?'var(--warning)':'var(--success)';
+    banner=`<div style="font-size:12px;font-weight:700;color:${bannerColor};margin-bottom:12px;padding:8px 10px;background:rgba(0,0,0,0.2);border-radius:var(--radius-sm);display:flex;justify-content:space-between;align-items:center;">`
+      +`<span>${onTrack} of ${targetedCats.length} categories on track${over>0?' · '+over+' over budget':''}</span>`
+      +`<button onclick="setInsightsTab('categories')" style="background:none;border:none;color:var(--accent);font-size:11px;cursor:pointer;font-weight:700;padding:0;">View →</button>`
+      +`</div>`;
+  }
   el.innerHTML=`<div class="card" style="margin-bottom:14px;">
     <div onclick="toggleInsights()" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;margin-bottom:14px;">
       <div style="font-size:15px;font-weight:700;"><i class="ti ti-chart-bar"></i> Spending Insights</div>
       <span style="font-size:18px;color:var(--muted);">−</span>
     </div>
-    ${tabs}
+    ${banner}${tabs}
     ${content}
   </div>`;
 }
@@ -2832,12 +2848,25 @@ function renderCategoryInsights(){
     const pct=(amt/total)*100;
     const col=CAT_COLORS[i%CAT_COLORS.length];
     const isActive=activeFilter===cat;
-    return`<div class="bar-wrap" onclick="setExpenseFilter('${esc(cat)}')" style="cursor:pointer;opacity:${activeFilter&&!isActive?'0.4':'1'};transition:opacity 0.2s;">
-      <div class="bar-label-row">
+    const tgt=budgetTargets[cat]||0;
+    const tgtPct=tgt>0?Math.min((amt/tgt)*100,100):0;
+    const tgtOver=tgt>0&&amt>tgt;
+    const tgtColor=tgtOver?'var(--danger)':tgtPct>=80?'var(--warning)':'var(--success)';
+    const targetBar=tgt>0
+      ?'<div style="margin-top:5px;display:flex;align-items:center;gap:6px;">'
+        +'<div style="flex:1;height:4px;background:var(--surface2);border-radius:2px;overflow:hidden;">'
+          +'<div style="width:'+tgtPct+'%;height:100%;background:'+tgtColor+';border-radius:2px;transition:width 0.3s;"></div>'
+        +'</div>'
+        +'<span style="font-size:10px;color:'+tgtColor+';font-weight:700;white-space:nowrap;">'+fmt(amt)+' / '+fmt(tgt)+'</span>'
+      +'</div>'
+      :'';
+    return`<div class="bar-wrap" style="opacity:${activeFilter&&!isActive?'0.4':'1'};transition:opacity 0.2s;">
+      <div class="bar-label-row" onclick="setExpenseFilter('${esc(cat)}')" style="cursor:pointer;">
         <span style="font-weight:${isActive?'800':'600'};color:${isActive?col:'var(--text)'};">${esc(cat)}</span>
-        <span style="color:var(--muted);">${fmt(amt)} <span style="color:${col};font-weight:700;">${pct.toFixed(1)}%</span></span>
+        <span style="display:flex;align-items:center;gap:4px;color:var(--muted);">${fmt(amt)} <span style="color:${col};font-weight:700;">${pct.toFixed(1)}%</span><button onclick="event.stopPropagation();editBudgetTarget('${esc(cat)}')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:11px;padding:0 2px;" title="Set target"><i class="ti ti-target"></i></button></span>
       </div>
-      <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${col};"></div></div>
+      <div class="bar-track" onclick="setExpenseFilter('${esc(cat)}')" style="cursor:pointer;"><div class="bar-fill" style="width:${pct}%;background:${col};"></div></div>
+      ${targetBar}
     </div>`;
   }).join('');
   // SVG donut-style summary
@@ -2855,41 +2884,48 @@ function renderOverTimeInsights(){
     <button class="toggle-btn ${insightsTimeframe==='weekly'?'active':''}" style="flex:1;padding:7px;" onclick="setInsightsTimeframe('weekly')">Weekly</button>
     <button class="toggle-btn ${insightsTimeframe==='monthly'?'active':''}" style="flex:1;padding:7px;" onclick="setInsightsTimeframe('monthly')">Monthly</button>
   </div>`;
+  const totalMonthlyTarget=Object.values(budgetTargets).reduce((s,v)=>s+v,0);
   if(insightsTimeframe==='weekly'){
     const weeks={};
     expenses.forEach(e=>{const k=getWeekKey(e.exp_date||'');if(!weeks[k])weeks[k]=0;weeks[k]+=parseFloat(e.amount||0);});
     const sorted=Object.entries(weeks).sort((a,b)=>a[0]<b[0]?-1:1).slice(-8);
-    return toggle+renderBarChart(sorted,'week');
+    return toggle+renderBarChart(sorted,'week',totalMonthlyTarget>0?totalMonthlyTarget/4:0);
   } else {
     const months={};
     expenses.forEach(e=>{const k=getMonthKey(e.exp_date||'');if(!months[k])months[k]=0;months[k]+=parseFloat(e.amount||0);});
     const sorted=Object.entries(months).sort((a,b)=>a[0]<b[0]?-1:1).slice(-6);
-    return toggle+renderBarChart(sorted,'month');
+    return toggle+renderBarChart(sorted,'month',totalMonthlyTarget);
   }
 }
 
-function renderBarChart(data,type){
+function renderBarChart(data,type,targetAmount){
   if(data.length===0)return`<div class="empty" style="padding:20px 0;"><p>Not enough data yet.</p></div>`;
   const vals=data.map(([,v])=>v);
-  const max=Math.max(...vals)||1;
+  const tgt=targetAmount||0;
+  const max=Math.max(...vals,tgt,1);
   const chartH=120,barW=Math.min(40,Math.floor(300/data.length)),gap=8;
   const totalW=data.length*(barW+gap);
   const labels=data.map(([k])=>{
     if(type==='month'){const[y,m]=k.split('-');const mo=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][parseInt(m)-1];return mo;}
     const d=new Date(k+'T00:00:00');return`${d.getMonth()+1}/${d.getDate()}`;
   });
+  const tickY=tgt>0?chartH-(tgt/max)*chartH:null;
+  const tickLine=tickY!==null?`<line x1="0" y1="${tickY}" x2="${totalW}" y2="${tickY}" stroke="var(--warning)" stroke-width="1.5" stroke-dasharray="4,3" opacity="0.7"/>`:'';
   const bars=data.map(([k,v],i)=>{
     const h=Math.max(4,(v/max)*chartH);
     const x=i*(barW+gap);
     const y=chartH-h;
     const isThisMonth=k===new Date().toISOString().slice(0,type==='month'?7:10).slice(0,type==='month'?7:10);
+    const overTarget=tgt>0&&v>tgt;
+    const barColor=overTarget?'var(--danger)':isThisMonth?'var(--accent)':'var(--surface2)';
+    const strokeColor=overTarget?'var(--danger)':isThisMonth?'var(--accent)':'var(--border)';
     return`<g>
-      <rect x="${x}" y="${y}" width="${barW}" height="${h}" rx="4" fill="${isThisMonth?'var(--accent)':'var(--surface2)'}" stroke="${isThisMonth?'var(--accent)':'var(--border)'}" stroke-width="1" class="chart-bar"/>
-      <text x="${x+barW/2}" y="${y-4}" text-anchor="middle" font-size="9" fill="var(--muted)">${v>=1000?'$'+(v/1000).toFixed(1)+'k':'$'+v.toFixed(0)}</text>
+      <rect x="${x}" y="${y}" width="${barW}" height="${h}" rx="4" fill="${barColor}" stroke="${strokeColor}" stroke-width="1" class="chart-bar"/>
+      <text x="${x+barW/2}" y="${y-4}" text-anchor="middle" font-size="9" fill="${overTarget?'var(--danger)':'var(--muted)'}">${v>=1000?'$'+(v/1000).toFixed(1)+'k':'$'+v.toFixed(0)}</text>
       <text x="${x+barW/2}" y="${chartH+14}" text-anchor="middle" font-size="9" fill="var(--muted)">${labels[i]}</text>
     </g>`;
   }).join('');
-  return`<svg class="svg-chart" height="${chartH+30}" viewBox="-4 0 ${totalW+8} ${chartH+30}">${bars}</svg>`;
+  return`<svg class="svg-chart" height="${chartH+30}" viewBox="-4 0 ${totalW+8} ${chartH+30}">${tickLine}${bars}</svg>`;
 }
 
 function setTrendsWindow(w){trendsWindow=w;renderInsights();}
@@ -2945,7 +2981,9 @@ function renderTrendsInsights(){
   }
   const catRows=cats.map((cat,ci)=>{
     const vals=periods.map(p=>getVal(cat,p));
-    const maxV=Math.max(...vals,1);
+    const monthlyTarget=budgetTargets[cat]||0;
+    const periodTarget=trendsWindow==='weekly'?monthlyTarget/4:monthlyTarget;
+    const maxV=Math.max(...vals,periodTarget,1);
     const pts=vals.map((v,i)=>`${i*ptSpacing},${30-(v/maxV)*28}`).join(' ');
     const lastTwo=vals.slice(-2);
     const trend=lastTwo[1]-lastTwo[0];
@@ -2954,10 +2992,18 @@ function renderTrendsInsights(){
     const col=CAT_COLORS[ci%CAT_COLORS.length];
     const latestVal=trendsWindow==='yearly'?vals.reduce((s,v)=>s+v,0):vals[vals.length-1];
     const latestLabel=trendsWindow==='weekly'?'this wk':trendsWindow==='yearly'?'this yr':'this mo';
+    const lineWidth=(periods.length-1)*ptSpacing;
+    const targetY=periodTarget>0?(30-(periodTarget/maxV)*28):null;
+    const targetLine=targetY!==null
+      ?`<line x1="0" y1="${targetY}" x2="${lineWidth}" y2="${targetY}" stroke="var(--warning)" stroke-width="1.5" stroke-dasharray="3,2" opacity="0.8"/>`
+      :'';
+    const latestOverTarget=periodTarget>0&&latestVal>periodTarget;
+    const latestLabelColor=periodTarget>0?(latestOverTarget?'var(--danger)':latestVal/periodTarget>=0.8?'var(--warning)':'var(--muted)'):'var(--muted)';
     return`<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);">
       <div style="width:8px;height:8px;border-radius:50%;background:${col};flex-shrink:0;"></div>
-      <div style="flex:1;min-width:0;"><div style="font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(cat)}</div><div style="font-size:11px;color:var(--muted);">${fmt(latestVal)} ${latestLabel}</div></div>
+      <div style="flex:1;min-width:0;"><div style="font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(cat)}</div><div style="font-size:11px;color:${latestLabelColor};font-weight:${periodTarget>0?'700':'400'};">${fmt(latestVal)} ${latestLabel}</div></div>
       <svg width="${svgWidth}" height="32" style="flex-shrink:0;overflow:visible;">
+        ${targetLine}
         <polyline points="${pts}" class="sparkline" stroke="${col}" fill="none"/>
         ${vals.map((v,i)=>`<circle cx="${i*ptSpacing}" cy="${30-(v/maxV)*28}" r="2.5" fill="${col}"/>`).join('')}
       </svg>
@@ -3420,9 +3466,25 @@ function showDebtDetail(debtId){
 }
 
 // BUDGET TARGETS (#2)
-let budgetTargets=JSON.parse(localStorage.getItem('bt-budget-targets')||'{}');
+/*
+  SQL — run once in Supabase SQL editor:
+  CREATE TABLE budget_targets (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id UUID REFERENCES auth.users NOT NULL,
+    category TEXT NOT NULL,
+    monthly_target NUMERIC NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(user_id, category)
+  );
+  ALTER TABLE budget_targets ENABLE ROW LEVEL SECURITY;
+  CREATE POLICY "Users manage own budget_targets" ON budget_targets
+    FOR ALL USING (auth.uid() = user_id);
+*/
+let budgetTargets={};
 let budgetTargetsOpen=localStorage.getItem('bt-budget-open')!=='false';
-function saveBudgetTargets(){localStorage.setItem('bt-budget-targets',JSON.stringify(budgetTargets));}
+async function loadBudgetTargets(){const{data}=await sb.from('budget_targets').select('*').eq('user_id',currentUser.id);budgetTargets={};(data||[]).forEach(r=>{budgetTargets[r.category]=parseFloat(r.monthly_target);});}
+async function saveBudgetTarget(cat,amount){await sb.from('budget_targets').upsert({user_id:currentUser.id,category:cat,monthly_target:amount},{onConflict:'user_id,category'});budgetTargets[cat]=amount;}
+async function deleteBudgetTarget(cat){await sb.from('budget_targets').delete().eq('user_id',currentUser.id).eq('category',cat);delete budgetTargets[cat];}
 function toggleBudgetTargets(){budgetTargetsOpen=!budgetTargetsOpen;localStorage.setItem('bt-budget-open',budgetTargetsOpen);renderExpenses();}
 function renderBudgetTargets(){
   const thisMonth=new Date().toISOString().slice(0,7);
@@ -3454,14 +3516,15 @@ function renderBudgetTargets(){
     }).join('')}`:''}
   </div>`;
 }
-function editBudgetTarget(cat){
+async function editBudgetTarget(cat){
   const current=budgetTargets[cat]||'';
   const val=prompt(`Monthly budget for ${cat} ($):`,current);
   if(val===null)return;
   const num=parseFloat(val);
-  if(!isNaN(num)&&num>0){budgetTargets[cat]=num;saveBudgetTargets();}
-  else if(val===''||num===0){delete budgetTargets[cat];saveBudgetTargets();}
+  if(!isNaN(num)&&num>0){await saveBudgetTarget(cat,num);}
+  else if(val===''||num===0){await deleteBudgetTarget(cat);}
   if(document.getElementById('view-expenses').classList.contains('active'))renderExpenses();
+  renderInsights();
 }
 
 // INCOME FILTER (#6)
