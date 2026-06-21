@@ -1099,12 +1099,14 @@ function getPendingPaydays(){
   return weeks.filter(w=>w.pay_date<=todayStr&&paychecks.filter(p=>p.pay_week_id===w.id).length===0);
 }
 
-function openPaydayMode(){
+async function openPaydayMode(){
   paydayWeeks=getPendingPaydays();
   if(paydayWeeks.length===0)return;
   paydayStep=1;paydayConfirmedAmount=0;paydayBillsPaid=0;paydaySaved=0;
-  renderPaydayStep();
   openModal('payday-modal');
+  // Ensure bills data is fresh before modal renders
+  await Promise.all([loadBills(),loadBillPayments()]);
+  renderPaydayStep();
 }
 
 function renderPaydayStep(){
@@ -1171,7 +1173,14 @@ async function paydayConfirmCustom(weekId,payDate){
 function renderPaydayStep2(){
   const due=getDueBills();
   if(due.length===0){
-    paydayStep=3;renderPaydayStep();return'';
+    return`<div class="modal-title" style="margin-bottom:14px;">Pay Due Bills</div>
+      <div style="background:rgba(45,212,160,0.08);border:1px solid rgba(45,212,160,0.3);border-radius:var(--radius-sm);padding:16px;text-align:center;margin-bottom:14px;">
+        <div style="font-size:22px;margin-bottom:6px;">✓</div>
+        <div style="font-weight:700;margin-bottom:4px;">No bills due right now</div>
+        <div style="font-size:12px;color:var(--muted);">All caught up for this month.</div>
+      </div>
+      <button class="btn btn-primary" style="width:100%;" onclick="paydayStep=3;renderPaydayStep();">Continue to Savings →</button>
+      <button class="btn btn-ghost" style="width:100%;margin-top:8px;" onclick="closeModal('payday-modal')">Exit</button>`;
   }
   const total=due.reduce((s,b)=>s+parseFloat(b.amount||0),0);
   const rows=due.map(b=>`<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border);">
