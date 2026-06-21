@@ -1591,7 +1591,7 @@ function renderDashboard(){
       const _tNow=new Date();
       const _tDays=new Date(_tNow.getFullYear(),_tNow.getMonth()+1,0).getDate();
       const _tExp=(tTotal/_tDays)*_tNow.getDate();
-      const _tSt=tSpent<=_tExp?'on':tSpent<=_tExp*1.2?'close':'over';
+      const _tSt=tSpent>tTotal?'over':tSpent>_tExp*1.1?'close':'on';
       const tSpentCol=_tSt==='over'?'var(--danger)':_tSt==='close'?'var(--warning)':'var(--success)';
       const tRemCol=tRem<0?'var(--danger)':_tSt==='over'?'var(--danger)':_tSt==='close'?'var(--warning)':'var(--success)';
       const tBarCol=_tSt==='over'?'var(--danger)':_tSt==='close'?'var(--warning)':'var(--success)';
@@ -2871,8 +2871,8 @@ function renderInsights(){
     const _now=new Date();
     const _daysInMo=new Date(_now.getFullYear(),_now.getMonth()+1,0).getDate();
     const _elapsed=_now.getDate();
-    const onTrack=targetedCats.filter(c=>{const exp=(budgetTargets[c]/_daysInMo)*_elapsed;return(byCatBanner[c]||0)<=exp;}).length;
-    const overBudget=targetedCats.filter(c=>{const exp=(budgetTargets[c]/_daysInMo)*_elapsed;return(byCatBanner[c]||0)>exp*1.2;}).length;
+    const overBudget=targetedCats.filter(c=>(byCatBanner[c]||0)>budgetTargets[c]).length;
+    const onTrack=targetedCats.filter(c=>{const s=byCatBanner[c]||0;if(s>budgetTargets[c])return false;const exp=(budgetTargets[c]/_daysInMo)*_elapsed;return s<=exp*1.1;}).length;
     const close=targetedCats.length-onTrack-overBudget;
     const bannerColor=overBudget>0?'var(--danger)':close>0?'var(--warning)':'var(--success)';
     banner=`<div style="font-size:12px;font-weight:700;color:${bannerColor};margin-bottom:12px;padding:8px 10px;background:rgba(0,0,0,0.2);border-radius:var(--radius-sm);display:flex;justify-content:space-between;align-items:center;">`
@@ -2969,7 +2969,7 @@ function renderBudgetInsights(){
   const _daysInMoB=new Date(_nowB.getFullYear(),_nowB.getMonth()+1,0).getDate();
   const _elapsedB=_nowB.getDate();
   const _totalExpected=(totalTarget/_daysInMoB)*_elapsedB;
-  const _overallStatus=totalTargetedSpent<=_totalExpected?'on':totalTargetedSpent<=_totalExpected*1.2?'close':'over';
+  const _overallStatus=totalTargetedSpent>totalTarget?'over':totalTargetedSpent>_totalExpected*1.1?'close':'on';
   const spentColor=_overallStatus==='over'?'var(--danger)':_overallStatus==='close'?'var(--warning)':'var(--success)';
   const remColor=totalRemaining<0?'var(--danger)':_overallStatus==='over'?'var(--danger)':_overallStatus==='close'?'var(--warning)':'var(--success)';
   const barColor=_overallStatus==='over'?'var(--danger)':_overallStatus==='close'?'var(--warning)':'var(--success)';
@@ -3014,10 +3014,10 @@ function renderBudgetInsights(){
   const _daysInMo=new Date(_now.getFullYear(),_now.getMonth()+1,0).getDate();
   const _elapsed=_now.getDate();
   const paceStatus=(spent,tgt)=>{
+    if(spent>tgt)return'over';
     const exp=(tgt/_daysInMo)*_elapsed;
-    if(spent<=exp)return'on';
-    if(spent<=exp*1.2)return'close';
-    return'over';
+    if(spent>exp*1.1)return'close';
+    return'on';
   };
 
   const tableRows=targetedTableCats.map(cat=>{
@@ -3205,20 +3205,18 @@ function renderTrendsInsights(){
       :'';
     const latestLabelColor=(()=>{
       if(!periodTarget)return'var(--muted)';
+      // Over Budget = exceeds full period target
+      if(latestVal>periodTarget)return'var(--danger)';
       if(trendsWindow==='weekly'){
-        // For the most recent (current) week use days-elapsed pace; for past weeks compare to full week target
         const isCurrentWk=periods[periods.length-1]&&periods[periods.length-1].start<=now.toISOString().slice(0,10)&&periods[periods.length-1].end>=now.toISOString().slice(0,10);
         if(isCurrentWk){
           const dayOfWk=((now.getDay()+6)%7)+1;
           const expected=(periodTarget/7)*dayOfWk;
-          if(latestVal<=expected)return'var(--success)';
-          if(latestVal<=expected*1.2)return'var(--warning)';
-          return'var(--danger)';
+          return latestVal>expected*1.1?'var(--warning)':'var(--success)';
         }
       }
-      if(latestVal<=periodTarget)return'var(--success)';
-      if(latestVal<=periodTarget*1.2)return'var(--warning)';
-      return'var(--danger)';
+      // For completed periods: under target = green (no pace to check), already checked >target above
+      return'var(--success)';
     })();
     return`<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);">
       <div style="width:8px;height:8px;border-radius:50%;background:${col};flex-shrink:0;"></div>
