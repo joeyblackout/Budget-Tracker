@@ -1163,18 +1163,31 @@ function forecastDebtCallout(sim,minSim,windowMonths){
   if(sim.debts.length===0){
     return '<div class="card" style="border-color:var(--success);background:rgba(45,212,160,0.08);margin-bottom:14px;text-align:center;"><div style="font-size:16px;font-weight:800;color:var(--success);">You have no remaining debt 🎉</div></div>';
   }
-  let line;
-  if(sim.debtFreeMonth===null){
-    line='<div style="font-size:18px;font-weight:800;color:var(--warning);">Not paid off within 50 years at this pace</div><div style="font-size:12px;color:var(--muted);margin-top:2px;">Increase your monthly payment to make progress.</div>';
-  }else if(sim.debtFreeMonth<windowMonths){
-    line='<div style="font-size:18px;font-weight:800;color:var(--success);">Debt-free by '+monthLabelFromIndex(sim.debtFreeMonth)+'</div>';
+  const dfm=sim.debtFreeMonth;
+  let color,main,sub='';
+  if(dfm===null||dfm>=120){
+    color='var(--danger)';main='Not paid off within 10 years at this pace';sub='Increase your monthly payment to make real progress.';
   }else{
-    line='<div style="font-size:18px;font-weight:800;color:var(--success);">Debt-free in ~'+(sim.debtFreeMonth+1)+' months</div><div style="font-size:12px;color:var(--muted);margin-top:2px;">'+monthLabelFromIndex(sim.debtFreeMonth)+' · beyond this window</div>';
+    color=dfm>36?'var(--warning)':'var(--success)';
+    if(dfm<windowMonths){main='Debt-free by '+monthLabelFromIndex(dfm);}
+    else{main='Debt-free in ~'+(dfm+1)+' months';sub=monthLabelFromIndex(dfm)+' · beyond this window';}
   }
   let savingsLine='';
-  if(forecastStrategy!=='min'){const saved=minSim.totalInterest-sim.totalInterest;if(saved>0.5)savingsLine='<div style="font-size:12px;color:var(--success);margin-top:2px;">Saves you ~'+fmt(saved)+' vs minimums only</div>';}
-  return '<div class="card" style="border-color:var(--accent);background:rgba(45,212,160,0.06);margin-bottom:14px;">'+line
-    +'<div style="margin-top:12px;font-size:13px;color:var(--muted);">Est. interest paid: <span style="color:var(--text);font-weight:800;">'+fmt(sim.totalInterest)+'</span></div>'+savingsLine+'</div>';
+  if(forecastStrategy!=='min'){
+    const saved=minSim.totalInterest-sim.totalInterest;
+    const totalDebtNow=debts.reduce((s,d)=>s+parseFloat(d.balance||0),0);
+    if(saved>totalDebtNow||saved<0){
+      console.warn('[forecast] Savings vs minimums implausible (saved $'+saved.toFixed(0)+' vs total debt $'+totalDebtNow.toFixed(0)+') — hiding figure');
+      savingsLine='<div style="font-size:12px;color:var(--muted);margin-top:2px;">Saves vs minimums only: —</div>';
+    }else if(saved>0.5){
+      savingsLine='<div style="font-size:12px;color:var(--success);margin-top:2px;">Saves you ~'+fmt(saved)+' vs minimums only</div>';
+    }
+  }
+  return '<div class="card" style="border-color:'+color+';background:var(--surface);margin-bottom:14px;">'
+    +'<div style="font-size:18px;font-weight:800;color:'+color+';">'+main+'</div>'
+    +(sub?'<div style="font-size:12px;color:var(--muted);margin-top:2px;">'+sub+'</div>':'')
+    +'<div style="margin-top:12px;font-size:13px;color:var(--muted);">Est. interest paid: <span style="color:var(--text);font-weight:800;">'+fmt(sim.totalInterest)+'</span></div>'
+    +savingsLine+'</div>';
 }
 function forecastDebtTimeline(sim,windowMonths){
   if(sim.debts.length===0)return '';
@@ -1191,9 +1204,9 @@ function forecastDebtTimeline(sim,windowMonths){
 // Opt-in collapsible "what-if" section — fully self-contained, never affects the main forecast above
 function forecastStrategySection(windowMonths){
   const open=forecastStrategyOpen;
-  let html='<div class="card" style="margin-top:8px;cursor:pointer;" onclick="toggleForecastStrategy()">'
+  let html='<div class="card" style="margin:0 0 14px;background:var(--surface2);border-left:3px solid var(--warning);cursor:pointer;" onclick="toggleForecastStrategy()">'
     +'<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">'
-    +'<div><div style="font-size:15px;font-weight:800;">Debt Payoff Strategies</div><div style="font-size:12px;color:var(--muted);margin-top:2px;">See how different payment strategies affect your payoff timeline</div></div>'
+    +'<div><div style="font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);">Debt Payoff Strategy</div><div style="font-size:12px;color:var(--muted);margin-top:3px;">See how different payment strategies affect your payoff timeline</div></div>'
     +'<span style="font-size:14px;color:var(--muted);flex-shrink:0;">'+(open?'▲':'▼')+'</span></div></div>';
   if(open){
     const sim=runDebtSim(makeMonthExtraFn(),windowMonths);
@@ -1203,8 +1216,7 @@ function forecastStrategySection(windowMonths){
     const anyApr=debts.some(d=>parseFloat(d.apr||0)>0);
     if(sim.debtFreeMonth!==null&&sim.debtFreeMonth<1&&totalDebtNow>1000)console.warn('[forecast] Debt-free <1 month away with >$1,000 debt — simulation may be broken');
     if(sim.totalInterest<10&&totalDebtNow>1000&&anyApr)console.warn('[forecast] Total interest <$10 with >$1,000 debt and APR>0 — simulation may be broken');
-    if(forecastStrategy!=='min'&&(minSim.totalInterest-sim.totalInterest)>totalDebtNow)console.warn('[forecast] Interest savings exceed total current debt — mathematically impossible');
-    html+='<div style="margin-top:10px;">'+forecastStrategyUI()+forecastDebtCallout(sim,minSim,windowMonths)+forecastDebtTimeline(sim,windowMonths)+'</div>';
+    html+='<div style="margin-bottom:14px;">'+forecastStrategyUI()+forecastDebtCallout(sim,minSim,windowMonths)+forecastDebtTimeline(sim,windowMonths)+'</div>';
   }
   return html;
 }
@@ -1390,6 +1402,7 @@ function renderForecast(){
       </div>
     </div>
     ${dailySpend>0?`<div style="font-size:12px;color:var(--muted);text-align:center;margin:-4px 0 14px;">Est. spending based on your recent average of ${fmt(dailySpend)}/day</div>`:`<div style="font-size:12px;color:var(--muted);text-align:center;margin:-4px 0 14px;">Log some expenses to project variable spending</div>`}
+    ${forecastStrategySection(windowMonths)}
     ${negativeFlags.length>0?`<div class="card" style="border-color:var(--danger);background:rgba(247,90,90,0.06);">
       <div style="font-size:15px;font-weight:700;color:var(--danger);margin-bottom:6px;"><i class="ti ti-alert-triangle"></i> Heads up</div>
       <div class="text-muted">Your projected cash dips below $0 around ${fmtDate(lowest.date)} (down to ${fmt(lowest.bal)}). Consider adjusting spending or moving a bill.</div>
@@ -1424,8 +1437,7 @@ function renderForecast(){
           </div>
         </div>`;
       }).join('');
-    })()}`:`<div class="empty"><div class="icon"><i class="ti ti-inbox"></i></div><p>No upcoming income or bills in this window. Set up recurring income and bills to see a projection.</p></div>`}
-    ${forecastStrategySection(windowMonths)}`;
+    })()}`:`<div class="empty"><div class="icon"><i class="ti ti-inbox"></i></div><p>No upcoming income or bills in this window. Set up recurring income and bills to see a projection.</p></div>`}`;
 }
 
 // DASH DETAIL MODAL
