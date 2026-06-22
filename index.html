@@ -1293,22 +1293,15 @@ function forecastDebtCallout(sim,minSim){
     const lastDebt=sim.debts.filter(d=>d.payoffMonth!==null).reduce((a,d)=>d.payoffMonth>a.payoffMonth?d:a);
     if(lastDebt&&lastDebt.payoffDate){dfDateStr=fmtPayoffDate(lastDebt.payoffDate,lastDebt.payoffDateEst);dfDateEst=lastDebt.payoffDateEst;}
   }
-  let savingsLine='';
-  if(forecastStrategy!=='min'){
-    // Both sims run the full 120 months, so the comparison is always calculable.
-    if(minSim.debtFreeMonth===null){
-      savingsLine='<div style="font-size:12px;color:var(--warning);margin-top:2px;">Minimums only: Est. '+fmt(minSim.totalInterest)+' interest over 10 years (not paid off)</div>';
-    }else{
-      const saved=minSim.totalInterest-sim.totalInterest;
-      if(saved>0.5)savingsLine='<div style="font-size:12px;color:var(--success);margin-top:2px;">Saves you ~'+fmt(saved)+' vs minimums only</div>';
-    }
-  }
+  const totalDebtNow=debts.reduce((s,d)=>s+parseFloat(d.balance||0),0);
+  const totalPaidOut=totalDebtNow+sim.totalInterest; // principal + interest = total outflow to pay off
   return '<div class="card" style="border-color:'+color+';background:var(--surface);margin-bottom:14px;">'
     +'<div style="font-size:18px;font-weight:800;color:'+color+';">'+main+'</div>'
     +(sub?'<div style="font-size:12px;color:var(--muted);margin-top:2px;">'+sub+'</div>':'')
     +(dfm!==null&&dfDateStr?'<div style="font-size:12px;color:var(--muted);margin-top:4px;">Target date: <span style="color:var(--text);font-weight:700;">'+dfDateStr+'</span>'+(dfDateEst?' (est.)':'')+'</div>':'')
     +'<div style="margin-top:12px;font-size:13px;color:var(--muted);">Est. interest paid: <span style="color:var(--text);font-weight:800;">'+fmt(sim.totalInterest)+'</span></div>'
-    +savingsLine+'</div>';
+    +'<div style="margin-top:6px;font-size:13px;color:var(--muted);">Total paid to become debt-free: <span style="color:var(--text);font-weight:800;">'+fmt(totalPaidOut)+'</span></div>'
+    +'</div>';
 }
 function forecastDebtTimeline(sim){
   if(sim.debts.length===0)return '';
