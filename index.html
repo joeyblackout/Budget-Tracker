@@ -4521,95 +4521,85 @@ function renderInstructions(){
       ${items.map(([q,a])=>`<div style="margin-bottom:12px;"><div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:3px;">${q}</div><div style="font-size:13px;color:var(--muted);line-height:1.6;">${a}</div></div>`).join('<div class="divider" style="margin:10px 0;"></div>')}
     </div>`;
   el.innerHTML=`
-    <div class="card" style="border-color:var(--accent);background:rgba(79,142,247,0.06);margin-bottom:14px;">
-      <div style="font-size:15px;font-weight:700;margin-bottom:6px;">👋 Welcome to Budget Tracker</div>
-      <div style="font-size:13px;color:var(--muted);line-height:1.6;">This app helps you track debt payoff, income, bills, expenses, and savings — together as a family. Here's everything you need to know to get started.</div>
+    <div class="card" style="border-color:var(--accent);background:rgba(45,212,160,0.08);margin-bottom:14px;">
+      <div style="font-size:15px;font-weight:700;margin-bottom:6px;">🚀 Start Here</div>
+      <div style="font-size:13px;color:var(--muted);line-height:1.6;">New here? Follow <strong style="color:var(--text);">Steps 1–6</strong> below in order to get fully set up. It takes about 10 minutes, and you only have to do it once.</div>
     </div>
-    ${section('🧭','Navigation',[
-      ['How do I get around the app?','The bottom bar has your most-used tabs: Forecast, Debts, Income, Bills, Savings, and Expenses. Tap the ☰ hamburger icon (top-left) to open the full sidebar with every section including Community, Settings, and more.'],
-      ['How do I get back to the Dashboard?','Tap the Budget Tracker logo in the top bar from anywhere in the app — it always routes you back to the Dashboard.'],
-      ['What is the 🔔 bell icon?','The notification bell (top-right) shows a red badge when something needs your attention — overdue bills, paychecks to confirm, shared pot invites, or new community posts. Tap it to see everything in one place. Notifications clear when you close the panel.'],
+    ${section('👋','Welcome & Getting Started',[
+      ['What is this app?','Budget Tracker is a simple money app for you and your family. It keeps your income, debts, bills, savings, and spending in one place so you always know where you stand — and how close you are to paying things off.'],
+      ['How do I put it on my phone?','Open the app in Safari, tap the Share button (the square with an arrow pointing up), then tap "Add to Home Screen." It will open full-screen with its own icon, just like a normal app.'],
+      ['What should I do first?','Two quick things in Settings: set your Display Name (so family can recognize you) and your Starting Cash on Hand (the money in your checking account right now). Everything else builds on that starting cash.'],
+      ['Do I have to set it all up at once?','No. The app works best if you follow Steps 1–6 in order, but you can stop and come back anytime. Nothing is lost.'],
     ])}
-    ${section('📊','Dashboard',[
-      ['What is the Available Balance?','Your real cash on hand right now. It starts from your Starting Cash (set in Settings), adds paychecks you\'ve confirmed received, and subtracts everything you\'ve paid — debt, bills, expenses, and savings deposits.'],
-      ['What do the stat cards and balance lines do?','Every card and line is tappable. Total Debt shows each account, Raked In shows paycheck history, CC Utilization shows per-card usage, Debt Paid shows payment history, Bills Paid shows bill history, and Total Saved goes to Savings. Tap any to drill down.'],
-      ['What is Net Worth?','The Net Worth card shows Total Assets (savings + shared pots + physical assets) minus Total Debt. It updates live as you make payments and deposits. Tap each line to see a breakdown.'],
-      ['What is the Bills This Month card?','Directly below your available balance, the Bills This Month card shows a progress bar of how many bills you\'ve paid this month, the dollar amount paid, and what\'s remaining. Tap it to go to the Bills tab.'],
+    ${section('1️⃣','Step 1 — Set Up Your Income',[
+      ['How do I add my paychecks?','Go to the Income tab and tap 🔁 Recurring. Enter how much you get paid, how often, and your next pay date. The app then fills in your future paydays automatically for the next year.'],
+      ['What do Weekly, Biweekly, Semimonthly, and Monthly mean?','Weekly = paid every 7 days. Biweekly = paid every 2 weeks (every other Friday, for example). Semimonthly = paid twice a month, usually the 1st and 15th. Monthly = paid once a month.'],
+      ['What is a pay period?','Each upcoming payday is its own "pay period." The app lists them by month so you can see what is coming and plan ahead.'],
+      ['What does it mean to confirm a paycheck?','When payday arrives and the money actually lands in your account, tap ✓ Received on that pay period. That tells the app the money is real, so it gets added to your available balance. If the amount was different than expected, tap "Different amount" and type the real number.'],
+      ['What if I get paid early?','Confirm the paycheck whenever the money arrives — even before the scheduled date. It counts toward your balance right away.'],
     ])}
-    ${section('💰','Payday Routine',[
-      ['What is the Payday Routine?','A guided 4-step flow that appears on the Dashboard whenever you have unconfirmed paychecks. It walks you through confirming income, paying bills, logging debt payments, and allocating to savings — all in one session.'],
-      ['What are the four steps?','Step 1 — Confirm your paycheck. Step 2 — Pay bills: due and overdue bills appear pre-checked, uncheck any to skip, tap Pay Selected. Step 3 — Pay debts: your debt accounts are listed with minimum payments pre-filled, adjust any amount or set to $0 to skip, tap Log Payments. Step 4 — Allocate to savings: enter deposit amounts for your savings pots and tap Save & Finish.'],
-      ['Can I skip any step?','Yes — every step has a Skip button. You can also tap Exit at any time to close the routine without completing it.'],
+    ${section('2️⃣','Step 2 — Add Your Debts',[
+      ['What counts as a debt?','Anything you owe — credit cards, car loans, student loans, medical bills, personal loans. Add each one separately so you can track paying it off.'],
+      ['How do I add a debt?','Go to the Debts tab and tap +. Fill in the details for that account.'],
+      ['What do the fields mean?','Balance = how much you currently owe. APR = the yearly interest rate the lender charges. Credit Limit = for credit cards only, the most you are allowed to borrow. Minimum Payment = the smallest amount you must pay each month to stay in good standing. Due Date = the day of the month it is due.'],
+      ['How do I record a payment?','Tap 💳 Log Payment on the debt card, enter what you paid, and save. Your balance drops instantly. Tap History on any card to see everything you have paid toward it.'],
+      ['Optional: Original Loan Amount','For loans (not credit cards), you can enter what the loan started at. The app then shows a progress bar of how much you have already paid off.'],
     ])}
-    ${section('📅','Income',[
-      ['How do I set up recurring income?','Tap 🔁 Recurring at the top of the Income tab. Add a source with your pay amount, frequency, next pay date, and optional end date. The app auto-creates pay periods for the next 12 months.'],
-      ['How are pay periods labeled?','Named sources use per-source numbering — "Select Safety · Check 3" and "Per Diem · Check 5" are counted independently. Manually added periods with no source keep global "Pay Period X" numbering.'],
-      ['How are periods grouped?','Pay periods are grouped by month with collapsible headers. The current month starts expanded. Tap any month header to expand or collapse it. Periods older than 7 days roll into a Past Periods accordion at the top.'],
-      ['What does Pending mean?','A period is Pending when the pay date hasn\'t arrived yet. Income doesn\'t count toward your balance until you tap ✓ Received on payday — or "Different amount" if the actual paycheck varied.'],
-      ['What if I get paid early?','If you confirm a paycheck before its scheduled date, it counts toward your available balance immediately — you don\'t have to wait for the scheduled pay date to pass.'],
-      ['What is the totals bar?','The summary card at the top shows Confirmed (received so far), Expected (upcoming pending periods), and Pending (count of future periods). Use the source filter buttons to view one income source at a time.'],
-      ['Can I see and edit confirmed paychecks?','Yes — tap the Confirmed amount in the totals bar to open a list of all confirmed paychecks. From there you can edit the amount or delete a confirmation to revert a period back to Pending.'],
+    ${section('3️⃣','Step 3 — Set Up Your Bills',[
+      ['How do I add a bill?','Go to the Bills tab and tap +. Enter the name, amount, the day of the month it is due, a category, and how often it repeats.'],
+      ['What do the frequencies mean?','Monthly = every month. Quarterly = every 3 months. Semi-Annual = twice a year. Annual = once a year. For bills that are not monthly, you also pick which month(s) they actually come due.'],
+      ['What is Sync Debts?','Tap ⚡ Sync Debts to automatically create a bill for each of your debts\' minimum payments. That way your minimums show up alongside your other bills so nothing slips through the cracks.'],
+      ['How do I mark a bill paid?','Tap Mark Paid on the bill. If that bill is linked to a debt, it also records the debt payment and lowers your debt balance automatically. Made a mistake? Tap Undo.'],
+      ['What does the progress bar show?','At the top of the Bills tab, a bar shows how many of this month\'s bills you have paid, how much you have paid, and how much is still left.'],
+      ['How do I know what is due soon?','Bills turn yellow when due within 5 days and red when overdue. You can also tap Pay All Due to clear several at once.'],
     ])}
-    ${section('💳','Debts & Payments',[
-      ['How do I add a debt?','Go to the Debts tab → tap +. Enter the account name, type, current balance, credit limit (for credit cards), APR, minimum payment, and due date.'],
-      ['How do I log a payment?','Tap the 💳 Log Payment button directly on any debt card. The modal pre-fills with that account — just enter the amount and save. The balance updates instantly. A minimum payment hint shows with a "Use this" shortcut.'],
-      ['How do I see payment history for one debt?','Tap the History button on any debt card to see that account\'s full payment history and totals.'],
-      ['What is ⚡ Sync Debts on Bills?','Creates a monthly bill for each debt\'s minimum payment automatically. Tap it once — it updates whenever your minimums change. Hover the ℹ️ for a full explanation.'],
-      ['Does marking a bill paid update my debt?','Yes — bills linked to a debt (via Sync Debts) automatically log a debt payment and decrement the balance when marked paid. Undo reverses both.'],
-      ['Can I collapse debt cards?','Yes — tap any debt card header or the ▼ chevron to collapse it and hide the details. Tap again to expand. All cards start expanded by default.'],
-      ['What happens to the minimum payment bill when a debt is paid off?','When a debt balance reaches $0, its auto-synced minimum payment bill is automatically removed from the Bills tab so it no longer shows as due.'],
+    ${section('4️⃣','Step 4 — Set Up Savings',[
+      ['How do I start saving?','Go to the Savings tab and tap +. Give your savings pot a name, an emoji, and an optional goal amount (like $1,000 for an emergency fund).'],
+      ['What is a Starting Balance?','If you already have money set aside for this goal, enter it as the starting balance. It counts toward the pot\'s total but does not change your checking-account cash, since it is money you already had.'],
+      ['How do deposits affect my balance?','A deposit moves money from your available balance into savings, so your spendable cash goes down while your savings go up. A withdrawal moves it back.'],
+      ['What are Shared Pots?','A savings pot you share with another family member — great for a joint goal like a trip. Tap 🤝 Shared, invite someone by their display name, and each person can only take out what they personally put in.'],
+      ['What are Physical Assets?','Tap 🏠 Asset to add things you own that are worth money — a car, investments, and so on. These do not affect your cash, but they count toward your Net Worth on the Dashboard.'],
     ])}
-    ${section('🏠','Bills',[
-      ['How do I add a bill?','Tap + on the Bills tab. Enter the name, amount, due day of the month, category, and frequency.'],
-      ['What do the status labels mean?','Green "Paid" = paid this month. Yellow = due within 5 days. Red "Overdue" = past due date. No badge = upcoming and on track.'],
-      ['What does the progress bar show?','How many of your monthly bills you\'ve paid so far this month, the dollar amount paid vs remaining, and the percentage complete.'],
-      ['Can I pay all due bills at once?','Yes — when you have unpaid due or overdue bills, a Pay All Due button appears in the Bills tab header. Tap it to see a list of all due bills with a total, then confirm to mark them all paid at once.'],
-      ['How are bills ordered?','Unpaid bills always appear at the top sorted by due date (soonest first). When a bill is marked paid it moves to the bottom automatically.'],
+    ${section('5️⃣','Step 5 — Log Your Expenses',[
+      ['How do I log spending?','Go to the Expenses tab. Tap one of the quick-add buttons (like Groceries or Gas), type the amount, and tap Log It. That is it — two taps.'],
+      ['Can I change the quick buttons?','Yes. Tap Edit on the quick-add bar to change the emoji, label, and category for each shortcut so they match what you actually spend on.'],
+      ['What categories are there?','Common ones like Groceries, Dining, Gas Station, Entertainment, Medical, Subscriptions, and more. You pick a category for each expense so you can see where your money goes.'],
+      ['What is a budget target?','A monthly spending limit you set for a category. Open the Budget tab inside Expenses, tap the TARGET column for any category, and enter an amount. The app then shows green (on track), yellow (getting close), or red (over budget) as the month goes on.'],
+      ['What is the Trends tab?','Little charts showing how your spending in each category changes over weeks and months, so you can spot patterns.'],
     ])}
-    ${section('🏦','Savings & Assets',[
-      ['How do I create a savings pot?','Tap + on the Savings tab. Give it a name, emoji, optional goal, and Starting Balance if you already have money there. The starting balance counts toward your total saved but doesn\'t affect your running cash.'],
-      ['How do deposits work?','Deposits pull from your available balance — money you\'re moving from checking into savings. Withdrawals add it back.'],
-      ['What are Shared Pots?','Savings pots you share with another member. Tap 🤝 Shared to create one and invite someone by their display name. Each person can only withdraw what they personally contributed. Invite notifications appear on the Dashboard and in the bell.'],
-      ['How do I add a physical asset?','Tap 🏠 Asset at the top of the Savings tab. Add items like your car, investments, or a checking account balance with an estimated value. These count toward your Net Worth on the Dashboard.'],
-      ['How do I update an asset value?','Tap Edit on any asset card and change the value. Net Worth updates immediately.'],
+    ${section('6️⃣','Step 6 — Explore Your Dashboard',[
+      ['What is the Available Balance?','The real money you have to spend right now. It starts from your Starting Cash, adds the paychecks you have confirmed, and subtracts everything you have paid out — debts, bills, expenses, and money moved to savings.'],
+      ['What do the cards show?','Each card is tappable for more detail. You will see your debt total and payoff progress, your net worth (what you own minus what you owe), how many bills you have paid this month, and your savings totals.'],
+      ['What is the Payday Routine?','When you have a paycheck waiting to be confirmed, a guided helper appears on the Dashboard. It walks you through it in a few steps: confirm your paycheck, pay your bills, make debt payments, and move money to savings — all in one sitting. You can skip any step or exit anytime.'],
+      ['How do I get back here?','Tap the Budget Tracker logo at the top from anywhere to return to the Dashboard.'],
     ])}
-    ${section('🧾','Expenses',[
-      ['How do I quickly log an expense?','Use the quick-add buttons at the top of the Expenses tab — tap a category button, enter the amount, tap Log It. Two taps total.'],
-      ['Can I customize the quick-add buttons?','Tap the Edit button in the quick-add bar. Change the emoji, label, and category for each of the 6 shortcuts. Your preferences are saved.'],
-      ['What does Repeat do on an expense?','Instantly duplicates that expense with today\'s date — great for recurring purchases like a weekly grocery run. No modal needed.'],
-      ['What is the Budget tab?','The Budget tab shows your monthly spending targets vs actual spend. At the top: total Budget, Spent, and Remaining with a color-coded progress bar. Below: a table of each category with its target, amount spent, remaining, and a % used bar. Green = on track, yellow = getting close, red = over budget. Status is pace-based — it accounts for how far through the month you are.'],
-      ['How do I set a budget target?','In the Budget tab, tap any value in the TARGET column to set or edit that category\'s monthly target. Enter an amount and tap ✓ to save. Tap the target again and clear the field to remove it.'],
-      ['What does \'Getting Close\' mean?','It means you\'re spending faster than your daily pace for that category and may exceed your target by month end — but you haven\'t gone over yet. \'Over Budget\' only appears when you\'ve actually exceeded the target dollar amount.'],
-      ['What is the Trends tab?','Shows per-category sparkline charts over time with Weekly, 3 Months, 6 Months, and Yearly time frames. Tap any category row to see the full purchase history for that category, grouped by month.'],
-      ['How are expenses grouped?','Expenses are grouped by month with collapsible headers. The current month starts expanded. Tap any month header to collapse older history.'],
-    ])}
-    ${section('🔮','Forecast',[
-      ['How does the forecast work?','Starts from your current available balance, adds expected income from upcoming pay periods, subtracts recurring bills and debt minimums, and estimates variable spending based on your recent daily average.'],
-      ['How do I change the time window?','Tap Biweekly, Monthly, 3 Months, 6 Months, Annual, or Custom at the top of the Forecast tab. Custom lets you pick exact from/to dates.'],
-      ['What does the red warning mean?','Your projected cash dips below $0 at some point in the window. The warning shows exactly when and how low.'],
-      ['How is the Projected Timeline organized?','Events are grouped by month with collapsible headers showing the net change for that month. Tap any month to expand or collapse its events.'],
+    ${section('🔮','Understanding the Forecast',[
+      ['What is the Forecast?','A look at your financial future. It starts with the cash you have now, adds income you expect, subtracts upcoming bills and debt minimums, and estimates your everyday spending — then shows where your balance is headed.'],
+      ['How do I change the time range?','At the top of the Forecast tab, tap Biweekly, Monthly, 3 Months, 6 Months, Annual, or Custom. Custom lets you choose your own start and end dates.'],
+      ['What does the red warning mean?','It means your projected cash is expected to dip below $0 at some point. The warning tells you when and how low, so you can adjust before it happens.'],
     ])}
     ${section('🎉','Community',[
-      ['What is the Community feed?','A shared feed where all family members can see milestones and cheer each other on with 5 reactions (🔥💪🎉👏❤️). Tap + to write your own post.'],
-      ['What posts automatically?','Paying off a debt, getting a credit card under 30% utilization, reaching a savings goal, and becoming debt-free all post automatically. Amounts are never shown.'],
-      ['Can I turn off auto-posts?','Yes — go to Settings → toggle Auto-Posts off if you prefer to share manually only.'],
-    ])}
-    ${section('🧮','Paycheck Calculator',[
-      ['Where do I find the Paycheck Calculator?','Tap the ☰ hamburger menu and select 🧮 Paycheck Calculator. It\'s an estimator tool — not a certified calculator.'],
-      ['What does it calculate?','Enter your regular hours, wage, and any overtime hours and rate. It calculates your gross pay, then estimates deductions for Federal income tax, Social Security (6.2%), Medicare (1.45%), and state income tax. Net take-home pay is shown prominently at the bottom.'],
-      ['Which states are supported?','Texas (default), California, New York, Florida, Washington, Georgia, Illinois, Pennsylvania, Ohio, North Carolina, and Oregon. State rates are approximate effective rates — actual withholding may vary.'],
-      ['What does \'Use this amount\' do?','Pre-fills a new paycheck entry on the Income tab with your calculated net pay so you can log it without retyping.'],
+      ['What is the Community feed?','A shared feed where family members can celebrate wins together and cheer each other on. Tap + to post your own update.'],
+      ['What posts automatically?','Big wins like paying off a debt, getting a credit card under 30% used, reaching a savings goal, or becoming debt-free post on their own. Dollar amounts are never shown.'],
+      ['How do reactions work?','Tap one of the reaction emojis under a post to react. Tap the number next to a reaction to see who reacted with it.'],
+      ['Can I delete my own post?','Yes. If it is your post, a trash icon appears in the top-right corner of it. Tap that to remove the post.'],
+      ['How do I turn off auto-posts?','Go to Settings and switch Auto-Posts off if you would rather share only when you choose to.'],
     ])}
     ${section('🔔','Notifications',[
-      ['What triggers the notification bell?','The bell shows a count badge when any of these are active: shared pot invites (with Accept/Decline inline), overdue bills, bills due within 5 days, paychecks awaiting confirmation, and new community posts since your last visit.'],
-      ['How do I act on a notification?','Tap the bell to open the panel. Invites have Accept/Decline buttons right there. Pending paychecks with an expected amount have a one-tap Confirm button. Tap any other notification to go to the relevant tab.'],
-      ['When do notifications clear?','Bill, invite, and paycheck notifications clear automatically once the condition is resolved. New post notifications clear when you close the notification panel.'],
+      ['What is the bell for?','The 🔔 bell at the top shows a red number when something needs you: an overdue bill, a bill due soon, a paycheck to confirm, a shared pot invite, or new community posts.'],
+      ['How do I act on them?','Tap the bell to open the list. Shared pot invites have Accept/Decline buttons right there. A pending paycheck has a one-tap Confirm button. Tap anything else to jump straight to the right screen.'],
     ])}
-    ${section('⚙️','Settings & Getting Started',[
-      ['How do I set my name?','Settings → Display Name. This shows in the Community feed and is how others find you to invite to shared pots. You\'ll be prompted to set this on your first login.'],
-      ['What is Starting Cash on Hand?','The money currently in your checking account. Set it once in Settings — your Available Balance builds on top of it. Update it anytime if your balance changes significantly.'],
-      ['How do I get the app on my iPhone home screen?','Open the app in Safari → tap the Share button → Add to Home Screen. It opens full-screen like a native app with its own icon.'],
-      ['How do I get others set up?','Share the app URL with family members. They\'ll be prompted to create a password via email invite (sent from Supabase). On first login they\'ll set their display name, then they\'re ready to go.'],
+    ${section('🧮','Paycheck Calculator',[
+      ['What does it do?','It estimates your take-home pay. Enter your hours, wage, and pay frequency, and it works out your taxes (federal, Social Security, Medicare, and state) to show what you would actually bring home. It is an estimate, not an official figure.'],
+      ['What are the extra fields?','You can add a 401(k) percentage and insurance to lower your taxable pay, plus reimbursements like phone, vehicle allowance, and mileage that get added back in. Mileage uses the current IRS rate per mile.'],
+      ['Can I save my insurance and allowance?','Yes. Tap the save (💾) icon next to the insurance field to remember it for next time, and the trash icon to clear it. A monthly allowance can be set on a recurring income source so it is added to your first paycheck each month.'],
+      ['What is "Use this amount"?','After it calculates your pay, tap "Use this amount" to add that figure to your income. You can add it as a one-time paycheck or set it up as recurring income — without retyping anything.'],
+    ])}
+    ${section('⚙️','Settings',[
+      ['Display Name','The name shown in the Community feed and used when family members invite you to shared pots. You set this on your first login and can change it anytime.'],
+      ['Starting Cash on Hand','The money in your checking account right now. Your Available Balance builds on top of this number, so keep it roughly up to date.'],
+      ['Auto-Post toggle','Turns the automatic milestone posts to the Community feed on or off.'],
+      ['Import Data','New here and have a lot to enter? Tap Import Data to download an Excel template, fill in your debts, bills, savings, income, expenses, and assets, then upload it to load everything at once.'],
     ])}`;
 }
 
