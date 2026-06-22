@@ -1498,11 +1498,21 @@ function routineUpdateBillChip(){
   el.textContent='Paycheck remaining: '+fmt(rem);el.style.color=rem>=0?'var(--accent)':'var(--danger)';
 }
 
+function routineLastMonthChip(){
+  const now=new Date();
+  const prevMonthDate=new Date(now.getFullYear(),now.getMonth()-1,1);
+  const prevMonthKey=prevMonthDate.toISOString().slice(0,7);
+  const lastMonthExpenses=expenses.filter(e=>(e.exp_date||'').startsWith(prevMonthKey)).reduce((s,e)=>s+parseFloat(e.amount||0),0);
+  return '<span style="background:var(--surface2);color:var(--muted);font-size:12px;font-weight:700;padding:4px 10px;border-radius:99px;">Last month: '+fmt(lastMonthExpenses)+' spent</span>';
+}
 function renderRoutineStep2(){
   const due=getRoutineBillsList();
   let html='<div style="max-width:600px;margin:0 auto;">';
   html+='<div style="font-size:16px;font-weight:700;margin-bottom:10px;">🏠 Pay Your Bills</div>';
-  if(routinePaycheckTotal>0)html+='<div id="routine-remaining-chip" style="display:inline-block;padding:4px 10px;border-radius:20px;background:rgba(45,212,160,0.12);font-size:12px;font-weight:700;color:var(--accent);margin-bottom:14px;">Paycheck remaining: '+fmt(routinePaycheckTotal)+'</div>';
+  html+='<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;">';
+  if(routinePaycheckTotal>0)html+='<span id="routine-remaining-chip" style="padding:4px 10px;border-radius:99px;background:rgba(45,212,160,0.12);font-size:12px;font-weight:700;color:var(--accent);">Paycheck remaining: '+fmt(routinePaycheckTotal)+'</span>';
+  html+=routineLastMonthChip();
+  html+='</div>';
   if(due.length===0){
     html+='<div style="background:rgba(45,212,160,0.08);border:1px solid rgba(45,212,160,0.3);border-radius:var(--radius-sm);padding:16px;text-align:center;">'
       +'<div style="font-size:22px;margin-bottom:6px;">✓</div>'
@@ -1551,7 +1561,10 @@ function renderRoutineStep3(){
   const baseRem=routinePaycheckTotal-routineBillsTotal;
   let html='<div style="max-width:600px;margin:0 auto;">';
   html+='<div style="font-size:16px;font-weight:700;margin-bottom:10px;">💳 Make Debt Payments</div>';
-  html+='<div id="routine-remaining-chip" style="display:inline-block;padding:4px 10px;border-radius:20px;background:rgba(45,212,160,0.12);font-size:12px;font-weight:700;color:var(--accent);margin-bottom:14px;">Paycheck remaining: '+fmt(baseRem)+'</div>';
+  html+='<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;">';
+  html+='<span id="routine-remaining-chip" style="padding:4px 10px;border-radius:99px;background:rgba(45,212,160,0.12);font-size:12px;font-weight:700;color:var(--accent);">Paycheck remaining: '+fmt(baseRem)+'</span>';
+  html+=routineLastMonthChip();
+  html+='</div>';
   if(activeDebts.length===0){
     html+='<div style="background:rgba(45,212,160,0.08);border:1px solid rgba(45,212,160,0.3);border-radius:var(--radius-sm);padding:16px;text-align:center;">'
       +'<div style="font-size:22px;margin-bottom:6px;">✓</div><div style="font-weight:700;">No active debts</div></div>';
@@ -1604,7 +1617,10 @@ function renderRoutineStep4(){
   const baseRem=routinePaycheckTotal-routineBillsTotal-routineDebtsTotal;
   let html='<div style="max-width:600px;margin:0 auto;">';
   html+='<div style="font-size:16px;font-weight:700;margin-bottom:10px;">🏦 Move to Savings</div>';
-  html+='<div id="routine-remaining-chip" style="display:inline-block;padding:4px 10px;border-radius:20px;background:rgba(45,212,160,0.12);font-size:12px;font-weight:700;color:var(--accent);margin-bottom:14px;">Paycheck remaining: '+fmt(baseRem)+'</div>';
+  html+='<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;">';
+  html+='<span id="routine-remaining-chip" style="padding:4px 10px;border-radius:99px;background:rgba(45,212,160,0.12);font-size:12px;font-weight:700;color:var(--accent);">Paycheck remaining: '+fmt(baseRem)+'</span>';
+  html+=routineLastMonthChip();
+  html+='</div>';
   if(pots.length===0){
     html+='<div style="background:var(--surface2);border-radius:var(--radius-sm);padding:16px;text-align:center;color:var(--muted);font-size:13px;">No savings pots yet. Skip to finish.</div>';
     return html+'</div>';
