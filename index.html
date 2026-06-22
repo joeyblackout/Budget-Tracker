@@ -4032,6 +4032,7 @@ const STATE_TAX_RATES={
 };
 const STATES=Object.keys(STATE_TAX_RATES).sort();
 let paycalcPrefill=null;
+const IRS_MILEAGE_RATE=0.725; // 2026 IRS standard mileage rate ($/mile)
 
 function calcFederalTax(gross){
   // 2024 single filer marginal brackets (annual cumulative upper bounds)
@@ -4102,15 +4103,20 @@ function renderPaycalc(){
     </div>
     <div class="card" style="margin-bottom:14px;">
       <div style="font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:12px;">Reimbursements</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
         <div>
           <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">Phone ($)</div>
           <input id="pc-phone-reimb" type="number" min="0" step="0.01" placeholder="0.00" oninput="updatePaycalcOutput()" style="width:100%;box-sizing:border-box;padding:9px 10px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:14px;">
         </div>
         <div>
-          <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">Vehicle/Mileage ($)</div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">Vehicle Allowance ($)</div>
           <input id="pc-vehicle-reimb" type="number" min="0" step="0.01" placeholder="0.00" oninput="updatePaycalcOutput()" style="width:100%;box-sizing:border-box;padding:9px 10px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:14px;">
         </div>
+      </div>
+      <div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">Mileage Reimbursement (miles driven)</div>
+        <input id="pc-mileage" type="number" min="0" step="0.1" placeholder="0" oninput="updatePaycalcOutput()" style="width:100%;box-sizing:border-box;padding:9px 10px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:14px;">
+        <div id="pc-mileage-calc" style="font-size:11px;color:var(--muted);margin-top:4px;">= $0.00 reimbursement</div>
       </div>
     </div>
     <div id="paycalc-output"><div class="card" style="text-align:center;padding:24px;color:var(--muted);">Enter your hours and wage above to see your take-home pay.</div></div>`;
@@ -4162,6 +4168,10 @@ function updatePaycalcOutput(){
   const insurance=parseFloat(document.getElementById('pc-insurance')?.value||0)||0;
   const phoneReimb=parseFloat(document.getElementById('pc-phone-reimb')?.value||0)||0;
   const vehicleReimb=parseFloat(document.getElementById('pc-vehicle-reimb')?.value||0)||0;
+  const miles=parseFloat(document.getElementById('pc-mileage')?.value||0)||0;
+  const mileageReimb=miles*IRS_MILEAGE_RATE;
+  const mileageCalcEl=document.getElementById('pc-mileage-calc');
+  if(mileageCalcEl)mileageCalcEl.textContent='= '+fmt(mileageReimb)+' reimbursement';
   const grossReg=regHours*regWage;
   const grossOT=otHours*otWage;
   const gross=grossReg+grossOT;
@@ -4176,7 +4186,7 @@ function updatePaycalcOutput(){
   const stateTax=taxableGross*(STATE_TAX_RATES[state]||0);
   const totalTax=federalTax+socialSecurity+medicare+stateTax;
   const totalDeductions=preTaxDeductions+totalTax;
-  const netPay=taxableGross-totalTax+phoneReimb+vehicleReimb;
+  const netPay=taxableGross-totalTax+phoneReimb+vehicleReimb+mileageReimb;
   const row=(label,val,color)=>'<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--border);"><span style="font-size:13px;color:var(--muted);">'+label+'</span><span style="font-size:14px;font-weight:700;color:'+(color||'var(--text)')+';">'+fmt(val)+'</span></div>';
   out.innerHTML='<div class="card" style="margin-bottom:14px;">'
     +'<div style="font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:4px;">Breakdown</div>'
@@ -4192,7 +4202,8 @@ function updatePaycalcOutput(){
     +row('Medicare (1.45%)',medicare,'var(--danger)')
     +(stateTax>0?row(state+' State Tax ('+(((STATE_TAX_RATES[state]||0)*100).toFixed(2))+'%)',stateTax,'var(--danger)'):'<div style="padding:9px 0;border-bottom:1px solid var(--border);font-size:13px;color:var(--muted);">'+state+' — No state income tax</div>')
     +(phoneReimb>0?row('Phone Reimbursement',phoneReimb,'var(--success)'):'')
-    +(vehicleReimb>0?row('Vehicle Reimbursement',vehicleReimb,'var(--success)'):'')
+    +(vehicleReimb>0?row('Vehicle Allowance',vehicleReimb,'var(--success)'):'')
+    +(mileageReimb>0?row('Mileage Reimbursement ('+miles+' mi × $'+IRS_MILEAGE_RATE+')',mileageReimb,'var(--success)'):'')
     +'</div>'
     +'<div class="card" style="background:rgba(45,212,160,0.08);border-color:rgba(45,212,160,0.3);margin-bottom:14px;">'
     +'<div style="font-size:13px;color:var(--muted);margin-bottom:4px;">Net Pay ('+{weekly:'Weekly',biweekly:'Biweekly',monthly:'Monthly'}[freq]+')</div>'
