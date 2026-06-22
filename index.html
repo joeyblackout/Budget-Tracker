@@ -1072,16 +1072,18 @@ function paydaysInMonth(r,yr,mo){
   }
   return count;
 }
-// 3-month rolling average of income from PAY-PERIOD DATA ONLY (no recurring amounts mixed in).
-// Sums expected_amount per calendar month, takes the 3 most recent months that have at least one
-// pay period, and averages those monthly totals.
+// Rolling average of income from real PAY-PERIOD HISTORY ONLY (no recurring amounts mixed in).
+// Walks backward from the most recent month that has income, taking up to the last 3 calendar
+// months that each have at least one pay period with non-zero expected_amount (skipping $0/empty
+// months entirely), then averages those monthly totals. Returns {avg, count}.
 function avgMonthlyIncome3mo(){
+  const nowKey=new Date().toISOString().slice(0,7);
   const byMonth={};
-  weeks.forEach(w=>{const mo=(w.pay_date||'').slice(0,7);if(!mo)return;byMonth[mo]=(byMonth[mo]||0)+parseFloat(w.expected_amount||0);});
-  const months=Object.keys(byMonth).filter(mo=>byMonth[mo]>0).sort().reverse().slice(0,3);
-  if(months.length===0)return 0;
+  weeks.forEach(w=>{const mo=(w.pay_date||'').slice(0,7);if(!mo||mo>nowKey)return;const amt=parseFloat(w.expected_amount||0);if(amt>0)byMonth[mo]=(byMonth[mo]||0)+amt;});
+  const months=Object.keys(byMonth).sort().reverse().slice(0,3); // up to 3 most recent months with real income
+  if(months.length===0)return{avg:0,count:0};
   const total=months.reduce((s,mo)=>s+byMonth[mo],0);
-  return total/months.length;
+  return{avg:total/months.length,count:months.length};
 }
 // 3-month rolling average of logged expenses
 function avgMonthlyExpenses3mo(){
@@ -1097,8 +1099,9 @@ function realIncomeMonths(){
   weeks.forEach(w=>{if((w.pay_date||'')>nowStr){const d=new Date(w.pay_date+'T00:00:00');const idx=(d.getFullYear()-now.getFullYear())*12+(d.getMonth()-now.getMonth());if(idx>max)max=idx;}});
   return max;
 }
-// Projected income for a calendar month: real pay periods → recurring projection → 3-mo rolling average
-function projectedIncomeForMonth(yr,mo){
+// Projected income for a calendar month: real pay periods → recurring projection → fixed historical average.
+// fixedAvg (the once-computed historical average) is used for every gap month — never recalculated per month.
+function projectedIncomeForMonth(yr,mo,fixedAvg){
   const key=String(yr)+'-'+String(mo+1).padStart(2,'0');
   const fromWeeks=weeks.filter(w=>(w.pay_date||'').startsWith(key)).reduce((s,w)=>s+parseFloat(w.expected_amount||0),0);
   if(fromWeeks>0)return{amount:fromWeeks,est:false};
@@ -1109,8 +1112,9 @@ function projectedIncomeForMonth(yr,mo){
     if(count>0)total+=amt*count+parseFloat(r.monthly_allowance||0);
   });
   if(total>0)return{amount:total,est:true};
-  // No data this month — auto-extend using the 3-month rolling average instead of assuming $0
-  return{amount:avgMonthlyIncome3mo(),est:true};
+  // No data this month — auto-extend using the fixed historical average instead of assuming $0
+  const avg=(fixedAvg!==undefined)?fixedAvg:avgMonthlyIncome3mo().avg;
+  return{amount:avg,est:true};
 }
 // Per-month extra-payment budget = strategy % of THAT month's DISCRETIONARY income (no carry-over).
 // Discretionary = projected income − bills due − avg monthly expenses. Negative → minimums only.
@@ -1118,10 +1122,11 @@ function makeMonthExtraFn(){
   if(forecastStrategy==='min')return ()=>0;
   const monthlyBills=monthlyBillsEstimate();
   const avgExp=avgMonthlyExpenses3mo();
+  const fixedAvg=avgMonthlyIncome3mo().avg; // computed ONCE, applied to every gap month
   const now=new Date();
   return (m)=>{
     const d=new Date(now.getFullYear(),now.getMonth()+m,1);
-    const income=projectedIncomeForMonth(d.getFullYear(),d.getMonth()).amount;
+    const income=projectedIncomeForMonth(d.getFullYear(),d.getMonth(),fixedAvg).amount;
     const disc=income-monthlyBills-avgExp;
     if(disc<=0)return 0; // negative discretionary → minimums only this month
     if(forecastStrategy==='10')return 0.10*disc;
@@ -1131,8 +1136,8 @@ function makeMonthExtraFn(){
     return 0;
   };
 }
-// Average discretionary income from the last 3 months (for the UI summary line)
-function avgDiscretionary3mo(){return avgMonthlyIncome3mo()-monthlyBillsEstimate()-avgMonthlyExpenses3mo();}
+// Average discretionary income from historical pay periods (for the UI summary line)
+function avgDiscretionary3mo(){return avgMonthlyIncome3mo().avg-monthlyBillsEstimate()-avgMonthlyExpenses3mo();}
 // Month-by-month debt simulation. Returns per-debt payoff data, monthly totals, total interest.
 function runDebtSim(monthExtraFn,windowMonths){
   const active=debts.filter(d=>parseFloat(d.balance||0)>0).map(d=>({
@@ -1177,13 +1182,15 @@ function forecastStrategyUI(){
   h+='<div class="toggle-row" style="flex-wrap:wrap;margin-bottom:8px;">'+opts.map(([k,l])=>'<button class="toggle-btn '+(forecastStrategy===k?'active':'')+'" style="flex:0 0 auto;padding:8px 12px;" onclick="setForecastStrategy(\''+k+'\')">'+l+'</button>').join('')+'</div>';
   // Summary of what the % works out to in real dollars
   const disc=avgDiscretionary3mo();
+  const incInfo=avgMonthlyIncome3mo();
   if(forecastStrategy!=='min'){
     const pct={'10':0.10,'25':0.25,'50':0.50}[forecastStrategy];
     let extraTxt;
     if(forecastStrategy==='custom')extraTxt=forecastCustomMode==='%'?'~'+fmt(Math.max(0,disc)*(forecastCustomAmt/100))+' extra/mo':fmt(forecastCustomAmt)+' extra/mo';
     else extraTxt='~'+fmt(Math.max(0,disc)*pct)+' extra/mo toward debt';
     const pctTxt=forecastStrategy==='custom'?(forecastCustomMode==='%'?forecastCustomAmt+'%':'fixed'):(pct*100)+'%';
-    h+='<div style="font-size:11px;color:var(--muted);margin-bottom:10px;">Based on your last 3 months · ~'+fmt(Math.max(0,disc))+'/mo discretionary · '+pctTxt+' = '+extraTxt+'</div>';
+    const basis=incInfo.count>0?'Based on '+incInfo.count+' month'+(incInfo.count!==1?'s':'')+' of data':'No income history yet';
+    h+='<div style="font-size:11px;color:var(--muted);margin-bottom:10px;">'+basis+' · ~'+fmt(Math.max(0,disc))+'/mo discretionary · '+pctTxt+' = '+extraTxt+'</div>';
   }
   if(forecastStrategy==='custom'){
     h+='<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap;">'
@@ -1263,7 +1270,8 @@ function forecastStrategySection(windowMonths){
         const inc=projectedIncomeForMonth(d.getFullYear(),d.getMonth());
         rows.push({month:monthLabelFromIndex(m),source:inc.est?(m>realMonths?'3mo-avg (est.)':'recurring (est.)'):'pay periods',income:Math.round(inc.amount),discretionary:Math.round(inc.amount-mb-ae)});
       }
-      console.log('[forecast] per-month projected income — bills=$'+mb.toFixed(0)+'/mo, avgExpenses=$'+ae.toFixed(0)+'/mo, 3mo-avg income=$'+avgMonthlyIncome3mo().toFixed(0)+'/mo');
+      const incInfo=avgMonthlyIncome3mo();
+      console.log('[forecast] per-month projected income — bills=$'+mb.toFixed(0)+'/mo, avgExpenses=$'+ae.toFixed(0)+'/mo, historical avg income=$'+incInfo.avg.toFixed(0)+'/mo (from '+incInfo.count+' month(s))');
       if(console.table)console.table(rows);else console.log(rows);
     })();
     const sim=runDebtSim(makeMonthExtraFn(),windowMonths);
