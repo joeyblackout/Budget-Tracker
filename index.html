@@ -1500,22 +1500,23 @@ function routineUpdateBillChip(){
 
 function renderRoutineStep2(){
   const due=getRoutineBillsList();
-  let html='<div style="font-size:16px;font-weight:700;margin-bottom:10px;">🏠 Pay Your Bills</div>';
+  let html='<div style="max-width:600px;margin:0 auto;">';
+  html+='<div style="font-size:16px;font-weight:700;margin-bottom:10px;">🏠 Pay Your Bills</div>';
   if(routinePaycheckTotal>0)html+='<div id="routine-remaining-chip" style="display:inline-block;padding:4px 10px;border-radius:20px;background:rgba(45,212,160,0.12);font-size:12px;font-weight:700;color:var(--accent);margin-bottom:14px;">Paycheck remaining: '+fmt(routinePaycheckTotal)+'</div>';
   if(due.length===0){
     html+='<div style="background:rgba(45,212,160,0.08);border:1px solid rgba(45,212,160,0.3);border-radius:var(--radius-sm);padding:16px;text-align:center;">'
       +'<div style="font-size:22px;margin-bottom:6px;">✓</div>'
       +'<div style="font-weight:700;margin-bottom:4px;">No bills due right now</div>'
       +'<div style="font-size:12px;color:var(--muted);">All caught up for this month.</div></div>';
-    return html;
+    return html+'</div>';
   }
   due.forEach(b=>{
-    html+='<div style="display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid var(--border);">';
+    html+='<div style="display:flex;align-items:center;gap:16px;padding:14px 0;border-bottom:1px solid var(--border);">';
     html+='<input type="checkbox" id="routine-bill-'+b.id+'" checked style="width:18px;height:18px;flex-shrink:0;cursor:pointer;accent-color:var(--accent);" onchange="routineUpdateBillChip()">';
-    html+='<div style="flex:1;font-size:13px;font-weight:600;">'+esc(b.name)+'</div>';
-    html+='<div style="font-size:13px;font-weight:700;color:var(--danger);">-'+fmt(b.amount)+'</div></div>';
+    html+='<div style="flex:1;font-size:15px;font-weight:600;">'+esc(b.name)+'</div>';
+    html+='<div style="flex:0 0 auto;font-size:13px;font-weight:700;color:var(--danger);">-'+fmt(b.amount)+'</div></div>';
   });
-  return html;
+  return html+'</div>';
 }
 
 async function routineStep2Next(){
@@ -1548,24 +1549,25 @@ function routineUpdateDebtChip(){
 function renderRoutineStep3(){
   const activeDebts=debts.filter(d=>parseFloat(d.balance||0)>0);
   const baseRem=routinePaycheckTotal-routineBillsTotal;
-  let html='<div style="font-size:16px;font-weight:700;margin-bottom:10px;">💳 Make Debt Payments</div>';
+  let html='<div style="max-width:600px;margin:0 auto;">';
+  html+='<div style="font-size:16px;font-weight:700;margin-bottom:10px;">💳 Make Debt Payments</div>';
   html+='<div id="routine-remaining-chip" style="display:inline-block;padding:4px 10px;border-radius:20px;background:rgba(45,212,160,0.12);font-size:12px;font-weight:700;color:var(--accent);margin-bottom:14px;">Paycheck remaining: '+fmt(baseRem)+'</div>';
   if(activeDebts.length===0){
     html+='<div style="background:rgba(45,212,160,0.08);border:1px solid rgba(45,212,160,0.3);border-radius:var(--radius-sm);padding:16px;text-align:center;">'
       +'<div style="font-size:22px;margin-bottom:6px;">✓</div><div style="font-weight:700;">No active debts</div></div>';
-    return html;
+    return html+'</div>';
   }
   activeDebts.forEach(d=>{
     const min=parseFloat(d.min_payment||0);
-    html+='<div style="display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid var(--border);">';
+    html+='<div style="display:flex;align-items:center;gap:16px;padding:14px 0;border-bottom:1px solid var(--border);">';
     html+='<div style="flex:1;min-width:0;">';
-    html+='<div style="font-size:13px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+esc(d.name)+'</div>';
-    html+='<div style="font-size:11px;color:var(--muted);">Balance: '+fmt(d.balance)+' · Min: '+fmt(min)+'</div></div>';
+    html+='<div style="font-size:15px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+esc(d.name)+'</div>';
+    html+='<div style="font-size:12px;color:var(--muted);">Balance: '+fmt(d.balance)+' · Min: '+fmt(min)+'</div></div>';
     html+='<input id="routine-debt-'+d.id+'" type="number" min="0" step="0.01" value="'+(min>0?min:'')+'" placeholder="$0" '
-      +'style="width:88px;padding:7px 8px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:13px;text-align:right;" '
+      +'style="width:120px;flex:0 0 auto;padding:7px 10px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:14px;text-align:right;" '
       +'oninput="routineUpdateDebtChip()"></div>';
   });
-  return html;
+  return html+'</div>';
 }
 
 async function routineStep3Next(){
@@ -1600,26 +1602,27 @@ function routineUpdateSavingsChip(){
 
 function renderRoutineStep4(){
   const baseRem=routinePaycheckTotal-routineBillsTotal-routineDebtsTotal;
-  let html='<div style="font-size:16px;font-weight:700;margin-bottom:10px;">🏦 Move to Savings</div>';
+  let html='<div style="max-width:600px;margin:0 auto;">';
+  html+='<div style="font-size:16px;font-weight:700;margin-bottom:10px;">🏦 Move to Savings</div>';
   html+='<div id="routine-remaining-chip" style="display:inline-block;padding:4px 10px;border-radius:20px;background:rgba(45,212,160,0.12);font-size:12px;font-weight:700;color:var(--accent);margin-bottom:14px;">Paycheck remaining: '+fmt(baseRem)+'</div>';
   if(pots.length===0){
     html+='<div style="background:var(--surface2);border-radius:var(--radius-sm);padding:16px;text-align:center;color:var(--muted);font-size:13px;">No savings pots yet. Skip to finish.</div>';
-    return html;
+    return html+'</div>';
   }
   const potTotals={};
   savingsTxns.forEach(t=>{if(!potTotals[t.pot_id])potTotals[t.pot_id]=0;potTotals[t.pot_id]+=(t.type==='deposit'||t.type==='transfer_in')?parseFloat(t.amount||0):-parseFloat(t.amount||0);});
   pots.forEach(p=>{
     const bal=Math.max(0,potTotals[p.id]||0);
     const goal=parseFloat(p.goal_amount||0);
-    html+='<div style="display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid var(--border);">';
+    html+='<div style="display:flex;align-items:center;gap:16px;padding:14px 0;border-bottom:1px solid var(--border);">';
     html+='<div style="flex:1;min-width:0;">';
-    html+='<div style="font-size:13px;font-weight:700;">'+(p.emoji||'💰')+' '+esc(p.name)+'</div>';
-    html+='<div style="font-size:11px;color:var(--muted);">'+(goal>0?fmt(bal)+' of '+fmt(goal)+' goal':fmt(bal)+' saved')+'</div></div>';
+    html+='<div style="font-size:15px;font-weight:700;">'+(p.emoji||'💰')+' '+esc(p.name)+'</div>';
+    html+='<div style="font-size:12px;color:var(--muted);">'+(goal>0?fmt(bal)+' of '+fmt(goal)+' goal':fmt(bal)+' saved')+'</div></div>';
     html+='<input id="routine-pot-'+p.id+'" type="number" min="0" step="0.01" placeholder="$0" '
-      +'style="width:88px;padding:7px 8px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:13px;text-align:right;" '
+      +'style="width:120px;flex:0 0 auto;padding:7px 10px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:14px;text-align:right;" '
       +'oninput="routineUpdateSavingsChip()"></div>';
   });
-  return html;
+  return html+'</div>';
 }
 
 async function routineStep4Next(){
