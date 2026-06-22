@@ -207,6 +207,8 @@ select option{background:var(--surface);color:var(--text);}
 .load-bar-wrap{width:120px;height:3px;background:#272727;border-radius:99px;overflow:hidden;margin-bottom:14px;}
 .load-bar{width:50%;height:100%;background:#2dd4a0;border-radius:99px;animation:shimmer 1.2s ease-in-out infinite;}
 @keyframes shimmer{0%{transform:translateX(-100%);}100%{transform:translateX(200%);}}
+@keyframes confetti-fall{to{transform:translateY(110vh) rotate(720deg);opacity:0;}}
+@keyframes celebrate-pop{0%{transform:translate(-50%,-50%) scale(0.6);opacity:0;}50%{transform:translate(-50%,-50%) scale(1.08);opacity:1;}100%{transform:translate(-50%,-50%) scale(1);opacity:1;}}
 .loading-text{font-size:13px;color:#666666;}
 #toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--surface2);border:1px solid var(--border);border-radius:99px;padding:12px 22px;font-size:14px;font-weight:600;z-index:300;opacity:0;transition:all 0.25s;white-space:nowrap;pointer-events:none;}
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
@@ -1772,9 +1774,29 @@ async function routineFinish(){
   if(typeof renderDebts==='function')renderDebts();
   toast('Payday routine complete ✓');
 }
+function onboardingChecklistHtml(){
+  if(localStorage.getItem('onboarding_complete'))return '';
+  const steps=[
+    ['Set your display name',!!(myProfile&&myProfile.display_name),'setup'],
+    ['Add a recurring income source',recurringSources.length>0,'weekly'],
+    ['Add a debt',debts.length>0,'debts'],
+    ['Add a bill',bills.length>0,'bills'],
+    ['Create a savings pot',pots.length>0,'savings'],
+    ['Log an expense',expenses.length>0,'expenses']
+  ];
+  const done=steps.filter(s=>s[1]).length;
+  if(done===6){localStorage.setItem('onboarding_complete','1');return '';}
+  const rows=steps.map((s,i)=>'<div onclick="switchView(\''+s[2]+'\',null)" style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);cursor:pointer;'+(s[1]?'opacity:0.55;':'')+'">'
+    +'<span style="font-size:18px;line-height:1;color:'+(s[1]?'var(--success)':'var(--muted)')+';"><i class="ti '+(s[1]?'ti-circle-check-filled':'ti-circle')+'"></i></span>'
+    +'<span style="flex:1;font-size:14px;font-weight:600;'+(s[1]?'text-decoration:line-through;':'')+'">Step '+(i+1)+' — '+s[0]+'</span>'
+    +(s[1]?'':'<span style="font-size:14px;color:var(--accent);">→</span>')+'</div>').join('');
+  return '<div class="card" style="border-color:var(--accent);background:rgba(45,212,160,0.06);margin-bottom:14px;">'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;"><div style="font-size:15px;font-weight:700;">🚀 Get Started</div><div style="font-size:12px;font-weight:700;color:var(--accent);">'+done+' of 6 steps complete</div></div>'
+    +rows+'</div>';
+}
 function renderDashboard(){
   const el=document.getElementById('dashboard-content');
-  if(debts.length===0){el.innerHTML=`<div class="empty"><div class="icon"><i class="ti ti-layout-dashboard"></i></div><p>Welcome! Add your debt accounts under <strong>Debts</strong> to get started.</p></div>`;return;}
+  if(debts.length===0){el.innerHTML=onboardingChecklistHtml()+`<div class="empty"><div class="icon"><i class="ti ti-layout-dashboard"></i></div><p>Welcome! Add your debt accounts under <strong>Debts</strong> to get started.</p></div>`;return;}
   const totalDebt=debts.reduce((s,d)=>s+parseFloat(d.balance||0),0);
   const totalPaid=payments.reduce((s,p)=>s+parseFloat(p.amount||0),0);
   const startDebt=totalDebt+totalPaid;
@@ -1811,6 +1833,7 @@ function renderDashboard(){
       <div style="font-size:13px;color:var(--muted);font-weight:600;">${greeting()},</div>
       <div style="font-size:26px;font-weight:800;letter-spacing:-0.03em;">${myProfile?.display_name?esc(myProfile.display_name):'Welcome'}</div>
     </div>
+    ${onboardingChecklistHtml()}
     ${sharedInvites.map(inv=>`<div class="card" style="border-color:var(--accent);background:rgba(79,142,247,0.06);margin-bottom:14px;">
       <div style="font-size:15px;font-weight:700;margin-bottom:6px;"><i class="ti ti-users"></i> ${esc(displayName(inv.inviter_id))} invited you!</div>
       <div class="text-muted mb8">Join "${esc(inv.pot_name)}" shared savings pot</div>
@@ -2118,6 +2141,23 @@ function openSavingsTxnModal(potId,type,potName){
   document.getElementById('savings-txn-notes').value='';
   openModal('savings-txn-modal');
 }
+function celebrateGoal(name){
+  const overlay=document.createElement('div');
+  overlay.style.cssText='position:fixed;inset:0;z-index:600;pointer-events:none;overflow:hidden;';
+  const colors=['#2dd4a0','#f7c948','#f75a5a','#4f8ef7','#7c4dff','#ffffff'];
+  for(let i=0;i<90;i++){
+    const piece=document.createElement('div');
+    const size=6+Math.random()*8;
+    piece.style.cssText='position:absolute;top:-24px;left:'+(Math.random()*100)+'%;width:'+size+'px;height:'+(size*0.6)+'px;background:'+colors[i%colors.length]+';border-radius:2px;animation:confetti-fall '+(2+Math.random()*1.6).toFixed(2)+'s linear '+(Math.random()*0.7).toFixed(2)+'s forwards;';
+    overlay.appendChild(piece);
+  }
+  const msg=document.createElement('div');
+  msg.style.cssText='position:absolute;top:50%;left:50%;background:var(--surface2);border:1px solid var(--accent);border-radius:16px;padding:18px 26px;font-size:18px;font-weight:800;color:var(--text);text-align:center;box-shadow:0 8px 40px rgba(0,0,0,0.5);max-width:88vw;animation:celebrate-pop 0.4s ease-out forwards;';
+  msg.textContent='🎉 Goal reached! '+name;
+  overlay.appendChild(msg);
+  document.body.appendChild(overlay);
+  setTimeout(()=>overlay.remove(),3000);
+}
 async function saveSavingsTxn(){
   const potId=document.getElementById('savings-txn-pot-id').value;
   const type=document.getElementById('savings-txn-type').value;
@@ -2134,7 +2174,7 @@ async function saveSavingsTxn(){
     if(goal>0){
       const bal=savingsTxns.filter(t=>t.pot_id===potId).reduce((s,t)=>s+((t.type==='deposit'||t.type==='transfer_in')?parseFloat(t.amount||0):-(parseFloat(t.amount||0))),0);
       const prevBal=bal-amount;
-      if(bal>=goal&&prevBal<goal){const name=myProfile?.display_name||'Someone';await autoPost(`🎯 ${name} reached their ${pot.name} savings goal!`);}
+      if(bal>=goal&&prevBal<goal){celebrateGoal(pot.name);const name=myProfile?.display_name||'Someone';await autoPost(`🎯 ${name} reached their ${pot.name} savings goal!`);}
     }
   }
   renderSavings();renderDashboard();
@@ -3041,6 +3081,18 @@ function openExpenseModalForWeek(weekId){document.getElementById('exp-date').val
 // DEBTS
 const debtCollapsed=new Set();
 function toggleDebtCard(id){debtCollapsed.has(id)?debtCollapsed.delete(id):debtCollapsed.add(id);renderDebts();}
+function debtPayoffLine(debtId,bal){
+  if(bal<=0)return '';
+  const ps=payments.filter(p=>p.debt_id===debtId);
+  const byMonth={};
+  ps.forEach(p=>{const mo=(p.pay_date||'').slice(0,7);if(mo)byMonth[mo]=(byMonth[mo]||0)+parseFloat(p.amount||0);});
+  const months=Object.keys(byMonth);
+  const avg=months.length>0?Object.values(byMonth).reduce((s,v)=>s+v,0)/months.length:0;
+  if(avg<=0)return '<div style="font-size:12px;color:var(--muted);margin-top:10px;">Log a payment to see payoff estimate</div>';
+  const monthsLeft=Math.ceil(bal/avg);
+  const d=new Date();d.setMonth(d.getMonth()+monthsLeft);
+  return '<div style="font-size:12px;color:var(--muted);margin-top:10px;">Paid off ~'+d.toLocaleString('en-US',{month:'short',year:'numeric'})+' at current pace</div>';
+}
 function renderDebts(){
   const el=document.getElementById('debts-list');
   if(debts.length===0){el.innerHTML=`<div class="empty"><div class="icon"><i class="ti ti-credit-card"></i></div><p>No accounts yet. Tap <strong>+</strong> to add one.</p></div>`;return;}
@@ -3082,6 +3134,7 @@ function renderDebts(){
         </div>
         ${bal>0?`<button onclick="event.stopPropagation();openPaymentForDebt('${d.id}')" style="background:linear-gradient(135deg,var(--success),#0a9e74);color:#fff;border:none;border-radius:99px;padding:10px 18px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;"><i class="ti ti-credit-card"></i> Log Payment</button>`:`<span style="font-size:12px;color:var(--success);font-weight:700;">✓ Paid off!</span>`}
       </div>
+      ${debtPayoffLine(d.id,bal)}
       </div>`}
     </div>`;
   }).join('');
@@ -3748,7 +3801,8 @@ function filterExpenses(){
       <div style="flex:1;min-width:0;">
         <div class="expense-cat">${esc(e.category)}</div>
         <div class="expense-desc">${esc(e.description||'')}</div>
-        <div class="expense-meta">${fmtDate(e.exp_date)}${e.notes?' · '+esc(e.notes):''}</div>
+        ${e.notes&&e.notes.trim()?`<div style="font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(e.notes.length>60?e.notes.slice(0,60)+'…':e.notes)}</div>`:''}
+        <div class="expense-meta">${fmtDate(e.exp_date)}</div>
       </div>
       <div style="display:flex;align-items:center;gap:4px;">
         <div class="expense-amount">-${fmt(e.amount)}</div>
