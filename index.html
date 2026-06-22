@@ -954,6 +954,7 @@ function updateNotificationDots(){
 // FORECAST
 let forecastWindow='3month';
 let forecastCustomStart='',forecastCustomEnd='';
+let forecastBreakdownData={};
 function setForecastWindow(w){
   forecastWindow=w;
   if(w==='custom'&&!forecastCustomStart){
@@ -1114,6 +1115,9 @@ function renderForecast(){
 
   const negativeFlags=timeline.filter(t=>t.balance<0);
 
+  // Store data for drill-down modals (onclick handlers reference global showForecastBreakdown)
+  forecastBreakdownData={events,dailySpend,totalDays,projectedSpend,startBalance,startingCash,totalIncome,totalPaid,totalExpenses,totalBillsPaid,totalSaved,mySharedNet};
+
   el.innerHTML=`
     <div class="toggle-row" style="flex-wrap:wrap;">
       ${Object.entries(windows).map(([k,v])=>`<button class="toggle-btn ${forecastWindow===k?'active':''}" style="flex:0 0 auto;padding:8px 12px;" onclick="setForecastWindow('${k}')">${v.label}</button>`).join('')}
@@ -1124,22 +1128,22 @@ function renderForecast(){
       <button class="btn btn-primary" style="padding:11px 18px;width:auto;" onclick="applyCustomForecast()">Apply</button>
     </div>`:''}
     <div class="balance-card">
-      <div class="balance-label">Projected Balance · ${forecastWindow==='custom'?'Custom · '+dateRangeLabel:forecastWindow==='annual'?winLabel:winLabel+' · '+dateRangeLabel}</div>
+      <div class="balance-label">Projected Cash · ${forecastWindow==='custom'?'Custom · '+dateRangeLabel:forecastWindow==='annual'?winLabel:winLabel+' · '+dateRangeLabel}</div>
       <div class="balance-amount ${endBalance>=0?'text-success':'text-danger'}">${fmt(endBalance)}</div>
       <div style="font-size:12px;color:var(--muted);margin-bottom:14px;">Starting from ${fmt(startBalance)} cash on hand today</div>
       <div class="balance-breakdown">
-        <div class="balance-line"><span class="balance-line-label">Cash Now</span><span class="balance-line-val">${fmt(startBalance)}</span></div>
-        <div class="balance-line"><span class="balance-line-label">Expected Income</span><span class="balance-line-val text-success">+${fmt(incomeSum)}</span></div>
-        <div class="balance-line"><span class="balance-line-label">Upcoming Bills</span><span class="balance-line-val text-danger">-${fmt(billSum)}</span></div>
-        <div class="balance-line"><span class="balance-line-label">Upcoming Debt Minimums</span><span class="balance-line-val text-danger">-${fmt(debtSum)}</span></div>
-        <div class="balance-line"><span class="balance-line-label">Est. Spending</span><span class="balance-line-val text-danger">-${fmt(projectedSpend)}</span></div>
-        <div class="balance-line"><span class="balance-line-label">In Savings</span><span class="balance-line-val text-warning">${fmt(totalInPots)}</span></div>
+        <div class="balance-line" style="cursor:pointer;" onclick="showForecastBreakdown('cash')"><span class="balance-line-label">Cash Now</span><span class="balance-line-val">${fmt(startBalance)}</span></div>
+        <div class="balance-line" style="cursor:pointer;" onclick="showForecastBreakdown('income')"><span class="balance-line-label">Expected Income</span><span class="balance-line-val text-success">+${fmt(incomeSum)}</span></div>
+        <div class="balance-line" style="cursor:pointer;" onclick="showForecastBreakdown('bills')"><span class="balance-line-label">Upcoming Bills</span><span class="balance-line-val text-danger">-${fmt(billSum)}</span></div>
+        <div class="balance-line" style="cursor:pointer;" onclick="showForecastBreakdown('debts')"><span class="balance-line-label">Upcoming Debt Minimums</span><span class="balance-line-val text-danger">-${fmt(debtSum)}</span></div>
+        <div class="balance-line" style="cursor:pointer;" onclick="showForecastBreakdown('spending')"><span class="balance-line-label">Est. Spending</span><span class="balance-line-val text-danger">-${fmt(projectedSpend)}</span></div>
+        <div class="balance-line" style="cursor:pointer;" onclick="showForecastBreakdown('savings')"><span class="balance-line-label">In Savings</span><span class="balance-line-val text-warning">${fmt(totalInPots)}</span></div>
       </div>
     </div>
     ${dailySpend>0?`<div style="font-size:12px;color:var(--muted);text-align:center;margin:-4px 0 14px;">Est. spending based on your recent average of ${fmt(dailySpend)}/day</div>`:`<div style="font-size:12px;color:var(--muted);text-align:center;margin:-4px 0 14px;">Log some expenses to project variable spending</div>`}
     ${negativeFlags.length>0?`<div class="card" style="border-color:var(--danger);background:rgba(247,90,90,0.06);">
       <div style="font-size:15px;font-weight:700;color:var(--danger);margin-bottom:6px;"><i class="ti ti-alert-triangle"></i> Heads up</div>
-      <div class="text-muted">Your projected balance dips below $0 around ${fmtDate(lowest.date)} (down to ${fmt(lowest.bal)}). Consider adjusting spending or moving a bill.</div>
+      <div class="text-muted">Your projected cash dips below $0 around ${fmtDate(lowest.date)} (down to ${fmt(lowest.bal)}). Consider adjusting spending or moving a bill.</div>
     </div>`:`<div class="card" style="border-color:var(--success);background:rgba(45,212,160,0.06);">
       <div style="font-size:14px;font-weight:700;color:var(--success);">✓ You stay in the positive the whole window</div>
     </div>`}
@@ -1184,6 +1188,58 @@ function openDashModal(title,content,navTarget=null){
   const navBtn=document.getElementById('dash-detail-nav-btn');
   navBtn.style.display=navTarget?'block':'none';
   openModal('dash-detail-modal');
+}
+function showForecastBreakdown(type){
+  const d=forecastBreakdownData;
+  if(!d||!d.events)return;
+  let title='',rows='';
+  if(type==='income'){
+    title='Expected Income';
+    const inc=d.events.filter(e=>e.type==='income');
+    if(inc.length===0){rows='<div class="empty"><p>No expected income in this window.</p></div>';}
+    else{rows=inc.map(e=>'<div class="account-row"><div style="flex:1;min-width:0;"><div class="account-name">'+esc(e.label)+'</div><div class="account-detail">'+fmtDate(e.date)+'</div></div><div style="font-size:17px;font-weight:800;color:var(--success);">+'+fmt(e.amount)+'</div></div>').join('');}
+  } else if(type==='bills'){
+    title='Upcoming Bills';
+    const bl=d.events.filter(e=>e.type==='bill');
+    if(bl.length===0){rows='<div class="empty"><p>No upcoming bills in this window.</p></div>';}
+    else{rows=bl.map(e=>'<div class="account-row"><div style="flex:1;min-width:0;"><div class="account-name">'+esc(e.label)+'</div><div class="account-detail">Due '+fmtDate(e.date)+'</div></div><div style="font-size:17px;font-weight:800;color:var(--danger);">-'+fmt(Math.abs(e.amount))+'</div></div>').join('');}
+  } else if(type==='debts'){
+    title='Upcoming Debt Minimums';
+    const db=d.events.filter(e=>e.type==='debt');
+    if(db.length===0){rows='<div class="empty"><p>No debt minimums in this window.</p></div>';}
+    else{rows=db.map(e=>'<div class="account-row"><div style="flex:1;min-width:0;"><div class="account-name">'+esc(e.label)+'</div><div class="account-detail">Due '+fmtDate(e.date)+'</div></div><div style="font-size:17px;font-weight:800;color:var(--danger);">-'+fmt(Math.abs(e.amount))+'</div></div>').join('');}
+  } else if(type==='spending'){
+    title='Est. Spending';
+    if(d.dailySpend===0){
+      rows='<div class="empty"><p>No recent expenses to base estimate on.</p></div>';
+    } else {
+      const summary='<div style="background:var(--surface2);border-radius:var(--radius-sm);padding:12px 14px;margin-bottom:14px;font-size:13px;color:var(--muted);">'
+        +'<span style="color:var(--text);font-weight:700;">'+fmt(d.dailySpend)+'</span>/day avg'
+        +' × <span style="color:var(--text);font-weight:700;">'+d.totalDays+'</span> days'
+        +' = <span style="color:var(--danger);font-weight:700;">'+fmt(d.projectedSpend)+'</span></div>';
+      const recent=expenses.slice().sort((a,b)=>(b.exp_date||'')>(a.exp_date||'')?1:-1).slice(0,10);
+      const expRows=recent.length===0?'<div class="empty"><p>No expenses logged yet.</p></div>'
+        :recent.map(e=>'<div class="account-row"><div style="flex:1;min-width:0;"><div class="account-name">'+esc(e.description||e.category)+'</div><div class="account-detail">'+fmtDate(e.exp_date)+' · '+esc(e.category)+'</div></div><div style="font-size:15px;font-weight:700;color:var(--danger);">-'+fmt(e.amount)+'</div></div>').join('');
+      rows=summary+'<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);margin-bottom:8px;">Recent Expenses</div>'+expRows;
+    }
+  } else if(type==='savings'){
+    title='In Savings';
+    const ptTotals={};
+    savingsTxns.forEach(t=>{if(!ptTotals[t.pot_id])ptTotals[t.pot_id]=0;ptTotals[t.pot_id]+=(t.type==='deposit'||t.type==='transfer_in')?parseFloat(t.amount||0):-(parseFloat(t.amount||0));});
+    const pots=savingsPots.map(p=>({name:p.name,emoji:p.emoji,bal:Math.max(0,ptTotals[p.id]||0)}));
+    if(pots.length===0){rows='<div class="empty"><p>No savings pots.</p></div>';}
+    else{rows=pots.map(p=>'<div class="account-row"><div style="flex:1;min-width:0;"><div class="account-name">'+(p.emoji||'🪣')+' '+esc(p.name)+'</div></div><div style="font-size:17px;font-weight:800;color:var(--warning);">'+fmt(p.bal)+'</div></div>').join('');}
+  } else if(type==='cash'){
+    title='Cash Now Breakdown';
+    const sc=myProfile?.starting_cash?parseFloat(myProfile.starting_cash):0;
+    rows='<div class="account-row"><div style="flex:1;" class="account-name">Starting Cash</div><div style="font-size:15px;font-weight:700;">'+fmt(sc)+'</div></div>'
+      +'<div class="account-row"><div style="flex:1;" class="account-name">Income Received</div><div style="font-size:15px;font-weight:700;color:var(--success);">+'+fmt(d.totalIncome)+'</div></div>'
+      +'<div class="account-row"><div style="flex:1;" class="account-name">Debt Paid</div><div style="font-size:15px;font-weight:700;color:var(--danger);">-'+fmt(d.totalPaid)+'</div></div>'
+      +'<div class="account-row"><div style="flex:1;" class="account-name">Bills Paid</div><div style="font-size:15px;font-weight:700;color:var(--danger);">-'+fmt(d.totalBillsPaid)+'</div></div>'
+      +'<div class="account-row"><div style="flex:1;" class="account-name">Expenses</div><div style="font-size:15px;font-weight:700;color:var(--danger);">-'+fmt(d.totalExpenses)+'</div></div>'
+      +'<div class="account-row"><div style="flex:1;" class="account-name">In Savings</div><div style="font-size:15px;font-weight:700;color:var(--warning);">-'+fmt(d.totalSaved)+'</div></div>';
+  }
+  openDashModal(title,rows,null);
 }
 function showNetWorthAssetsBreakdown(){
   const potTotals={};
@@ -4104,7 +4160,7 @@ function renderInstructions(){
     ${section('🔮','Forecast',[
       ['How does the forecast work?','Starts from your current available balance, adds expected income from upcoming pay periods, subtracts recurring bills and debt minimums, and estimates variable spending based on your recent daily average.'],
       ['How do I change the time window?','Tap Biweekly, Monthly, 3 Months, 6 Months, Annual, or Custom at the top of the Forecast tab. Custom lets you pick exact from/to dates.'],
-      ['What does the red warning mean?','Your projected balance dips below $0 at some point in the window. The warning shows exactly when and how low.'],
+      ['What does the red warning mean?','Your projected cash dips below $0 at some point in the window. The warning shows exactly when and how low.'],
       ['How is the Projected Timeline organized?','Events are grouped by month with collapsible headers showing the net change for that month. Tap any month to expand or collapse its events.'],
     ])}
     ${section('🎉','Community',[
