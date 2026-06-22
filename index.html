@@ -140,6 +140,10 @@ select option{background:var(--surface);color:var(--text);}
 .swipe-content{position:relative;z-index:1;background:var(--surface);transition:transform 0.2s ease;}
 .swipe-delete{position:absolute;top:0;right:0;bottom:0;width:80px;background:var(--danger);display:flex;align-items:center;justify-content:center;color:#fff;font-size:20px;z-index:0;cursor:pointer;}
 .swipe-content .expense-item,.swipe-content .bill-row{border-bottom:none;}
+.bulk-tip-wrap{position:relative;display:inline-block;}
+.bulk-tip{position:absolute;top:calc(100% + 6px);left:50%;transform:translateX(-50%);background:#000;color:#fff;font-size:11px;font-weight:600;padding:5px 10px;border-radius:8px;white-space:nowrap;opacity:0;pointer-events:none;transition:opacity 0.15s;z-index:300;box-shadow:0 4px 12px rgba(0,0,0,0.4);}
+@media(hover:hover){.bulk-tip-wrap:hover .bulk-tip{opacity:1;}}
+.bulk-tip.show{opacity:1;}
 .bill-name{font-size:15px;font-weight:700;}
 .bill-meta{font-size:12px;color:var(--muted);margin-top:3px;}
 .bill-amount{font-size:17px;font-weight:800;color:var(--danger);text-align:right;}
@@ -3841,10 +3845,35 @@ function renderExpenseHeaderControls(){
   const el=document.getElementById('expense-header-controls');
   if(!el)return;
   if(expenseSelectMode){
-    el.innerHTML='<button onclick="exitExpenseSelectMode()" style="background:var(--surface2);border:1px solid var(--border);border-radius:99px;color:var(--text);padding:7px 14px;font-size:13px;font-weight:700;cursor:pointer;">Cancel</button>';
+    el.innerHTML='<button onclick="exitExpenseSelectMode()" style="display:flex;align-items:center;gap:5px;background:var(--accent);border:1px solid var(--accent);border-radius:10px;color:#fff;padding:7px 12px;font-size:13px;font-weight:700;cursor:pointer;line-height:1;"><i class="ti ti-checkbox"></i> Selecting…</button>';
   }else{
-    el.innerHTML='<button onclick="enterExpenseSelectMode()" title="Select" style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;color:var(--text);padding:7px 9px;font-size:18px;line-height:1;cursor:pointer;"><i class="ti ti-checkbox"></i></button><button class="add-btn" onclick="openExpenseModal()">+</button>';
+    el.innerHTML='<span class="bulk-tip-wrap">'
+      +'<button onclick="onSelectBtnClick()" ontouchstart="bulkTipTouch(event)" style="display:flex;align-items:center;gap:5px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;color:var(--text);padding:7px 12px;font-size:13px;font-weight:600;cursor:pointer;line-height:1;"><i class="ti ti-checkbox"></i> Select</button>'
+      +'<span class="bulk-tip">Bulk delete expenses</span>'
+      +'</span>'
+      +'<button class="add-btn" onclick="openExpenseModal()">+</button>';
   }
+}
+let bulkTipTimer=null,bulkTipLongPressed=false;
+function bulkTipTouch(e){
+  const wrap=e.currentTarget.closest('.bulk-tip-wrap');
+  if(!wrap)return;
+  const tip=wrap.querySelector('.bulk-tip');
+  if(!tip)return;
+  bulkTipLongPressed=false;
+  clearTimeout(bulkTipTimer);
+  bulkTipTimer=setTimeout(()=>{
+    bulkTipLongPressed=true;
+    tip.classList.add('show');
+    setTimeout(()=>tip.classList.remove('show'),2000);
+  },450);
+  const cancel=()=>{clearTimeout(bulkTipTimer);wrap.removeEventListener('touchend',cancel);wrap.removeEventListener('touchmove',cancel);};
+  wrap.addEventListener('touchend',cancel);
+  wrap.addEventListener('touchmove',cancel);
+}
+function onSelectBtnClick(){
+  if(bulkTipLongPressed){bulkTipLongPressed=false;return;}
+  enterExpenseSelectMode();
 }
 function enterExpenseSelectMode(){expenseSelectMode=true;selectedExpenseIds=new Set();resetSwipeRows(null);renderExpenseHeaderControls();filterExpenses();renderExpenseSelectBar();}
 function exitExpenseSelectMode(){expenseSelectMode=false;selectedExpenseIds=new Set();renderExpenseHeaderControls();filterExpenses();renderExpenseSelectBar();}
