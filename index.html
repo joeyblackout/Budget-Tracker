@@ -4015,10 +4015,10 @@ const STATES=Object.keys(STATE_TAX_RATES).sort();
 let paycalcPrefill=null;
 
 function calcFederalTax(gross){
-  // 2024 single filer marginal brackets (annual)
+  // 2024 single filer marginal brackets (annual cumulative upper bounds)
   const brackets=[
-    [11600,0.10],[44725,0.12],[95375,0.22],[201050,0.24],
-    [383900,0.32],[487450,0.35],[Infinity,0.37]
+    [11600,0.10],[47150,0.12],[100525,0.22],[191950,0.24],
+    [243725,0.32],[609350,0.35],[Infinity,0.37]
   ];
   let tax=0,prev=0;
   for(const[limit,rate]of brackets){
@@ -4035,10 +4035,18 @@ function renderPaycalc(){
   el.innerHTML=`
     <div class="card" style="margin-bottom:14px;">
       <div style="font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:12px;">Pay Info</div>
+      <div style="margin-bottom:10px;">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">Pay Frequency</div>
+        <select id="pc-frequency" onchange="onPaycalcFreqChange()" style="width:100%;box-sizing:border-box;padding:9px 10px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:14px;">
+          <option value="weekly">Weekly</option>
+          <option value="biweekly" selected>Biweekly</option>
+          <option value="monthly">Monthly</option>
+        </select>
+      </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
         <div>
           <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">Regular Hours</div>
-          <input id="pc-reg-hours" type="number" min="0" step="0.5" placeholder="40" oninput="updatePaycalcOutput()" style="width:100%;box-sizing:border-box;padding:9px 10px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:14px;">
+          <input id="pc-reg-hours" type="number" min="0" step="0.5" value="80" placeholder="80" oninput="updatePaycalcOutput()" style="width:100%;box-sizing:border-box;padding:9px 10px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:14px;">
         </div>
         <div>
           <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">Regular Wage ($/hr)</div>
@@ -4092,6 +4100,19 @@ function updatePaycalcOTPlaceholder(){
   const otInput=document.getElementById('pc-ot-wage');
   if(otInput&&!otInput.value)otInput.placeholder=(regWage*1.5).toFixed(2);
 }
+function onPaycalcFreqChange(){
+  const freq=document.getElementById('pc-frequency')?.value||'biweekly';
+  const def={weekly:40,biweekly:80,monthly:173.33}[freq];
+  const hoursInput=document.getElementById('pc-reg-hours');
+  if(hoursInput){
+    const known=[40,80,173.33];
+    const cur=parseFloat(hoursInput.value);
+    // Only auto-fill if the field is empty or still holds a known default (user hasn't customized)
+    if(!hoursInput.value||known.includes(cur)){hoursInput.value=def;}
+    hoursInput.placeholder=String(def);
+  }
+  updatePaycalcOutput();
+}
 function updatePaycalcOutput(){
   const out=document.getElementById('paycalc-output');
   if(!out)return;
@@ -4101,6 +4122,7 @@ function updatePaycalcOutput(){
   const otWageInput=parseFloat(document.getElementById('pc-ot-wage')?.value||0)||0;
   const otWage=otWageInput||(regWage*1.5);
   const state=document.getElementById('pc-state')?.value||'Texas';
+  const freq=document.getElementById('pc-frequency')?.value||'biweekly';
   const k401Pct=parseFloat(document.getElementById('pc-401k')?.value||0)||0;
   const insurance=parseFloat(document.getElementById('pc-insurance')?.value||0)||0;
   const phoneReimb=parseFloat(document.getElementById('pc-phone-reimb')?.value||0)||0;
@@ -4111,7 +4133,7 @@ function updatePaycalcOutput(){
   if(gross<=0){out.innerHTML='<div class="card" style="text-align:center;padding:24px;color:var(--muted);">Enter your hours and wage above to see your take-home pay.</div>';return;}
   const preTaxDeductions=gross*(k401Pct/100);
   const taxableGross=gross-preTaxDeductions;
-  const periods=26;
+  const periods={weekly:52,biweekly:26,monthly:12}[freq]||26;
   const federalTax=calcFederalTax(taxableGross*periods)/periods;
   const socialSecurity=Math.min(taxableGross,168600/periods)*0.062;
   const medicare=taxableGross*0.0145;
@@ -4137,7 +4159,7 @@ function updatePaycalcOutput(){
     +(vehicleReimb>0?row('Vehicle Reimbursement',vehicleReimb,'var(--success)'):'')
     +'</div>'
     +'<div class="card" style="background:rgba(45,212,160,0.08);border-color:rgba(45,212,160,0.3);margin-bottom:14px;">'
-    +'<div style="font-size:13px;color:var(--muted);margin-bottom:4px;">Take-Home Pay</div>'
+    +'<div style="font-size:13px;color:var(--muted);margin-bottom:4px;">Net Pay ('+{weekly:'Weekly',biweekly:'Biweekly',monthly:'Monthly'}[freq]+')</div>'
     +'<div style="font-size:32px;font-weight:800;color:var(--success);letter-spacing:-0.02em;">'+fmt(netPay)+'</div>'
     +'<div style="font-size:12px;color:var(--muted);margin-top:4px;">'+((netPay/gross)*100).toFixed(1)+'% of gross</div>'
     +'<button onclick="paycalcPrefill='+netPay.toFixed(2)+';switchView(\'weekly\',null);toast(\'Amount pre-filled — open any pay period to log it\');" style="margin-top:14px;width:100%;padding:12px;background:linear-gradient(135deg,var(--success),#0a9e74);color:#fff;border:none;border-radius:99px;font-size:14px;font-weight:700;cursor:pointer;">Use this amount →</button>'
