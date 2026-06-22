@@ -475,6 +475,7 @@ select option{background:var(--surface);color:var(--text);}
   <div class="card-title" id="rec-form-title">Add a Recurring Source</div>
   <div class="field"><label>Source Name</label><input type="text" id="rec-name" placeholder="e.g. Salary, Main Job"/></div>
   <div class="field"><label>Amount ($)</label><input type="number" id="rec-amount" placeholder="0.00" step="0.01" min="0"/></div>
+  <div class="field"><label>Monthly Allowance ($) — optional</label><input type="number" id="rec-allowance" placeholder="0.00" step="0.01" min="0"/><div style="font-size:11px;color:var(--muted);margin-top:4px;">Added to your first paycheck of each month.</div></div>
   <div class="field"><label>Frequency</label>
     <select id="rec-frequency">
       <option value="weekly">Weekly</option>
@@ -517,6 +518,7 @@ select option{background:var(--surface);color:var(--text);}
       <option value="monthly">Monthly</option>
     </select>
   </div>
+  <div class="field" id="ua-allowance-field" style="display:none;"><label>Monthly Allowance ($) — optional</label><input type="number" id="ua-allowance" placeholder="0.00" step="0.01" min="0"/><div style="font-size:11px;color:var(--muted);margin-top:4px;">Added to your first paycheck of each month.</div></div>
   <div class="field" id="ua-end-field" style="display:none;"><label>End Date — optional (leave blank for ongoing)</label><input type="date" id="ua-end"/></div>
   <div class="field"><label>Job name or income source</label><input type="text" id="ua-source" placeholder="e.g. Main Job"/></div>
   <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal('use-amount-modal')">Cancel</button><button class="btn btn-primary" onclick="confirmUseAmount()">Confirm</button></div>
@@ -2684,6 +2686,19 @@ async function syncDebtMinimums(){
 }
 
 // WEEKLY
+// Returns the monthly allowance baked into a pay period's expected amount, if any
+// (only the first paycheck of its calendar month for that recurring source carries it).
+function weekAllowance(w){
+  if(!w.source_name)return 0;
+  const rec=recurringSources.find(r=>r.name===w.source_name);
+  if(!rec)return 0;
+  const allow=parseFloat(rec.monthly_allowance||0);
+  if(allow<=0)return 0;
+  const mo=(w.pay_date||'').slice(0,7);
+  const sameMonth=weeks.filter(x=>x.source_name===w.source_name&&(x.pay_date||'').slice(0,7)===mo);
+  const firstDate=sameMonth.reduce((min,x)=>(!min||x.pay_date<min)?x.pay_date:min,'');
+  return w.pay_date===firstDate?allow:0;
+}
 function renderWeekly(){
   const el=document.getElementById('weekly-list');
   if(weeks.length===0){el.innerHTML=`<div class="empty"><div class="icon"><i class="ti ti-calendar"></i></div><p>No pay periods yet. Set up <strong>Recurring</strong> income, or tap <strong>+</strong> to add one manually.</p></div>`;return;}
@@ -2723,6 +2738,7 @@ function renderWeekly(){
     const totalSpent=weekExpenses.reduce((s,e)=>s+parseFloat(e.amount||0),0);
     const net=totalIn-totalBills-totalDebtPaid-totalSpent;
     const hasPaycheck=weekPaychecks.length>0;
+    const allowAmt=weekAllowance(w);
     return`<div class="week-card ${isCurrent?'current-week':''}" style="${isPending?'border-style:dashed;':''}">
       <div class="week-card-header" onclick="toggleWeek('week-body-${w.id}')">
         <div>
@@ -2731,13 +2747,14 @@ function renderWeekly(){
           ${w.notes?`<div style="font-size:12px;color:var(--muted);margin-top:3px;">${esc(w.notes)}</div>`:''}
         </div>
         <div>
-          ${isPending?`<div class="week-net-label">Expected</div><div class="week-net text-warning">${fmt(expected)}</div>`:`<div class="week-net-label">Net Cash</div><div class="week-net ${net>=0?'text-success':'text-danger'}">${fmt(net)}</div>`}
+          ${isPending?`<div class="week-net-label">Expected</div><div class="week-net text-warning">${fmt(expected)}</div>${allowAmt>0?`<div style="font-size:10px;color:var(--muted);text-align:right;">Incl. ${fmt(allowAmt)} allowance</div>`:''}`:`<div class="week-net-label">Net Cash</div><div class="week-net ${net>=0?'text-success':'text-danger'}">${fmt(net)}</div>`}
         </div>
       </div>
       <div class="week-body" id="week-body-${w.id}" style="display:none;">
         ${isPending?`<div style="background:rgba(247,201,72,0.08);border:1px solid rgba(247,201,72,0.3);border-radius:var(--radius-sm);padding:14px;margin-bottom:14px;text-align:center;">
           ${expected>0?`<div style="font-size:13px;color:var(--muted);margin-bottom:4px;">Expected paycheck</div>
-          <div style="font-size:22px;font-weight:800;color:var(--warning);margin-bottom:12px;">${fmt(expected)}</div>
+          <div style="font-size:22px;font-weight:800;color:var(--warning);margin-bottom:${allowAmt>0?'2px':'12px'};">${fmt(expected)}</div>
+          ${allowAmt>0?`<div style="font-size:11px;color:var(--muted);margin-bottom:12px;">Incl. ${fmt(allowAmt)} allowance</div>`:''}
           <div style="display:flex;gap:8px;">
             <button class="btn btn-success" style="padding:11px;" onclick="confirmExpected('${w.id}',${expected},'${w.pay_date}')">✓ Received ${fmt(expected)}</button>
             <button class="btn btn-ghost" style="padding:11px;" onclick="openPaycheckModal('${w.id}')">Different amount</button>
@@ -2855,6 +2872,7 @@ function cancelRecurringEdit(){
   document.getElementById('rec-save-btn').textContent='Add Source';
   document.getElementById('rec-name').value='';
   document.getElementById('rec-amount').value='';
+  document.getElementById('rec-allowance').value='';
   document.getElementById('rec-frequency').value='biweekly';
   document.getElementById('rec-start').value=today();
   document.getElementById('rec-end').value='';
@@ -2862,7 +2880,7 @@ function cancelRecurringEdit(){
 function renderRecurringList(){
   const el=document.getElementById('recurring-list');
   if(recurringSources.length===0){el.innerHTML=`<div style="text-align:center;padding:16px;color:var(--muted);font-size:13px;">No recurring sources yet. Add one below.</div>`;return;}
-  el.innerHTML=`<div class="card-title">Active Sources</div>`+recurringSources.map(r=>`<div class="paycheck-row"><div><div style="font-weight:700;">${esc(r.name)} · ${fmt(r.amount)}</div><div style="font-size:11px;color:var(--muted);">${capFirst(r.frequency)} · next ${fmtDate(r.next_date)}${r.end_date?` · ends ${fmtDate(r.end_date)}`:' · ongoing'}</div></div><div style="display:flex;gap:4px;"><button class="del-btn" onclick="editRecurring('${r.id}')">Edit</button><button class="del-btn" onclick="deleteRecurring('${r.id}')">Delete</button></div></div>`).join('');
+  el.innerHTML=`<div class="card-title">Active Sources</div>`+recurringSources.map(r=>`<div class="paycheck-row"><div><div style="font-weight:700;">${esc(r.name)} · ${fmt(r.amount)}</div><div style="font-size:11px;color:var(--muted);">${capFirst(r.frequency)} · next ${fmtDate(r.next_date)}${r.end_date?` · ends ${fmtDate(r.end_date)}`:' · ongoing'}</div>${parseFloat(r.monthly_allowance||0)>0?`<div style="font-size:11px;color:var(--accent);">+ ${fmt(r.monthly_allowance)}/mo allowance</div>`:''}</div><div style="display:flex;gap:4px;"><button class="del-btn" onclick="editRecurring('${r.id}')">Edit</button><button class="del-btn" onclick="deleteRecurring('${r.id}')">Delete</button></div></div>`).join('');
 }
 function editRecurring(id){
   const r=recurringSources.find(x=>x.id===id);
@@ -2872,6 +2890,7 @@ function editRecurring(id){
   document.getElementById('rec-save-btn').textContent='Save Changes';
   document.getElementById('rec-name').value=r.name||'';
   document.getElementById('rec-amount').value=r.amount||'';
+  document.getElementById('rec-allowance').value=r.monthly_allowance||'';
   document.getElementById('rec-frequency').value=r.frequency||'biweekly';
   document.getElementById('rec-start').value=r.next_date||today();
   document.getElementById('rec-end').value=r.end_date||'';
@@ -2892,6 +2911,7 @@ async function saveRecurring(){
   const editId=document.getElementById('rec-edit-id').value;
   const name=document.getElementById('rec-name').value.trim();
   const amount=parseFloat(document.getElementById('rec-amount').value);
+  const monthly_allowance=parseFloat(document.getElementById('rec-allowance').value)||0;
   const frequency=document.getElementById('rec-frequency').value;
   const start=document.getElementById('rec-start').value;
   const end=document.getElementById('rec-end').value||null;
@@ -2900,19 +2920,20 @@ async function saveRecurring(){
   if(!start){toast('Enter a start date');return;}
   if(end&&end<=start){toast('End date must be after start date');return;}
   if(editId){
-    const{error}=await sb.from('recurring_income').update({name,amount,frequency,next_date:start,end_date:end}).eq('id',editId);
+    const{error}=await sb.from('recurring_income').update({name,amount,monthly_allowance,frequency,next_date:start,end_date:end}).eq('id',editId);
     if(error){toast('Error: '+error.message);return;}
     const oldRec=recurringSources.find(r=>r.id===editId);
     if(oldRec){
       const todayStr=today();
+      // Remove future unconfirmed periods so the allowance is reflected on regeneration
       const toDelete=weeks.filter(w=>w.source_name===oldRec.name&&w.pay_date>todayStr&&paychecks.filter(p=>p.pay_week_id===w.id).length===0);
       for(const w of toDelete){await sb.from('pay_weeks').delete().eq('id',w.id);}
     }
     await Promise.all([loadRecurring(),loadWeeks(),loadPaychecks()]);
-    await generatePeriods({user_id:currentUser.id,name,amount,frequency,next_date:start,end_date:end});
+    await generatePeriods({user_id:currentUser.id,name,amount,monthly_allowance,frequency,next_date:start,end_date:end});
     toast('Source updated ✓');
   }else{
-    const{data:rec,error}=await sb.from('recurring_income').insert({user_id:currentUser.id,name,amount,frequency,next_date:start,end_date:end}).select().single();
+    const{data:rec,error}=await sb.from('recurring_income').insert({user_id:currentUser.id,name,amount,monthly_allowance,frequency,next_date:start,end_date:end}).select().single();
     if(error){toast('Error: '+error.message);return;}
     await loadWeeks();
     await generatePeriods(rec);
@@ -2923,17 +2944,28 @@ async function saveRecurring(){
   renderRecurringList();renderWeekly();renderDashboard();
 }
 async function generatePeriods(rec){
-  // Generate pay periods up to 12 months out (or end_date if set)
+  // ALTER TABLE recurring_income ADD COLUMN IF NOT EXISTS monthly_allowance numeric default 0;
+  // Generate pay periods up to 12 months out (or end_date if set).
+  // A monthly allowance is baked into the first paycheck of each calendar month for this source.
   const horizon=new Date();horizon.setMonth(horizon.getMonth()+12);
   const endDate=rec.end_date?new Date(rec.end_date+'T00:00:00'):null;
   const cutoff=endDate&&endDate<horizon?endDate:horizon;
+  const base=parseFloat(rec.amount||0);
+  const allow=parseFloat(rec.monthly_allowance||0);
   const newPeriods=[];
+  const monthFirstGenerated={}; // earliest generated date per YYYY-MM this run (dates increase with count)
   for(let count=0;count<60;count++){
     const periodDate=count===0?rec.next_date:addInterval(rec.next_date,rec.frequency,count);
     if(new Date(periodDate+'T00:00:00')>cutoff)break;
+    const mo=periodDate.slice(0,7);
+    if(!(mo in monthFirstGenerated))monthFirstGenerated[mo]=periodDate;
     const alreadyExists=weeks.some(w=>w.pay_date===periodDate&&w.source_name===rec.name);
     if(!alreadyExists){
-      newPeriods.push({user_id:currentUser.id,pay_date:periodDate,bills_amount:0,expected_amount:rec.amount,source_name:rec.name});
+      // First of month = no existing earlier period this month AND earliest generated this month
+      const existingEarlier=weeks.some(w=>w.source_name===rec.name&&(w.pay_date||'').slice(0,7)===mo&&w.pay_date<periodDate);
+      const isFirstOfMonth=allow>0&&!existingEarlier&&monthFirstGenerated[mo]===periodDate;
+      const expected=base+(isFirstOfMonth?allow:0);
+      newPeriods.push({user_id:currentUser.id,pay_date:periodDate,bills_amount:0,expected_amount:expected,source_name:rec.name});
     }
   }
   if(newPeriods.length>0){await sb.from('pay_weeks').insert(newPeriods);}
@@ -4259,6 +4291,7 @@ function openUseAmountModal(amount){
   document.getElementById('ua-amount-display').textContent=fmt(useAmountValue);
   document.getElementById('ua-date').value=today();
   document.getElementById('ua-end').value='';
+  document.getElementById('ua-allowance').value='';
   document.getElementById('ua-frequency').value='biweekly';
   // Pre-fill source from the calculator's source field if one exists
   document.getElementById('ua-source').value=document.getElementById('pc-source')?.value||'';
@@ -4271,6 +4304,7 @@ function setUseAmountMode(mode){
   document.getElementById('ua-mode-recurring').classList.toggle('active',mode==='recurring');
   const rec=mode==='recurring';
   document.getElementById('ua-frequency-field').style.display=rec?'':'none';
+  document.getElementById('ua-allowance-field').style.display=rec?'':'none';
   document.getElementById('ua-end-field').style.display=rec?'':'none';
 }
 async function confirmUseAmount(){
@@ -4292,9 +4326,10 @@ async function confirmUseAmount(){
   }else{
     const frequency=document.getElementById('ua-frequency').value;
     const end=document.getElementById('ua-end').value||null;
+    const monthly_allowance=parseFloat(document.getElementById('ua-allowance').value)||0;
     if(!source){toast('Enter a source name');return;}
     if(end&&end<=payDate){toast('End date must be after start date');return;}
-    const{error}=await sb.from('recurring_income').insert({user_id:currentUser.id,name:source,amount,frequency,next_date:payDate,end_date:end});
+    const{error}=await sb.from('recurring_income').insert({user_id:currentUser.id,name:source,amount,monthly_allowance,frequency,next_date:payDate,end_date:end});
     if(error){toast('Error: '+error.message);return;}
     await Promise.all([loadRecurring(),loadWeeks(),loadPaychecks()]);
     await topUpPeriods();
