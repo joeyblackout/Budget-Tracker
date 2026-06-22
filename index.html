@@ -4087,16 +4087,17 @@ function renderPaycalc(){
     </div>
     <div class="card" style="margin-bottom:14px;">
       <div style="font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:12px;">Pre-Tax Deductions</div>
-      <div>
+      <div style="margin-bottom:10px;">
         <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">401(k) Contribution (%)</div>
         <input id="pc-401k" type="number" min="0" max="100" step="0.5" placeholder="0" oninput="updatePaycalcOutput()" style="width:100%;box-sizing:border-box;padding:9px 10px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:14px;">
       </div>
-    </div>
-    <div class="card" style="margin-bottom:14px;">
-      <div style="font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:12px;">Post-Tax Deductions</div>
       <div>
-        <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">Health/Dental/Vision Insurance ($/period)</div>
-        <input id="pc-insurance" type="number" min="0" step="0.01" placeholder="0.00" oninput="updatePaycalcOutput()" style="width:100%;box-sizing:border-box;padding:9px 10px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:14px;">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">Insurance Deduction ($/period)</div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <input id="pc-insurance" type="number" min="0" step="0.01" placeholder="0.00" oninput="updatePaycalcOutput()" style="flex:1;min-width:0;box-sizing:border-box;padding:9px 10px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:14px;">
+          <button onclick="savePaycalcInsurance()" title="Save insurance" style="flex:0 0 auto;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--accent);cursor:pointer;padding:9px 11px;font-size:16px;line-height:1;"><i class="ti ti-device-floppy"></i></button>
+          <button onclick="clearPaycalcInsurance()" title="Clear saved insurance" style="flex:0 0 auto;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--muted);cursor:pointer;padding:9px 11px;font-size:16px;line-height:1;"><i class="ti ti-trash"></i></button>
+        </div>
       </div>
     </div>
     <div class="card" style="margin-bottom:14px;">
@@ -4113,6 +4114,21 @@ function renderPaycalc(){
       </div>
     </div>
     <div id="paycalc-output"><div class="card" style="text-align:center;padding:24px;color:var(--muted);">Enter your hours and wage above to see your take-home pay.</div></div>`;
+  // Auto-load saved insurance deduction
+  const savedIns=localStorage.getItem('paycheck_insurance');
+  if(savedIns!==null){const insInput=document.getElementById('pc-insurance');if(insInput)insInput.value=savedIns;}
+}
+function savePaycalcInsurance(){
+  const v=document.getElementById('pc-insurance')?.value||'';
+  localStorage.setItem('paycheck_insurance',v);
+  toast('Insurance saved ✓');
+}
+function clearPaycalcInsurance(){
+  if(!confirm('Clear your saved insurance deduction?'))return;
+  localStorage.removeItem('paycheck_insurance');
+  const insInput=document.getElementById('pc-insurance');if(insInput)insInput.value='';
+  updatePaycalcOutput();
+  toast('Insurance cleared');
 }
 function updatePaycalcOTPlaceholder(){
   const regWage=parseFloat(document.getElementById('pc-reg-wage')?.value||0)||0;
@@ -4150,7 +4166,8 @@ function updatePaycalcOutput(){
   const grossOT=otHours*otWage;
   const gross=grossReg+grossOT;
   if(gross<=0){out.innerHTML='<div class="card" style="text-align:center;padding:24px;color:var(--muted);">Enter your hours and wage above to see your take-home pay.</div>';return;}
-  const preTaxDeductions=gross*(k401Pct/100);
+  const k401Amount=gross*(k401Pct/100);
+  const preTaxDeductions=k401Amount+insurance;
   const taxableGross=gross-preTaxDeductions;
   const periods={weekly:52,biweekly:26,monthly:12}[freq]||26;
   const federalTax=calcFederalTax(taxableGross*periods)/periods;
@@ -4158,22 +4175,22 @@ function updatePaycalcOutput(){
   const medicare=taxableGross*0.0145;
   const stateTax=taxableGross*(STATE_TAX_RATES[state]||0);
   const totalTax=federalTax+socialSecurity+medicare+stateTax;
-  const totalDeductions=preTaxDeductions+totalTax+insurance;
-  const netPay=taxableGross-totalTax-insurance+phoneReimb+vehicleReimb;
+  const totalDeductions=preTaxDeductions+totalTax;
+  const netPay=taxableGross-totalTax+phoneReimb+vehicleReimb;
   const row=(label,val,color)=>'<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--border);"><span style="font-size:13px;color:var(--muted);">'+label+'</span><span style="font-size:14px;font-weight:700;color:'+(color||'var(--text)')+';">'+fmt(val)+'</span></div>';
   out.innerHTML='<div class="card" style="margin-bottom:14px;">'
     +'<div style="font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:4px;">Breakdown</div>'
     +row('Regular Pay ('+regHours+'h × '+fmt(regWage)+')',grossReg,'var(--success)')
     +(otHours>0?row('Overtime Pay ('+otHours+'h × '+fmt(otWage)+')',grossOT,'var(--success)'):'')
     +row('Gross Pay',gross,'var(--success)')
-    +(preTaxDeductions>0?row('401(k) Deduction ('+k401Pct+'%)',-preTaxDeductions,'var(--danger)'):'')
+    +(k401Amount>0?row('401(k) Deduction ('+k401Pct+'%)',-k401Amount,'var(--danger)'):'')
+    +(insurance>0?row('Health Insurance',-insurance,'var(--danger)'):'')
     +(preTaxDeductions>0?row('Taxable Income',taxableGross,'var(--text)'):'')
     +'<div style="margin-top:8px;margin-bottom:4px;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;">Taxes</div>'
     +row('Federal Income Tax',federalTax,'var(--danger)')
     +row('Social Security (6.2%)',socialSecurity,'var(--danger)')
     +row('Medicare (1.45%)',medicare,'var(--danger)')
     +(stateTax>0?row(state+' State Tax ('+(((STATE_TAX_RATES[state]||0)*100).toFixed(2))+'%)',stateTax,'var(--danger)'):'<div style="padding:9px 0;border-bottom:1px solid var(--border);font-size:13px;color:var(--muted);">'+state+' — No state income tax</div>')
-    +(insurance>0?row('Insurance',-insurance,'var(--danger)'):'')
     +(phoneReimb>0?row('Phone Reimbursement',phoneReimb,'var(--success)'):'')
     +(vehicleReimb>0?row('Vehicle Reimbursement',vehicleReimb,'var(--success)'):'')
     +'</div>'
