@@ -1123,7 +1123,9 @@ function monthIncome(yr,mo,fallbackAvg){
 }
 // Bills actually due in a specific calendar month (frequency-aware, excludes debt-linked bills)
 function billsDueInMonth(yr,mo){
-  return bills.filter(b=>!b.debt_id&&isBillDueInMonth(b,yr,mo)).reduce((s,b)=>s+parseFloat(b.amount||0),0);
+  const total=bills.filter(b=>!b.debt_id&&isBillDueInMonth(b,yr,mo)).reduce((s,b)=>s+parseFloat(b.amount||0),0);
+  console.log('[billsDueInMonth] year:',yr,'month:',mo,'total:',total);
+  return total;
 }
 // Strategy extra allocation given a month's discretionary income. The full amount goes to the first
 // debt in sorted order (handled inside the sim). disc already includes freed payments.
@@ -2800,11 +2802,9 @@ function isBillDueInMonth(b,year,month){
   // refMonth is 0-indexed; default to current month if due_month not set
   const refMonth=(b.due_month!=null?parseInt(b.due_month):new Date().getMonth()+1)-1;
   if(rec==='annually')return month===refMonth;
-  // For quarterly/semi-annual: use absolute month count from a fixed base at refMonth
-  const diff=(year*12+month)-(2020*12+refMonth);
-  if(diff<0)return false;
-  if(rec==='quarterly')return diff%3===0;
-  if(rec==='semi-annual')return diff%6===0;
+  // Quarterly/semi-annual: anchor to the bill's own refMonth via modular month matching (no year baseline)
+  if(rec==='semi-annual')return month===refMonth||month===(refMonth+6)%12;
+  if(rec==='quarterly')return month===refMonth||month===(refMonth+3)%12||month===(refMonth+6)%12||month===(refMonth+9)%12;
   return true;
 }
 function isBillDueThisMonth(b){const n=new Date();return isBillDueInMonth(b,n.getFullYear(),n.getMonth());}
