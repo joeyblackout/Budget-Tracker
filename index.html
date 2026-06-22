@@ -1072,36 +1072,67 @@ function paydaysInMonth(r,yr,mo){
   }
   return count;
 }
-// Projected income for a specific calendar month: prefer real pay periods, else project from recurring sources
+// 3-month rolling average of actual income (confirmed + expected pay periods)
+function avgMonthlyIncome3mo(){
+  const now=new Date();
+  const cutoff=new Date(now.getFullYear(),now.getMonth()-3,now.getDate());
+  const cutoffStr=cutoff.toISOString().slice(0,10),nowStr=today();
+  const total=weeks.filter(w=>(w.pay_date||'')>=cutoffStr&&(w.pay_date||'')<=nowStr).reduce((s,w)=>s+parseFloat(w.expected_amount||0),0);
+  const avg=total/3;
+  if(avg>0)return avg;
+  // fall back to a normalized recurring estimate if there's no recent history
+  return monthlyIncomeEstimate();
+}
+// 3-month rolling average of logged expenses
+function avgMonthlyExpenses3mo(){
+  const now=new Date();
+  const cutoff=new Date(now.getFullYear(),now.getMonth()-3,now.getDate());
+  const cutoffStr=cutoff.toISOString().slice(0,10),nowStr=today();
+  const total=expenses.filter(e=>(e.exp_date||'')>=cutoffStr&&(e.exp_date||'')<=nowStr).reduce((s,e)=>s+parseFloat(e.amount||0),0);
+  return total/3;
+}
+// How many future months have real (generated) pay-period data from now
+function realIncomeMonths(){
+  const now=new Date();const nowStr=today();let max=0;
+  weeks.forEach(w=>{if((w.pay_date||'')>nowStr){const d=new Date(w.pay_date+'T00:00:00');const idx=(d.getFullYear()-now.getFullYear())*12+(d.getMonth()-now.getMonth());if(idx>max)max=idx;}});
+  return max;
+}
+// Projected income for a calendar month: real pay periods → recurring projection → 3-mo rolling average
 function projectedIncomeForMonth(yr,mo){
   const key=String(yr)+'-'+String(mo+1).padStart(2,'0');
   const fromWeeks=weeks.filter(w=>(w.pay_date||'').startsWith(key)).reduce((s,w)=>s+parseFloat(w.expected_amount||0),0);
-  if(fromWeeks>0)return fromWeeks;
+  if(fromWeeks>0)return{amount:fromWeeks,est:false};
   let total=0;
   recurringSources.forEach(r=>{
     const amt=parseFloat(r.amount||0);if(amt<=0)return;
     const count=paydaysInMonth(r,yr,mo);
-    if(count>0){total+=amt*count+parseFloat(r.monthly_allowance||0);}
+    if(count>0)total+=amt*count+parseFloat(r.monthly_allowance||0);
   });
-  return total;
+  if(total>0)return{amount:total,est:true};
+  // No data this month — auto-extend using the 3-month rolling average instead of assuming $0
+  return{amount:avgMonthlyIncome3mo(),est:true};
 }
-// Per-month extra-payment budget: % of THAT month's income-less-bills (no carry-over); $0 if no income that month
+// Per-month extra-payment budget = strategy % of THAT month's DISCRETIONARY income (no carry-over).
+// Discretionary = projected income − bills due − avg monthly expenses. Negative → minimums only.
 function makeMonthExtraFn(){
   if(forecastStrategy==='min')return ()=>0;
   const monthlyBills=monthlyBillsEstimate();
+  const avgExp=avgMonthlyExpenses3mo();
   const now=new Date();
   return (m)=>{
     const d=new Date(now.getFullYear(),now.getMonth()+m,1);
-    const income=projectedIncomeForMonth(d.getFullYear(),d.getMonth());
-    if(income<=0)return 0; // gap month → minimums only
-    const net=Math.max(0,income-monthlyBills);
-    if(forecastStrategy==='10')return 0.10*net;
-    if(forecastStrategy==='25')return 0.25*net;
-    if(forecastStrategy==='50')return 0.50*net;
-    if(forecastStrategy==='custom')return forecastCustomMode==='%'?(forecastCustomAmt/100)*net:forecastCustomAmt;
+    const income=projectedIncomeForMonth(d.getFullYear(),d.getMonth()).amount;
+    const disc=income-monthlyBills-avgExp;
+    if(disc<=0)return 0; // negative discretionary → minimums only this month
+    if(forecastStrategy==='10')return 0.10*disc;
+    if(forecastStrategy==='25')return 0.25*disc;
+    if(forecastStrategy==='50')return 0.50*disc;
+    if(forecastStrategy==='custom')return forecastCustomMode==='%'?(forecastCustomAmt/100)*disc:forecastCustomAmt;
     return 0;
   };
 }
+// Average discretionary income from the last 3 months (for the UI summary line)
+function avgDiscretionary3mo(){return avgMonthlyIncome3mo()-monthlyBillsEstimate()-avgMonthlyExpenses3mo();}
 // Month-by-month debt simulation. Returns per-debt payoff data, monthly totals, total interest.
 function runDebtSim(monthExtraFn,windowMonths){
   const active=debts.filter(d=>parseFloat(d.balance||0)>0).map(d=>({
@@ -1141,9 +1172,19 @@ function runDebtSim(monthExtraFn,windowMonths){
 }
 function monthLabelFromIndex(m){const now=new Date();const d=new Date(now.getFullYear(),now.getMonth()+m,1);return d.toLocaleString('en-US',{month:'long',year:'numeric'});}
 function forecastStrategyUI(){
-  const opts=[['min','Minimums Only'],['10','10% of Income'],['25','25% of Income'],['50','50% of Income'],['custom','Custom']];
+  const opts=[['min','Minimums Only'],['10','10% of Discretionary'],['25','25% of Discretionary'],['50','50% of Discretionary'],['custom','Custom']];
   let h='<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);margin:6px 0 6px;">Debt Strategy</div>';
   h+='<div class="toggle-row" style="flex-wrap:wrap;margin-bottom:8px;">'+opts.map(([k,l])=>'<button class="toggle-btn '+(forecastStrategy===k?'active':'')+'" style="flex:0 0 auto;padding:8px 12px;" onclick="setForecastStrategy(\''+k+'\')">'+l+'</button>').join('')+'</div>';
+  // Summary of what the % works out to in real dollars
+  const disc=avgDiscretionary3mo();
+  if(forecastStrategy!=='min'){
+    const pct={'10':0.10,'25':0.25,'50':0.50}[forecastStrategy];
+    let extraTxt;
+    if(forecastStrategy==='custom')extraTxt=forecastCustomMode==='%'?'~'+fmt(Math.max(0,disc)*(forecastCustomAmt/100))+' extra/mo':fmt(forecastCustomAmt)+' extra/mo';
+    else extraTxt='~'+fmt(Math.max(0,disc)*pct)+' extra/mo toward debt';
+    const pctTxt=forecastStrategy==='custom'?(forecastCustomMode==='%'?forecastCustomAmt+'%':'fixed'):(pct*100)+'%';
+    h+='<div style="font-size:11px;color:var(--muted);margin-bottom:10px;">Based on your last 3 months · ~'+fmt(Math.max(0,disc))+'/mo discretionary · '+pctTxt+' = '+extraTxt+'</div>';
+  }
   if(forecastStrategy==='custom'){
     h+='<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap;">'
       +'<div style="display:flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;">'
@@ -1176,7 +1217,10 @@ function forecastDebtCallout(sim,minSim,windowMonths){
   if(forecastStrategy!=='min'){
     const saved=minSim.totalInterest-sim.totalInterest;
     const totalDebtNow=debts.reduce((s,d)=>s+parseFloat(d.balance||0),0);
-    if(saved>totalDebtNow||saved<0){
+    if(minSim.totalInterest>totalDebtNow*10){
+      console.warn('[forecast] Minimums-only interest ($'+minSim.totalInterest.toFixed(0)+') exceeds 10× total debt ($'+totalDebtNow.toFixed(0)+'). Debts: '+debts.map(d=>d.name+' bal=$'+parseFloat(d.balance||0).toFixed(0)+' apr='+parseFloat(d.apr||0)+'%').join('; '));
+      savingsLine='<div style="font-size:12px;color:var(--muted);margin-top:2px;">Saves vs minimums only: Unable to calculate</div>';
+    }else if(saved>totalDebtNow||saved<0){
       console.warn('[forecast] Savings vs minimums implausible (saved $'+saved.toFixed(0)+' vs total debt $'+totalDebtNow.toFixed(0)+') — hiding figure');
       savingsLine='<div style="font-size:12px;color:var(--muted);margin-top:2px;">Saves vs minimums only: —</div>';
     }else if(saved>0.5){
@@ -1191,9 +1235,11 @@ function forecastDebtCallout(sim,minSim,windowMonths){
 }
 function forecastDebtTimeline(sim,windowMonths){
   if(sim.debts.length===0)return '';
+  const realMonths=realIncomeMonths();
   const rows=sim.debts.map(d=>{
     const paidInWindow=d.payoffMonth!==null&&d.payoffMonth<windowMonths;
-    const payoffLabel=d.payoffMonth!==null?'Paid off ~'+monthLabelFromIndex(d.payoffMonth):'Not paid off in 50 yrs';
+    const estimated=d.payoffMonth!==null&&d.payoffMonth>realMonths; // payoff falls in an income-estimated month
+    const payoffLabel=(d.payoffMonth!==null?'Paid off ~'+monthLabelFromIndex(d.payoffMonth):'Not paid off in 50 yrs')+(estimated?' (est.)':'');
     const remain=paidInWindow?0:d.balAtWindow;
     return '<div class="account-row"><div style="flex:1;min-width:0;"><div class="account-name">'+esc(d.name)+'</div>'
       +'<div class="account-detail" style="color:'+(paidInWindow?'var(--success)':'var(--muted)')+';font-weight:'+(paidInWindow?'700':'400')+';">'+payoffLabel+(paidInWindow?' ✓':'')+'</div></div>'
