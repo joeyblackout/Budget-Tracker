@@ -1072,45 +1072,68 @@ function paydaysInMonth(r,yr,mo){
   }
   return count;
 }
-// Projected monthly income from RECURRING INCOME sources only (stable monthly figure — no pay_weeks).
-// Each source's frequency is converted to a per-month equivalent. Sources whose end_date falls before
-// the given month are excluded. (yr,mo) optional — defaults to the current month.
-function recurringMonthlyIncome(yr,mo){
-  const now=new Date();
-  const y=(yr===undefined)?now.getFullYear():yr,m=(mo===undefined)?now.getMonth():mo;
-  const monthStart=new Date(y,m,1).toISOString().slice(0,10);
-  let total=0;
+// Build the full per-month paycheck schedule in ONE forward pass per source (cached per render).
+// map[monthIndex] = {amount, paychecks}; monthIndex 0 = current calendar month.
+let _forecastSchedule=null;
+function buildForecastSchedule(){
+  const now=new Date();const baseY=now.getFullYear(),baseM=now.getMonth();
+  const MAXM=600;const endLimit=new Date(baseY,baseM+MAXM,1);
+  const map={};let lastMonth=-1;
   recurringSources.forEach(r=>{
-    const amt=parseFloat(r.amount||0);if(amt<=0)return;
-    if(r.end_date&&r.end_date<monthStart)return; // source ended before this month
-    const f=(r.frequency||'monthly');
-    if(f==='weekly')total+=amt*52/12;
-    else if(f==='biweekly')total+=amt*26/12;
-    else if(f==='semimonthly')total+=amt*24/12;
-    else total+=amt;
-    total+=parseFloat(r.monthly_allowance||0);
+    const amt=parseFloat(r.amount||0);if(amt<=0||!r.next_date)return;
+    const allowance=parseFloat(r.monthly_allowance||0);const seen={};
+    for(let i=0;i<100000;i++){
+      const ds=addInterval(r.next_date,r.frequency,i);
+      const d=new Date(ds+'T00:00:00');
+      if(d>=endLimit)break;
+      if(r.end_date&&ds>r.end_date)break;
+      const idx=(d.getFullYear()-baseY)*12+(d.getMonth()-baseM);
+      if(idx<0)continue;
+      if(!map[idx])map[idx]={amount:0,paychecks:0};
+      map[idx].amount+=amt;map[idx].paychecks+=1;
+      if(!seen[idx]){seen[idx]=1;map[idx].amount+=allowance;} // monthly allowance once per month per source
+      if(idx>lastMonth)lastMonth=idx;
+    }
   });
-  return total;
+  return{map,lastMonth};
+}
+function getForecastSchedule(){if(!_forecastSchedule)_forecastSchedule=buildForecastSchedule();return _forecastSchedule;}
+// Exact income landing in a specific calendar month (reflects 3-paycheck months, etc.). {amount, paychecks}.
+function scheduledIncomeForMonth(yr,mo){
+  const now=new Date();const idx=(yr-now.getFullYear())*12+(mo-now.getMonth());
+  const e=getForecastSchedule().map[idx];
+  return e?{amount:e.amount,paychecks:e.paychecks}:{amount:0,paychecks:0};
+}
+// Index of the last future month (from now) that still has a scheduled paycheck. -1 if none.
+function lastScheduledMonthIndex(){return getForecastSchedule().lastMonth;}
+// Fallback average = average income of the last 3 (or fewer) months that have at least one paycheck.
+function recurringFallbackAvg(){
+  const sch=getForecastSchedule();const amts=[];
+  for(let m=0;m<=sch.lastMonth;m++){const e=sch.map[m];if(e&&e.paychecks>0)amts.push(e.amount);}
+  if(amts.length===0)return{avg:0,count:0};
+  const last=amts.slice(-3);
+  return{avg:last.reduce((a,b)=>a+b,0)/last.length,count:last.length};
+}
+// Income for a month: scheduled paychecks if any land, else the fallback average. Returns {amount, fallback}.
+function monthIncome(yr,mo,fallbackAvg){
+  const s=scheduledIncomeForMonth(yr,mo);
+  if(s.paychecks>0)return{amount:s.amount,fallback:false};
+  return{amount:fallbackAvg,fallback:true};
 }
 // Bills actually due in a specific calendar month (frequency-aware, excludes debt-linked bills)
 function billsDueInMonth(yr,mo){
   return bills.filter(b=>!b.debt_id&&isBillDueInMonth(b,yr,mo)).reduce((s,b)=>s+parseFloat(b.amount||0),0);
 }
-// How many future months have real (generated) pay-period data from now (used for "(est.)" labeling)
-function realIncomeMonths(){
-  const now=new Date();const nowStr=today();let max=0;
-  weeks.forEach(w=>{if((w.pay_date||'')>nowStr){const d=new Date(w.pay_date+'T00:00:00');const idx=(d.getFullYear()-now.getFullYear())*12+(d.getMonth()-now.getMonth());if(idx>max)max=idx;}});
-  return max;
-}
 // Per-month extra-payment budget = strategy % of THAT month's DISCRETIONARY income (no carry-over).
-// Discretionary = recurring income projection − bills due that month (frequency-aware). No expenses.
+// Discretionary = month income (scheduled or fallback) − bills due that month (frequency-aware). No expenses.
 function makeMonthExtraFn(){
   if(forecastStrategy==='min')return ()=>0;
+  const fb=recurringFallbackAvg().avg;
   const now=new Date();
   return (m)=>{
     const d=new Date(now.getFullYear(),now.getMonth()+m,1);
     const yr=d.getFullYear(),mo=d.getMonth();
-    const disc=recurringMonthlyIncome(yr,mo)-billsDueInMonth(yr,mo);
+    const disc=monthIncome(yr,mo,fb).amount-billsDueInMonth(yr,mo);
     if(disc<=0)return 0; // negative discretionary → minimums only this month
     if(forecastStrategy==='10')return 0.10*disc;
     if(forecastStrategy==='25')return 0.25*disc;
@@ -1163,16 +1186,33 @@ function forecastStrategyUI(){
   const opts=[['min','Minimums Only'],['10','10% of Discretionary'],['25','25% of Discretionary'],['50','50% of Discretionary'],['custom','Custom']];
   let h='<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);margin:6px 0 6px;">Debt Strategy</div>';
   h+='<div class="toggle-row" style="flex-wrap:wrap;margin-bottom:8px;">'+opts.map(([k,l])=>'<button class="toggle-btn '+(forecastStrategy===k?'active':'')+'" style="flex:0 0 auto;padding:8px 12px;" onclick="setForecastStrategy(\''+k+'\')">'+l+'</button>').join('')+'</div>';
-  // Summary of what the % works out to in real dollars, based on recurring income
-  const income=recurringMonthlyIncome();
-  const disc=Math.max(0,income-billsDueInMonth(new Date().getFullYear(),new Date().getMonth()));
+  // Summary based on the per-month recurring income schedule (varies month to month)
   if(forecastStrategy!=='min'){
+    const now=new Date();
+    const fbInfo=recurringFallbackAvg();
+    const lastSched=lastScheduledMonthIndex();
+    let incomeSum=0,discSum=0,higher=0,minPc=Infinity;
+    const rows=[];
+    for(let m=0;m<12;m++){
+      const d=new Date(now.getFullYear(),now.getMonth()+m,1);const yr=d.getFullYear(),mo=d.getMonth();
+      const s=scheduledIncomeForMonth(yr,mo);
+      const income=s.paychecks>0?s.amount:fbInfo.avg;
+      incomeSum+=income;
+      discSum+=Math.max(0,income-billsDueInMonth(yr,mo));
+      if(s.paychecks>0){rows.push(s.paychecks);if(s.paychecks<minPc)minPc=s.paychecks;}
+    }
+    if(minPc===Infinity)minPc=0;
+    higher=rows.filter(pc=>pc>minPc).length;
+    const avgIncome=incomeSum/12,avgDisc=discSum/12;
     const pct={'10':0.10,'25':0.25,'50':0.50}[forecastStrategy];
-    let extraTxt;
-    if(forecastStrategy==='custom')extraTxt=forecastCustomMode==='%'?'~'+fmt(disc*(forecastCustomAmt/100))+' extra/mo':fmt(forecastCustomAmt)+' extra/mo';
-    else extraTxt='~'+fmt(disc*pct)+' extra/mo toward debt';
+    let extraAvg;
+    if(forecastStrategy==='custom')extraAvg=forecastCustomMode==='%'?avgDisc*(forecastCustomAmt/100):forecastCustomAmt;
+    else extraAvg=avgDisc*pct;
     const pctTxt=forecastStrategy==='custom'?(forecastCustomMode==='%'?forecastCustomAmt+'%':'fixed'):(pct*100)+'%';
-    h+='<div style="font-size:11px;color:var(--muted);margin-bottom:10px;">Based on recurring income · ~'+fmt(income)+'/mo · '+pctTxt+' = '+extraTxt+'</div>';
+    let line='Based on recurring income schedule · avg ~'+fmt(avgIncome)+'/mo · '+pctTxt+' = ~'+fmt(extraAvg)+' avg extra/mo toward debt';
+    if(lastSched>=0&&lastSched<599)line+=' · fallback avg '+fmt(fbInfo.avg)+'/mo used after '+monthLabelFromIndex(lastSched+1);
+    if(higher>0)line+=' · Incl. '+higher+' higher-income month'+(higher!==1?'s':'');
+    h+='<div style="font-size:11px;color:var(--muted);margin-bottom:10px;line-height:1.5;">'+line+'</div>';
   }
   if(forecastStrategy==='custom'){
     h+='<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap;">'
@@ -1221,10 +1261,12 @@ function forecastDebtCallout(sim,minSim,windowMonths){
 }
 function forecastDebtTimeline(sim,windowMonths){
   if(sim.debts.length===0)return '';
-  const realMonths=realIncomeMonths();
+  // Months after the schedule ends use the fallback average → flag any debt whose payoff reaches that territory
+  const lastSched=lastScheduledMonthIndex();
+  const fallbackStarts=(forecastStrategy!=='min'&&lastSched>=0&&lastSched<599)?lastSched+1:null;
   const rows=sim.debts.map(d=>{
     const paidInWindow=d.payoffMonth!==null&&d.payoffMonth<windowMonths;
-    const estimated=d.payoffMonth!==null&&d.payoffMonth>realMonths; // payoff falls in an income-estimated month
+    const estimated=fallbackStarts!==null&&(d.payoffMonth===null||d.payoffMonth>=fallbackStarts);
     const payoffLabel=(d.payoffMonth!==null?'Paid off ~'+monthLabelFromIndex(d.payoffMonth):'Not paid off in 50 yrs')+(estimated?' (est.)':'');
     const remain=paidInWindow?0:d.balAtWindow;
     return '<div class="account-row"><div style="flex:1;min-width:0;"><div class="account-name">'+esc(d.name)+'</div>'
@@ -1241,17 +1283,18 @@ function forecastStrategySection(windowMonths){
     +'<div><div style="font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);">Debt Payoff Strategy</div><div style="font-size:12px;color:var(--muted);margin-top:3px;">See how different payment strategies affect your payoff timeline</div></div>'
     +'<span style="font-size:14px;color:var(--muted);flex-shrink:0;">'+(open?'▲':'▼')+'</span></div></div>';
   if(open){
-    // Dev-only: log the per-month recurring income & discretionary figures so the calculation can be verified
+    // Dev-only: log the per-month scheduled income, paycheck counts & discretionary so it can be verified
     (function(){
-      const now=new Date();const rows=[];
+      const now=new Date();const rows=[];const fb=recurringFallbackAvg();
       for(let m=0;m<12;m++){
         const d=new Date(now.getFullYear(),now.getMonth()+m,1);
         const yr=d.getFullYear(),mo=d.getMonth();
-        const inc=recurringMonthlyIncome(yr,mo);
+        const s=scheduledIncomeForMonth(yr,mo);
+        const income=s.paychecks>0?s.amount:fb.avg;
         const billsDue=billsDueInMonth(yr,mo);
-        rows.push({month:monthLabelFromIndex(m),recurringIncome:Math.round(inc),billsDue:Math.round(billsDue),discretionary:Math.round(inc-billsDue)});
+        rows.push({month:monthLabelFromIndex(m),paychecks:s.paychecks,income:Math.round(income),fallback:s.paychecks===0,billsDue:Math.round(billsDue),discretionary:Math.round(income-billsDue)});
       }
-      console.log('[forecast] recurring monthly income=$'+recurringMonthlyIncome().toFixed(0)+'/mo across '+recurringSources.length+' source(s)');
+      console.log('[forecast] schedule-based income across '+recurringSources.length+' source(s) · fallback avg=$'+fb.avg.toFixed(0)+'/mo (from '+fb.count+' month(s)) · schedule ends month '+lastScheduledMonthIndex());
       if(console.table)console.table(rows);else console.log(rows);
     })();
     const sim=runDebtSim(makeMonthExtraFn(),windowMonths);
@@ -1297,6 +1340,7 @@ function recentAvgSpendingPerDay(){
   return total/Math.min(spanDays,60);
 }
 function renderForecast(){
+  _forecastSchedule=null; // rebuild the income schedule fresh each render
   const el=document.getElementById('forecast-content');
   const windows={biweekly:{label:'Biweekly',days:14},monthly:{label:'Monthly',days:30},'3month':{label:'3 Months',days:90},'6month':{label:'6 Months',days:180},annual:{label:'Annual',days:365},custom:{label:'Custom',days:0}};
   const todayDate=new Date();todayDate.setHours(0,0,0,0);
