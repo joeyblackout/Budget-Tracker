@@ -1030,6 +1030,126 @@ function updateNotificationDots(){
 let forecastWindow='3month';
 let forecastCustomStart='',forecastCustomEnd='';
 let forecastBreakdownData={};
+// Debt strategy state (persisted)
+let forecastStrategy=localStorage.getItem('forecast_strategy')||'min';
+let forecastDebtMethod=localStorage.getItem('forecast_debt_method')||'avalanche';
+let forecastCustomAmt=parseFloat(localStorage.getItem('forecast_custom_amt')||'0')||0;
+let forecastCustomMode=localStorage.getItem('forecast_custom_mode')||'$';
+function setForecastStrategy(s){forecastStrategy=s;localStorage.setItem('forecast_strategy',s);renderForecast();}
+function setForecastDebtMethod(m){forecastDebtMethod=m;localStorage.setItem('forecast_debt_method',m);renderForecast();}
+function setForecastCustomMode(mode){forecastCustomMode=mode;localStorage.setItem('forecast_custom_mode',mode);renderForecast();}
+function applyForecastCustom(){
+  const v=parseFloat(document.getElementById('forecast-custom-extra')?.value)||0;
+  forecastCustomAmt=v;localStorage.setItem('forecast_custom_amt',String(v));localStorage.setItem('forecast_custom_mode',forecastCustomMode);
+  renderForecast();
+}
+function monthlyIncomeEstimate(){
+  let m=0;
+  recurringSources.forEach(r=>{const amt=parseFloat(r.amount||0),f=r.frequency;
+    if(f==='weekly')m+=amt*52/12;else if(f==='biweekly')m+=amt*26/12;else if(f==='semimonthly')m+=amt*2;else m+=amt;
+    m+=parseFloat(r.monthly_allowance||0);});
+  return m;
+}
+function monthlyBillsEstimate(){
+  let m=0;
+  bills.filter(b=>!b.debt_id).forEach(b=>{const amt=parseFloat(b.amount||0),rec=(b.recurring||'monthly').toLowerCase();
+    if(rec==='weekly')m+=amt*52/12;else if(rec==='biweekly')m+=amt*26/12;else if(rec==='quarterly')m+=amt/3;else if(rec==='semi-annual')m+=amt/6;else if(rec==='annually'||rec==='annual')m+=amt/12;else m+=amt;});
+  return m;
+}
+function forecastExtraPool(){
+  const incomeLessBills=Math.max(0,monthlyIncomeEstimate()-monthlyBillsEstimate());
+  if(forecastStrategy==='10')return 0.10*incomeLessBills;
+  if(forecastStrategy==='25')return 0.25*incomeLessBills;
+  if(forecastStrategy==='50')return 0.50*incomeLessBills;
+  if(forecastStrategy==='custom')return forecastCustomMode==='%'?(forecastCustomAmt/100)*incomeLessBills:forecastCustomAmt;
+  return 0;
+}
+// Month-by-month debt simulation. Returns per-debt payoff data, monthly totals, total interest.
+function runDebtSim(extraPool,windowMonths){
+  const active=debts.filter(d=>parseFloat(d.balance||0)>0).map(d=>({
+    id:d.id,name:d.name,type:d.type,bal:parseFloat(d.balance||0),apr:parseFloat(d.apr||0),
+    minPay:parseFloat(d.min_payment||0),interestPaid:0,payoffMonth:null,balAtWindow:0
+  }));
+  const CAP=600;
+  const monthlyTotals=[];
+  for(let m=0;m<CAP;m++){
+    const live=active.filter(d=>d.bal>0.005);
+    if(live.length===0)break;
+    let monthTotal=0;
+    // 1) accrue interest + compute minimum (never more than balance)
+    live.forEach(d=>{
+      const interest=d.bal*(d.apr/100/12);
+      d.bal+=interest;d.interestPaid+=interest;
+      let min=(d.type==='Credit Card')?Math.max(25,d.bal*0.02):d.minPay;
+      if(min>d.bal)min=d.bal;
+      d._min=min;
+    });
+    // 2) apply base minimum
+    live.forEach(d=>{d.bal-=d._min;monthTotal+=d._min;});
+    // 3) distribute extra by strategy order
+    let extra=extraPool;
+    const order=live.filter(d=>d.bal>0.005).sort((a,b)=>forecastDebtMethod==='snowball'?(a.bal-b.bal):(b.apr-a.apr));
+    for(const d of order){if(extra<=0.005)break;const pay=Math.min(extra,d.bal);d.bal-=pay;extra-=pay;monthTotal+=pay;}
+    // 4) record payoff / zero out
+    live.forEach(d=>{if(d.bal<=0.005&&d.payoffMonth===null){d.payoffMonth=m;d.bal=0;}});
+    if(m===windowMonths-1)active.forEach(d=>{d.balAtWindow=Math.max(0,d.bal);});
+    monthlyTotals.push(monthTotal);
+  }
+  if(windowMonths>monthlyTotals.length)active.forEach(d=>{if(d.payoffMonth!==null)d.balAtWindow=0;});
+  const totalInterest=active.reduce((s,d)=>s+d.interestPaid,0);
+  const allPaid=active.length>0&&active.every(d=>d.payoffMonth!==null);
+  const debtFreeMonth=allPaid?Math.max(...active.map(d=>d.payoffMonth)):null;
+  return{debts:active,totalInterest,debtFreeMonth,monthlyTotals};
+}
+function monthLabelFromIndex(m){const now=new Date();const d=new Date(now.getFullYear(),now.getMonth()+m,1);return d.toLocaleString('en-US',{month:'long',year:'numeric'});}
+function forecastStrategyUI(){
+  const opts=[['min','Minimums Only'],['10','10% of Income'],['25','25% of Income'],['50','50% of Income'],['custom','Custom']];
+  let h='<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);margin:6px 0 6px;">Debt Strategy</div>';
+  h+='<div class="toggle-row" style="flex-wrap:wrap;margin-bottom:8px;">'+opts.map(([k,l])=>'<button class="toggle-btn '+(forecastStrategy===k?'active':'')+'" style="flex:0 0 auto;padding:8px 12px;" onclick="setForecastStrategy(\''+k+'\')">'+l+'</button>').join('')+'</div>';
+  if(forecastStrategy==='custom'){
+    h+='<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap;">'
+      +'<div style="display:flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;">'
+      +'<button onclick="setForecastCustomMode(\'$\')" style="padding:9px 13px;border:none;background:'+(forecastCustomMode==='$'?'var(--accent)':'var(--surface2)')+';color:'+(forecastCustomMode==='$'?'#fff':'var(--muted)')+';font-weight:700;cursor:pointer;">$</button>'
+      +'<button onclick="setForecastCustomMode(\'%\')" style="padding:9px 13px;border:none;background:'+(forecastCustomMode==='%'?'var(--accent)':'var(--surface2)')+';color:'+(forecastCustomMode==='%'?'#fff':'var(--muted)')+';font-weight:700;cursor:pointer;">%</button>'
+      +'</div>'
+      +'<input type="number" id="forecast-custom-extra" value="'+(forecastCustomAmt||'')+'" placeholder="'+(forecastCustomMode==='%'?'e.g. 15':'e.g. 200')+'" style="flex:1;min-width:90px;box-sizing:border-box;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;padding:9px 10px;">'
+      +'<button class="btn btn-primary" style="padding:9px 16px;width:auto;" onclick="applyForecastCustom()">Apply</button>'
+      +'</div>';
+  }
+  if(forecastStrategy!=='min'){
+    h+='<div style="display:flex;gap:6px;margin-bottom:10px;">'+[['avalanche','Avalanche · highest APR'],['snowball','Snowball · lowest balance']].map(([k,l])=>'<button onclick="setForecastDebtMethod(\''+k+'\')" style="flex:1;padding:7px 10px;border-radius:8px;border:1px solid '+(forecastDebtMethod===k?'var(--accent)':'var(--border)')+';background:'+(forecastDebtMethod===k?'rgba(45,212,160,0.12)':'transparent')+';color:'+(forecastDebtMethod===k?'var(--accent)':'var(--muted)')+';font-size:12px;font-weight:700;cursor:pointer;">'+l+'</button>').join('')+'</div>';
+  }
+  return h;
+}
+function forecastDebtCallout(sim,minSim,windowMonths){
+  if(sim.debts.length===0){
+    return '<div class="card" style="border-color:var(--success);background:rgba(45,212,160,0.08);margin-bottom:14px;text-align:center;"><div style="font-size:16px;font-weight:800;color:var(--success);">You have no remaining debt 🎉</div></div>';
+  }
+  let line;
+  if(sim.debtFreeMonth===null){
+    line='<div style="font-size:18px;font-weight:800;color:var(--warning);">Not paid off within 50 years at this pace</div><div style="font-size:12px;color:var(--muted);margin-top:2px;">Increase your monthly payment to make progress.</div>';
+  }else if(sim.debtFreeMonth<windowMonths){
+    line='<div style="font-size:18px;font-weight:800;color:var(--success);">Debt-free by '+monthLabelFromIndex(sim.debtFreeMonth)+'</div>';
+  }else{
+    line='<div style="font-size:18px;font-weight:800;color:var(--success);">Debt-free in ~'+(sim.debtFreeMonth+1)+' months</div><div style="font-size:12px;color:var(--muted);margin-top:2px;">'+monthLabelFromIndex(sim.debtFreeMonth)+' · beyond this window</div>';
+  }
+  let savingsLine='';
+  if(forecastStrategy!=='min'){const saved=minSim.totalInterest-sim.totalInterest;if(saved>0.5)savingsLine='<div style="font-size:12px;color:var(--success);margin-top:2px;">Saves you ~'+fmt(saved)+' vs minimums only</div>';}
+  return '<div class="card" style="border-color:var(--accent);background:rgba(45,212,160,0.06);margin-bottom:14px;">'+line
+    +'<div style="margin-top:12px;font-size:13px;color:var(--muted);">Est. interest paid: <span style="color:var(--text);font-weight:800;">'+fmt(sim.totalInterest)+'</span></div>'+savingsLine+'</div>';
+}
+function forecastDebtTimeline(sim,windowMonths){
+  if(sim.debts.length===0)return '';
+  const rows=sim.debts.map(d=>{
+    const paidInWindow=d.payoffMonth!==null&&d.payoffMonth<windowMonths;
+    const payoffLabel=d.payoffMonth!==null?'Paid off ~'+monthLabelFromIndex(d.payoffMonth):'Not paid off in 50 yrs';
+    const remain=paidInWindow?0:d.balAtWindow;
+    return '<div class="account-row"><div style="flex:1;min-width:0;"><div class="account-name">'+esc(d.name)+'</div>'
+      +'<div class="account-detail" style="color:'+(paidInWindow?'var(--success)':'var(--muted)')+';font-weight:'+(paidInWindow?'700':'400')+';">'+payoffLabel+(paidInWindow?' ✓':'')+'</div></div>'
+      +'<div style="text-align:right;"><div style="font-size:11px;color:var(--muted);">end of window</div><div style="font-weight:700;color:'+(remain>0.005?'var(--danger)':'var(--success)')+';">'+fmt(remain)+'</div></div></div>';
+  }).join('');
+  return '<div class="card-title" style="margin-top:8px;">Debt Payoff · '+(forecastDebtMethod==='snowball'?'Snowball':'Avalanche')+'</div><div class="card" style="padding:0 18px;margin-bottom:14px;">'+rows+'</div>';
+}
 function setForecastWindow(w){
   forecastWindow=w;
   if(w==='custom'&&!forecastCustomStart){
@@ -1124,8 +1244,8 @@ function renderForecast(){
       events.push({date:w.pay_date,amount:expected,label:(w.source_name||'Income')+' (expected)',type:'income'});
     }
   });
-  // Recurring bills by due day each month in the window
-  const recurringBills=bills.filter(b=>b.due_day&&b.recurring!=='once');
+  // Recurring bills by due day each month in the window (debt-linked bills are handled by the debt simulation)
+  const recurringBills=bills.filter(b=>b.due_day&&b.recurring!=='once'&&!b.debt_id);
   let cursor=new Date(todayDate);
   while(cursor<=endDate){
     const y=cursor.getFullYear(),m=cursor.getMonth();
@@ -1139,22 +1259,19 @@ function renderForecast(){
     });
     cursor.setMonth(cursor.getMonth()+1);cursor.setDate(1);
   }
-  // Debt minimums (monthly, by due date)
-  const debtsWithMin=debts.filter(d=>parseFloat(d.min_payment||0)>0&&parseFloat(d.balance||0)>0);
-  cursor=new Date(todayDate);
-  while(cursor<=endDate){
-    const y=cursor.getFullYear(),m=cursor.getMonth();
-    debtsWithMin.forEach(d=>{
-      // skip if already represented as a synced bill (avoid double count)
-      const synced=bills.find(b=>b.debt_id===d.id&&b.recurring==='monthly');
-      if(synced)return;
-      const dd=d.due_date?Math.min(parseInt(d.due_date),new Date(y,m+1,0).getDate()):15;
-      const payDate=new Date(y,m,dd);
-      if(payDate>todayDate&&payDate<=endDate){
-        events.push({date:payDate.toISOString().slice(0,10),amount:-parseFloat(d.min_payment||0),label:d.name+' (min)',type:'debt'});
-      }
-    });
-    cursor.setMonth(cursor.getMonth()+1);cursor.setDate(1);
+  // Debt simulation (dynamic month-by-month) drives the projected debt payments
+  const windowMonths=(endDate.getFullYear()-todayDate.getFullYear())*12+(endDate.getMonth()-todayDate.getMonth())+1;
+  const extraPool=forecastExtraPool();
+  const sim=runDebtSim(extraPool,windowMonths);
+  const minSim=runDebtSim(0,windowMonths);
+  // Inject one debt-payment event per month within the window (15th of each month)
+  for(let m=0;m<windowMonths&&m<sim.monthlyTotals.length;m++){
+    const amt=sim.monthlyTotals[m];
+    if(amt<=0.005)continue;
+    const d=new Date(todayDate.getFullYear(),todayDate.getMonth()+m,15);
+    if(d>todayDate&&d<=endDate){
+      events.push({date:d.toISOString().slice(0,10),amount:-amt,label:'Debt payments',type:'debt'});
+    }
   }
   // Recent average variable spending, applied per day
   const dailySpend=recentAvgSpendingPerDay();
@@ -1202,6 +1319,7 @@ function renderForecast(){
       <div class="field" style="margin:0;flex:1;min-width:130px;"><label>To</label><input type="date" id="forecast-end" value="${forecastCustomEnd}" style="width:100%;background:var(--bg);border:1.5px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:14px;padding:10px 12px;"/></div>
       <button class="btn btn-primary" style="padding:11px 18px;width:auto;" onclick="applyCustomForecast()">Apply</button>
     </div>`:''}
+    ${forecastStrategyUI()}
     <div class="balance-card">
       <div class="balance-label">Projected Cash · ${forecastWindow==='custom'?'Custom · '+dateRangeLabel:forecastWindow==='annual'?winLabel:winLabel+' · '+dateRangeLabel}</div>
       <div class="balance-amount ${endBalance>=0?'text-success':'text-danger'}">${fmt(endBalance)}</div>
@@ -1210,12 +1328,14 @@ function renderForecast(){
         <div class="balance-line" style="cursor:pointer;" onclick="showForecastBreakdown('cash')"><span class="balance-line-label">Cash Now</span><span class="balance-line-val">${fmt(startBalance)}</span></div>
         <div class="balance-line" style="cursor:pointer;" onclick="showForecastBreakdown('income')"><span class="balance-line-label">Expected Income</span><span class="balance-line-val text-success">+${fmt(incomeSum)}</span></div>
         <div class="balance-line" style="cursor:pointer;" onclick="showForecastBreakdown('bills')"><span class="balance-line-label">Upcoming Bills</span><span class="balance-line-val text-danger">-${fmt(billSum)}</span></div>
-        <div class="balance-line" style="cursor:pointer;" onclick="showForecastBreakdown('debts')"><span class="balance-line-label">Upcoming Debt Minimums</span><span class="balance-line-val text-danger">-${fmt(debtSum)}</span></div>
+        <div class="balance-line" style="cursor:pointer;" onclick="showForecastBreakdown('debts')"><span class="balance-line-label">Debt Payments</span><span class="balance-line-val text-danger">-${fmt(debtSum)}</span></div>
         <div class="balance-line" style="cursor:pointer;" onclick="showForecastBreakdown('spending')"><span class="balance-line-label">Est. Spending</span><span class="balance-line-val text-danger">-${fmt(projectedSpend)}</span></div>
         <div class="balance-line" style="cursor:pointer;" onclick="showForecastBreakdown('savings')"><span class="balance-line-label">In Savings</span><span class="balance-line-val text-warning">${fmt(totalInPots)}</span></div>
       </div>
     </div>
     ${dailySpend>0?`<div style="font-size:12px;color:var(--muted);text-align:center;margin:-4px 0 14px;">Est. spending based on your recent average of ${fmt(dailySpend)}/day</div>`:`<div style="font-size:12px;color:var(--muted);text-align:center;margin:-4px 0 14px;">Log some expenses to project variable spending</div>`}
+    ${forecastDebtCallout(sim,minSim,windowMonths)}
+    ${forecastDebtTimeline(sim,windowMonths)}
     ${negativeFlags.length>0?`<div class="card" style="border-color:var(--danger);background:rgba(247,90,90,0.06);">
       <div style="font-size:15px;font-weight:700;color:var(--danger);margin-bottom:6px;"><i class="ti ti-alert-triangle"></i> Heads up</div>
       <div class="text-muted">Your projected cash dips below $0 around ${fmtDate(lowest.date)} (down to ${fmt(lowest.bal)}). Consider adjusting spending or moving a bill.</div>
@@ -1279,10 +1399,10 @@ function showForecastBreakdown(type){
     if(bl.length===0){rows='<div class="empty"><p>No upcoming bills in this window.</p></div>';}
     else{rows=bl.map(e=>'<div class="account-row"><div style="flex:1;min-width:0;"><div class="account-name">'+esc(e.label)+'</div><div class="account-detail">Due '+fmtDate(e.date)+'</div></div><div style="font-size:17px;font-weight:800;color:var(--danger);">-'+fmt(Math.abs(e.amount))+'</div></div>').join('');}
   } else if(type==='debts'){
-    title='Upcoming Debt Minimums';
+    title='Debt Payments';
     const db=d.events.filter(e=>e.type==='debt');
-    if(db.length===0){rows='<div class="empty"><p>No debt minimums in this window.</p></div>';}
-    else{rows=db.map(e=>'<div class="account-row"><div style="flex:1;min-width:0;"><div class="account-name">'+esc(e.label)+'</div><div class="account-detail">Due '+fmtDate(e.date)+'</div></div><div style="font-size:17px;font-weight:800;color:var(--danger);">-'+fmt(Math.abs(e.amount))+'</div></div>').join('');}
+    if(db.length===0){rows='<div class="empty"><p>No debt payments in this window.</p></div>';}
+    else{rows=db.map(e=>'<div class="account-row"><div style="flex:1;min-width:0;"><div class="account-name">'+esc(e.label)+'</div><div class="account-detail">'+fmtDate(e.date)+'</div></div><div style="font-size:17px;font-weight:800;color:var(--danger);">-'+fmt(Math.abs(e.amount))+'</div></div>').join('');}
   } else if(type==='spending'){
     title='Est. Spending';
     if(d.dailySpend===0){
