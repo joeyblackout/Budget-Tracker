@@ -1227,25 +1227,29 @@ function forecastStrategyUI(){
     const now=new Date();
     const fbInfo=recurringFallbackAvg();
     const lastSched=lastScheduledMonthIndex();
-    let incomeSum=0,discSum=0,higher=0,minPc=Infinity;
+    const pct={'25':0.25,'50':0.50,'75':0.75}[forecastStrategy];
+    let incomeSum=0,extraSum=0,higher=0,minPc=Infinity,schedMonths=0,fbMonths=0;
     const rows=[];
     for(let m=0;m<12;m++){
       const d=new Date(now.getFullYear(),now.getMonth()+m,1);const yr=d.getFullYear(),mo=d.getMonth();
       const s=scheduledIncomeForMonth(yr,mo);
-      const income=s.paychecks>0?s.amount:fbInfo.avg;
+      const scheduled=s.paychecks>0;
+      const income=scheduled?s.amount:fbInfo.avg; // this month's ACTUAL income, not a flat average
       incomeSum+=income;
-      discSum+=Math.max(0,income-billsDueInMonth(yr,mo));
-      if(s.paychecks>0){rows.push(s.paychecks);if(s.paychecks<minPc)minPc=s.paychecks;}
+      if(scheduled){schedMonths++;rows.push(s.paychecks);if(s.paychecks<minPc)minPc=s.paychecks;}else{fbMonths++;}
+      // Per-month extra: strategy % of THIS month's discretionary (so 3-paycheck months contribute more)
+      const disc=Math.max(0,income-billsDueInMonth(yr,mo));
+      const monthExtra=forecastStrategy==='custom'?(forecastCustomMode==='%'?disc*(forecastCustomAmt/100):forecastCustomAmt):disc*pct;
+      extraSum+=Math.max(0,monthExtra||0);
     }
     if(minPc===Infinity)minPc=0;
     higher=rows.filter(pc=>pc>minPc).length;
-    const avgIncome=incomeSum/12,avgDisc=discSum/12;
-    const pct={'25':0.25,'50':0.50,'75':0.75}[forecastStrategy];
-    let extraAvg;
-    if(forecastStrategy==='custom')extraAvg=forecastCustomMode==='%'?avgDisc*(forecastCustomAmt/100):forecastCustomAmt;
-    else extraAvg=avgDisc*pct;
+    const avgIncome=incomeSum/12;
+    const extraAvg=extraSum/12; // average of the actual per-month extra allocations
     const pctTxt=forecastStrategy==='custom'?(forecastCustomMode==='%'?forecastCustomAmt+'%':'fixed'):(pct*100)+'%';
-    let line='Based on recurring income schedule · avg ~'+fmt(avgIncome)+'/mo · '+pctTxt+' = ~'+fmt(extraAvg)+'/mo extra toward debt · increases as debts pay off';
+    // Most months have real paychecks → say "scheduled income"; only fully/mostly-fallback → show the flat avg
+    const incomeDesc=(schedMonths>0&&schedMonths>=fbMonths)?'scheduled income':'avg ~'+fmt(avgIncome)+'/mo';
+    let line='Based on recurring income schedule · '+incomeDesc+' · '+pctTxt+' = ~'+fmt(extraAvg)+'/mo extra toward debt · increases as debts pay off';
     if(lastSched>=0&&lastSched<599)line+=' · fallback avg '+fmt(fbInfo.avg)+'/mo used after '+monthLabelFromIndex(lastSched+1);
     if(higher>0)line+=' · Incl. '+higher+' higher-income month'+(higher!==1?'s':'');
     line += ' · Discretionary = income − monthly bills';
