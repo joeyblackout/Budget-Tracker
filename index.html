@@ -1295,13 +1295,18 @@ function forecastDebtCallout(sim,minSim){
   }
   const totalDebtNow=debts.reduce((s,d)=>s+parseFloat(d.balance||0),0);
   const totalPaidOut=totalDebtNow+sim.totalInterest; // principal + interest = total outflow to pay off
+  // Minimums-only tab: surface the 10-year interest cost when minimums never clear the debt
+  let savingsLine='';
+  if(forecastStrategy==='min'&&sim.debtFreeMonth===null){
+    savingsLine='<div style="font-size:12px;color:var(--warning);margin-top:2px;">Minimums only: Est. '+fmt(sim.totalInterest)+' interest over 10 years (not paid off)</div>';
+  }
   return '<div class="card" style="border-color:'+color+';background:var(--surface);margin-bottom:14px;">'
     +'<div style="font-size:18px;font-weight:800;color:'+color+';">'+main+'</div>'
     +(sub?'<div style="font-size:12px;color:var(--muted);margin-top:2px;">'+sub+'</div>':'')
     +(dfm!==null&&dfDateStr?'<div style="font-size:12px;color:var(--muted);margin-top:4px;">Target date: <span style="color:var(--text);font-weight:700;">'+dfDateStr+'</span>'+(dfDateEst?' (est.)':'')+'</div>':'')
     +'<div style="margin-top:12px;font-size:13px;color:var(--muted);">Est. interest paid: <span style="color:var(--text);font-weight:800;">'+fmt(sim.totalInterest)+'</span></div>'
     +'<div style="margin-top:6px;font-size:13px;color:var(--muted);">Total paid to become debt-free: <span style="color:var(--text);font-weight:800;">'+fmt(totalPaidOut)+'</span></div>'
-    +'</div>';
+    +savingsLine+'</div>';
 }
 function forecastDebtTimeline(sim){
   if(sim.debts.length===0)return '';
