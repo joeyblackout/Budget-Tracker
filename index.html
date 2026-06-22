@@ -1131,7 +1131,7 @@ function billsDueInMonth(yr,mo){
 // debt in sorted order (handled inside the sim). disc already includes freed payments.
 function strategyExtraOfDisc(disc){
   if(forecastStrategy==='min'||disc<=0)return 0;
-  if(forecastStrategy==='10')return 0.10*disc;
+  if(forecastStrategy==='75')return 0.75*disc;
   if(forecastStrategy==='25')return 0.25*disc;
   if(forecastStrategy==='50')return 0.50*disc;
   if(forecastStrategy==='custom')return forecastCustomMode==='%'?(forecastCustomAmt/100)*disc:forecastCustomAmt;
@@ -1208,7 +1208,7 @@ function runDebtSim(extraOfDisc,maxMonths){
 }
 function monthLabelFromIndex(m){const now=new Date();const d=new Date(now.getFullYear(),now.getMonth()+m,1);return d.toLocaleString('en-US',{month:'long',year:'numeric'});}
 function forecastStrategyUI(){
-  const opts=[['min','Minimums Only'],['10','10% of Discretionary'],['25','25% of Discretionary'],['50','50% of Discretionary'],['custom','Custom']];
+  const opts=[['min','Minimums Only'],['25','25% of Discretionary'],['50','50% of Discretionary'],['75','75% of Discretionary'],['custom','Custom']];
   let h='<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);margin:6px 0 6px;">Debt Strategy</div>';
   h+='<div class="toggle-row" style="flex-wrap:wrap;margin-bottom:8px;">'+opts.map(([k,l])=>'<button class="toggle-btn '+(forecastStrategy===k?'active':'')+'" style="flex:0 0 auto;padding:8px 12px;" onclick="setForecastStrategy(\''+k+'\')">'+l+'</button>').join('')+'</div>';
   // Summary based on the per-month recurring income schedule (varies month to month)
@@ -1229,7 +1229,7 @@ function forecastStrategyUI(){
     if(minPc===Infinity)minPc=0;
     higher=rows.filter(pc=>pc>minPc).length;
     const avgIncome=incomeSum/12,avgDisc=discSum/12;
-    const pct={'10':0.10,'25':0.25,'50':0.50}[forecastStrategy];
+    const pct={'25':0.25,'50':0.50,'75':0.75}[forecastStrategy];
     let extraAvg;
     if(forecastStrategy==='custom')extraAvg=forecastCustomMode==='%'?avgDisc*(forecastCustomAmt/100):forecastCustomAmt;
     else extraAvg=avgDisc*pct;
