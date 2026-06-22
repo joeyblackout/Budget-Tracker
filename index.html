@@ -12,6 +12,7 @@
 <meta name="apple-mobile-web-app-title" content="Budget Tracker"/>
 <meta name="theme-color" content="#0d0f14"/>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 <style>
 :root{--bg:#080808;--surface:#111111;--surface2:#1a1a1a;--border:#272727;--accent:#2dd4a0;--accent2:#0a9e74;--success:#2dd4a0;--warning:#f7c948;--danger:#f75a5a;--text:#f0f0f0;--muted:#666666;--radius:14px;--radius-sm:8px;}
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
@@ -775,6 +776,17 @@ select option{background:var(--surface);color:var(--text);}
   <div class="field"><label>Amount ($)</label><input type="number" id="exp-amount" placeholder="0.00" step="0.01" min="0"/></div>
   <div class="field"><label>Notes</label><textarea id="exp-notes" placeholder="Optional notes…"></textarea></div>
   <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal('expense-modal')">Cancel</button><button class="btn btn-primary" onclick="saveExpense()">Save</button></div>
+</div></div>
+
+<!-- IMPORT DATA MODAL -->
+<div class="modal-overlay" id="import-modal"><div class="modal">
+  <div class="modal-handle"></div><div class="modal-title">Import Data</div>
+  <p class="text-muted mb8" style="font-size:13px;">Upload a filled-in Excel template to bulk-load your accounts, bills, savings, income, expenses, and assets.</p>
+  <button class="btn btn-ghost" style="margin-bottom:12px;" onclick="downloadImportTemplate()"><i class="ti ti-download"></i> Download blank template</button>
+  <div class="field"><label>Choose your .xlsx file</label><input type="file" id="import-file" accept=".xlsx" onchange="handleImportFile(event)" style="width:100%;box-sizing:border-box;padding:9px 10px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:13px;"></div>
+  <div id="import-preview" style="display:none;background:var(--surface2);border-radius:var(--radius-sm);padding:12px 14px;margin-bottom:12px;font-size:13px;"></div>
+  <div style="background:rgba(247,201,72,0.08);border:1px solid rgba(247,201,72,0.3);border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:14px;font-size:12px;color:var(--warning);"><i class="ti ti-alert-triangle"></i> This will add to your existing data. If you've already imported once, importing again may create duplicates.</div>
+  <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal('import-modal')">Cancel</button><button class="btn btn-primary" id="import-confirm-btn" onclick="confirmImport()" disabled>Confirm Import</button></div>
 </div></div>
 
 <script>
@@ -3818,6 +3830,11 @@ function renderSetup(){
       <p class="text-muted mb8">Automatically share milestones (debts paid off, goals reached) to the community feed. Amounts are never shown.</p>
       <button class="btn ${autoOn?'btn-primary':'btn-ghost'}" onclick="toggleAutoPost()">${autoOn?'✓ Auto-Posts On':'Auto-Posts Off'}</button>
     </div>
+    <div class="card">
+      <div class="card-title">Import Data</div>
+      <p class="text-muted mb8">New here? Bulk-load your debts, bills, savings, income, expenses, and assets from an Excel template.</p>
+      <button class="btn btn-primary" onclick="openImportModal()"><i class="ti ti-file-upload"></i> Import Data</button>
+    </div>
     <div class="card"><div class="card-title">Account Info</div><div class="text-muted">Signed in as <strong>${esc(currentUser.email)}</strong></div><div class="divider"></div><button class="btn btn-danger" onclick="doLogout()">Sign Out</button></div>`;
 }
 async function saveDisplayName(){
@@ -3841,6 +3858,154 @@ async function toggleAutoPost(){
   const{error}=await sb.from('profiles').upsert(payload,{onConflict:'user_id'});
   if(error){toast('Error: '+error.message);return;}
   await loadProfiles();renderSetup();toast(newVal?'Auto-posts on':'Auto-posts off');
+}
+
+// DATA IMPORT
+let importParsed=null;
+function importStr(v){return (''+(v==null?'':v)).trim();}
+function importNum(v){return parseFloat((''+(v==null?'':v)).replace(/[$,\s]/g,''))||0;}
+function importDate(v){
+  if(v instanceof Date&&!isNaN(v)){const z=n=>String(n).padStart(2,'0');return v.getFullYear()+'-'+z(v.getMonth()+1)+'-'+z(v.getDate());}
+  return importStr(v);
+}
+function importRowVal(row,key){const target=key.toLowerCase();for(const k in row){if(k.toLowerCase().trim()===target)return row[k];}return '';}
+function normIncomeFreq(v){const s=importStr(v).toLowerCase();if(s.startsWith('week'))return 'weekly';if(s.startsWith('bi'))return 'biweekly';if(s.startsWith('semi'))return 'semimonthly';if(s.startsWith('month'))return 'monthly';return 'biweekly';}
+function normBillFreq(v){const s=importStr(v).toLowerCase();if(s.startsWith('quart'))return 'Quarterly';if(s.startsWith('semi'))return 'Semi-Annual';if(s.startsWith('ann'))return 'Annual';return 'Monthly';}
+function importRowBlank(row){return !Object.values(row).some(v=>importStr(v)!=='');}
+function downloadImportTemplate(){
+  if(typeof XLSX==='undefined'){toast('Spreadsheet library not loaded yet — try again');return;}
+  const wb=XLSX.utils.book_new();
+  const readme=[
+    ['Budget Tracker — Import Template'],
+    [''],
+    ['Fill in each sheet below, then upload it in the app via Settings → Import Data.'],
+    ['All date fields must be formatted as YYYY-MM-DD (e.g. 2026-06-22).'],
+    ['Leave a row blank to skip it. Blank rows are ignored on import.'],
+    [''],
+    ['SHEET GUIDE'],
+    ['Debts — Name, Type (credit card/loan/etc), Balance, Credit Limit, APR, Min Payment, Due Date (day of month). Required: Name.'],
+    ['Bills — Name, Amount, Due Day (1-31), Category, Frequency (Monthly/Quarterly/Semi-Annual/Annual), Due Month (1-12, for non-monthly). Required: Name, Amount.'],
+    ['Savings Pots — Name, Emoji, Goal Amount, Starting Balance, Notes. Required: Name.'],
+    ['Recurring Income — Source Name, Amount, Frequency (Weekly/Biweekly/Semimonthly/Monthly), Start Date, End Date, Monthly Allowance. Required: Source Name, Amount, Start Date.'],
+    ['Expenses — Date, Category, Description, Amount, Notes. Required: Date, Amount.'],
+    ['Assets — Name, Category, Value, Notes. Required: Name, Value.']
+  ];
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(readme),'README');
+  const sheet=headers=>XLSX.utils.aoa_to_sheet([headers]);
+  XLSX.utils.book_append_sheet(wb,sheet(['Name','Type','Balance','Credit Limit','APR','Min Payment','Due Date']),'Debts');
+  XLSX.utils.book_append_sheet(wb,sheet(['Name','Amount','Due Day','Category','Frequency','Due Month']),'Bills');
+  XLSX.utils.book_append_sheet(wb,sheet(['Name','Emoji','Goal Amount','Starting Balance','Notes']),'Savings Pots');
+  XLSX.utils.book_append_sheet(wb,sheet(['Source Name','Amount','Frequency','Start Date','End Date','Monthly Allowance']),'Recurring Income');
+  XLSX.utils.book_append_sheet(wb,sheet(['Date','Category','Description','Amount','Notes']),'Expenses');
+  XLSX.utils.book_append_sheet(wb,sheet(['Name','Category','Value','Notes']),'Assets');
+  XLSX.writeFile(wb,'budget-tracker-import-template.xlsx');
+}
+function openImportModal(){
+  importParsed=null;
+  const fileEl=document.getElementById('import-file');if(fileEl)fileEl.value='';
+  const preview=document.getElementById('import-preview');preview.style.display='none';preview.innerHTML='';
+  const btn=document.getElementById('import-confirm-btn');btn.disabled=true;btn.textContent='Confirm Import';
+  openModal('import-modal');
+}
+function handleImportFile(event){
+  const file=event.target.files[0];
+  const preview=document.getElementById('import-preview');
+  const btn=document.getElementById('import-confirm-btn');
+  if(!file){importParsed=null;preview.style.display='none';btn.disabled=true;return;}
+  if(typeof XLSX==='undefined'){preview.style.display='block';preview.innerHTML='<span style="color:var(--danger);">Spreadsheet library not loaded yet — try again in a moment.</span>';btn.disabled=true;return;}
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try{
+      const wb=XLSX.read(e.target.result,{type:'array',cellDates:true});
+      const get=name=>{const ws=wb.Sheets[name];return ws?XLSX.utils.sheet_to_json(ws,{defval:''}):[];};
+      importParsed={
+        income:get('Recurring Income'),
+        debts:get('Debts'),
+        bills:get('Bills'),
+        pots:get('Savings Pots'),
+        assets:get('Assets'),
+        expenses:get('Expenses')
+      };
+      const count=rows=>rows.filter(r=>!importRowBlank(r)).length;
+      const parts=[count(importParsed.debts)+' debts',count(importParsed.bills)+' bills',count(importParsed.income)+' income sources',count(importParsed.pots)+' savings pots',count(importParsed.assets)+' assets',count(importParsed.expenses)+' expenses'];
+      preview.innerHTML='<div style="font-weight:700;margin-bottom:4px;">Detected:</div>'+parts.join(' · ');
+      preview.style.display='block';
+      btn.disabled=false;
+    }catch(err){
+      importParsed=null;preview.style.display='block';preview.innerHTML='<span style="color:var(--danger);">Could not read file: '+esc(err.message||'invalid file')+'</span>';btn.disabled=true;
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+async function confirmImport(){
+  if(!importParsed){toast('Choose a file first');return;}
+  const btn=document.getElementById('import-confirm-btn');
+  btn.disabled=true;btn.textContent='Importing…';
+  const skipped=[];
+  // 1. Recurring Income
+  {const payloads=[];importParsed.income.forEach((r,i)=>{
+    if(importRowBlank(r))return;
+    const name=importStr(importRowVal(r,'Source Name'));
+    const amount=importNum(importRowVal(r,'Amount'));
+    const start=importDate(importRowVal(r,'Start Date'));
+    if(!name||amount<=0||!start){skipped.push('Recurring Income row '+(i+2)+': missing Source Name, Amount, or Start Date');return;}
+    const p={user_id:currentUser.id,name,amount,frequency:normIncomeFreq(importRowVal(r,'Frequency')),next_date:start,end_date:importDate(importRowVal(r,'End Date'))||null};
+    const allow=importNum(importRowVal(r,'Monthly Allowance'));if(allow>0)p.monthly_allowance=allow;
+    payloads.push(p);
+  });if(payloads.length){const{error}=await sb.from('recurring_income').insert(payloads);if(error)skipped.push('Recurring Income: '+error.message);}}
+  // 2. Debts
+  {const payloads=[];importParsed.debts.forEach((r,i)=>{
+    if(importRowBlank(r))return;
+    const name=importStr(importRowVal(r,'Name'));
+    if(!name){skipped.push('Debts row '+(i+2)+': missing Name');return;}
+    payloads.push({user_id:currentUser.id,name,type:importStr(importRowVal(r,'Type'))||'Other',balance:importNum(importRowVal(r,'Balance')),credit_limit:importNum(importRowVal(r,'Credit Limit'))||null,apr:importNum(importRowVal(r,'APR')),min_payment:importNum(importRowVal(r,'Min Payment')),due_date:parseInt(importRowVal(r,'Due Date'))||null});
+  });if(payloads.length){const{error}=await sb.from('debts').insert(payloads);if(error)skipped.push('Debts: '+error.message);}}
+  // 3. Bills
+  {const payloads=[];importParsed.bills.forEach((r,i)=>{
+    if(importRowBlank(r))return;
+    const name=importStr(importRowVal(r,'Name'));
+    const amount=importNum(importRowVal(r,'Amount'));
+    if(!name||amount<=0){skipped.push('Bills row '+(i+2)+': missing Name or Amount');return;}
+    payloads.push({user_id:currentUser.id,name,amount,due_day:parseInt(importRowVal(r,'Due Day'))||null,category:importStr(importRowVal(r,'Category'))||'Other',recurring:normBillFreq(importRowVal(r,'Frequency')),due_month:parseInt(importRowVal(r,'Due Month'))||null});
+  });if(payloads.length){const{error}=await sb.from('bills').insert(payloads);if(error)skipped.push('Bills: '+error.message);}}
+  // 4. Savings Pots (insert one-by-one so starting balances can be recorded)
+  {const rows=importParsed.pots;for(let i=0;i<rows.length;i++){const r=rows[i];
+    if(importRowBlank(r))continue;
+    const name=importStr(importRowVal(r,'Name'));
+    if(!name){skipped.push('Savings Pots row '+(i+2)+': missing Name');continue;}
+    const res=await sb.from('savings_pots').insert({user_id:currentUser.id,name,emoji:importStr(importRowVal(r,'Emoji'))||'💰',goal_amount:importNum(importRowVal(r,'Goal Amount')),notes:importStr(importRowVal(r,'Notes'))||null}).select().single();
+    if(res.error){skipped.push('Savings Pots row '+(i+2)+': '+res.error.message);continue;}
+    const starting=importNum(importRowVal(r,'Starting Balance'));
+    if(starting>0){await sb.from('savings_transactions').insert({user_id:currentUser.id,pot_id:res.data.id,type:'deposit',amount:starting,txn_date:today(),notes:'__starting_balance__'});}
+  }}
+  // 5. Assets
+  {const payloads=[];importParsed.assets.forEach((r,i)=>{
+    if(importRowBlank(r))return;
+    const name=importStr(importRowVal(r,'Name'));
+    const value=importNum(importRowVal(r,'Value'));
+    if(!name||value<=0){skipped.push('Assets row '+(i+2)+': missing Name or Value');return;}
+    payloads.push({user_id:currentUser.id,name,category:importStr(importRowVal(r,'Category'))||'Other',value,notes:importStr(importRowVal(r,'Notes'))||null});
+  });if(payloads.length){const{error}=await sb.from('user_assets').insert(payloads);if(error)skipped.push('Assets: '+error.message);}}
+  // 6. Expenses
+  {const payloads=[];importParsed.expenses.forEach((r,i)=>{
+    if(importRowBlank(r))return;
+    const date=importDate(importRowVal(r,'Date'));
+    const amount=importNum(importRowVal(r,'Amount'));
+    if(!date||amount<=0){skipped.push('Expenses row '+(i+2)+': missing Date or Amount');return;}
+    payloads.push({user_id:currentUser.id,exp_date:date,category:importStr(importRowVal(r,'Category'))||'Other',description:importStr(importRowVal(r,'Description'))||null,amount,notes:importStr(importRowVal(r,'Notes'))||null});
+  });if(payloads.length){const{error}=await sb.from('expenses').insert(payloads);if(error)skipped.push('Expenses: '+error.message);}}
+  // Reload everything and regenerate income periods
+  await Promise.all([loadDebts(),loadBills(),loadBillPayments(),loadPots(),loadSavingsTxns(),loadRecurring(),loadWeeks(),loadPaychecks(),loadExpenses(),loadAssets()]);
+  await topUpPeriods();
+  await Promise.all([loadWeeks(),loadPaychecks()]);
+  closeModal('import-modal');
+  btn.disabled=false;btn.textContent='Confirm Import';
+  document.getElementById('import-file').value='';
+  const preview=document.getElementById('import-preview');preview.style.display='none';preview.innerHTML='';
+  importParsed=null;
+  switchView('dashboard',null);
+  if(skipped.length){alert('Import complete, but some rows were skipped:\n\n'+skipped.join('\n'));}
+  toast('Import complete ✓');
 }
 
 // MODALS
