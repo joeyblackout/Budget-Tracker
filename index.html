@@ -767,15 +767,24 @@ let assets=[];
 let recurringSources=[];
 
 let isInviteFlow=false;
+let lastShownUserId=null;
+function maybeShowApp(user){
+  // Dedupe: getSession and onAuthStateChange (INITIAL_SESSION/SIGNED_IN/TOKEN_REFRESHED)
+  // can all fire for the same user on load. Only run showApp once per user.
+  if(user.id===lastShownUserId)return;
+  lastShownUserId=user.id;
+  currentUser=user;
+  showApp();
+}
 window.addEventListener('DOMContentLoaded',async()=>{
   isInviteFlow=/[#&]type=invite/.test(window.location.hash);
   const {data:{session}}=await sb.auth.getSession();
-  if(session?.user){currentUser=session.user;showApp();}else showAuth();
+  if(session?.user){maybeShowApp(session.user);}else showAuth();
   sb.auth.onAuthStateChange((event,session)=>{
     if(event==='PASSWORD_RECOVERY'){
       hideAllScreens();
       document.getElementById('reset-password-screen').style.display='flex';
-    }else if(session?.user){currentUser=session.user;showApp();}else{currentUser=null;showAuth();}
+    }else if(session?.user){maybeShowApp(session.user);}else{currentUser=null;lastShownUserId=null;showAuth();}
   });
 });
 
@@ -804,10 +813,17 @@ async function showApp(){
     document.getElementById('welcome-screen').style.display='flex';
     return;
   }
-  hideAllScreens();
+  // Reveal the app underneath the branded loading screen, finish loading data
+  // (loadAll ends by initializing the dashboard view), then fade the screen out
+  // so the dashboard is ready on first paint — no grey placeholder flash, and
+  // no need for the user to tap a tab.
+  document.getElementById('welcome-screen').style.display='none';
+  document.getElementById('set-password-screen').style.display='none';
+  document.getElementById('reset-password-screen').style.display='none';
   document.getElementById('app-screen').classList.add('visible');
   document.getElementById('sidebar-email').textContent=currentUser.email;
-  loadAll();
+  await loadAll();
+  hideLoadingScreen();
 }
 async function saveWelcomeName(){
   const name=document.getElementById('welcome-name').value.trim();
@@ -902,7 +918,7 @@ async function cleanupPaidOffDebtBills(){
   await loadBills();
   return true;
 }
-async function loadAll(){await Promise.all([loadDebts(),loadPayments(),loadExpenses(),loadWeeks(),loadPaychecks(),loadBills(),loadBillPayments(),loadPots(),loadSavingsTxns(),loadProfiles(),loadPosts(),loadReactions(),loadShared(),loadRecurring(),loadAssets(),loadBudgetTargets()]);await topUpPeriods();await migrateDiningCategory();await cleanupPaidOffDebtBills();renderDashboard();updateBillBadge();updateNotifBadge();startPolling();await openPaydayRoutine();}
+async function loadAll(){await Promise.all([loadDebts(),loadPayments(),loadExpenses(),loadWeeks(),loadPaychecks(),loadBills(),loadBillPayments(),loadPots(),loadSavingsTxns(),loadProfiles(),loadPosts(),loadReactions(),loadShared(),loadRecurring(),loadAssets(),loadBudgetTargets()]);await topUpPeriods();await migrateDiningCategory();await cleanupPaidOffDebtBills();switchView('dashboard',null);updateBillBadge();updateNotifBadge();startPolling();await openPaydayRoutine();}
 async function topUpPeriods(){
   // Only extend recurring sources if the furthest period is within 10 months out
   if(recurringSources.length===0)return;
