@@ -785,6 +785,7 @@ select option{background:var(--surface);color:var(--text);}
   <button class="btn btn-ghost" style="margin-bottom:12px;" onclick="downloadImportTemplate()"><i class="ti ti-download"></i> Download blank template</button>
   <div class="field"><label>Choose your .xlsx file</label><input type="file" id="import-file" accept=".xlsx" onchange="handleImportFile(event)" style="width:100%;box-sizing:border-box;padding:9px 10px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:13px;"></div>
   <div id="import-preview" style="display:none;background:var(--surface2);border-radius:var(--radius-sm);padding:12px 14px;margin-bottom:12px;font-size:13px;"></div>
+  <div style="background:rgba(247,201,72,0.08);border:1px solid rgba(247,201,72,0.3);border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:10px;font-size:12px;color:var(--warning);"><i class="ti ti-alert-triangle"></i> If you're importing past expenses, make sure your Starting Cash in Settings reflects your balance from before those expenses — otherwise your Available Balance will be understated.</div>
   <div style="background:rgba(247,201,72,0.08);border:1px solid rgba(247,201,72,0.3);border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:14px;font-size:12px;color:var(--warning);"><i class="ti ti-alert-triangle"></i> This will add to your existing data. If you've already imported once, importing again may create duplicates.</div>
   <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal('import-modal')">Cancel</button><button class="btn btn-primary" id="import-confirm-btn" onclick="confirmImport()" disabled>Confirm Import</button></div>
 </div></div>
@@ -3822,7 +3823,7 @@ function renderSetup(){
     <div class="card">
       <div class="card-title">Starting Cash on Hand</div>
       <p class="text-muted mb8">Set your current checking/cash balance. This is the foundation your available balance builds on.</p>
-      <div class="field"><label>Current Cash ($)</label><input type="number" id="setting-starting-cash" placeholder="0.00" step="0.01" value="${myProfile?.starting_cash?myProfile.starting_cash:''}"/></div>
+      <div class="field"><label>Current Cash ($)</label><input type="number" id="setting-starting-cash" placeholder="0.00" step="0.01" value="${myProfile?.starting_cash?myProfile.starting_cash:''}"/><div style="font-size:11px;color:var(--muted);margin-top:4px;">Set this to your balance as of the date you start logging. Don't backfill old expenses unless your starting cash reflects that earlier date.</div></div>
       <button class="btn btn-primary" onclick="saveStartingCash()">Save Cash</button>
     </div>
     <div class="card">
@@ -4529,6 +4530,7 @@ function renderInstructions(){
       ['What is this app?','Budget Tracker is a simple money app for you and your family. It keeps your income, debts, bills, savings, and spending in one place so you always know where you stand — and how close you are to paying things off.'],
       ['How do I put it on my phone?','Open the app in Safari, tap the Share button (the square with an arrow pointing up), then tap "Add to Home Screen." It will open full-screen with its own icon, just like a normal app.'],
       ['What should I do first?','Two quick things in Settings: set your Display Name (so family can recognize you) and your Starting Cash on Hand (the money in your checking account right now). Everything else builds on that starting cash.'],
+      ['Important: what should my Starting Cash be?','Your Starting Cash should reflect your balance after accounting for any past expenses, bills, and debt payments you don\'t plan to log. If you\'re going to backfill historical expenses, set your Starting Cash to what your balance was at the point you start logging from — not today\'s balance. Logging old expenses on top of a current balance will cause your Available Balance to read lower than it actually is.'],
       ['Do I have to set it all up at once?','No. The app works best if you follow Steps 1–6 in order, but you can stop and come back anytime. Nothing is lost.'],
     ])}
     ${section('1️⃣','Step 1 — Set Up Your Income',[
@@ -4597,7 +4599,7 @@ function renderInstructions(){
     ])}
     ${section('⚙️','Settings',[
       ['Display Name','The name shown in the Community feed and used when family members invite you to shared pots. You set this on your first login and can change it anytime.'],
-      ['Starting Cash on Hand','The money in your checking account right now. Your Available Balance builds on top of this number, so keep it roughly up to date.'],
+      ['Starting Cash on Hand','The money in your checking account right now. Your Available Balance builds on top of this number, so keep it roughly up to date. If you plan to backfill historical expenses, set your Starting Cash to your balance as of the date you start logging from — not today\'s balance — or your Available Balance will read lower than it actually is.'],
       ['Auto-Post toggle','Turns the automatic milestone posts to the Community feed on or off.'],
       ['Import Data','New here and have a lot to enter? Tap Import Data to download an Excel template, fill in your debts, bills, savings, income, expenses, and assets, then upload it to load everything at once.'],
     ])}`;
