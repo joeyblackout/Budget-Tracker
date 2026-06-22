@@ -224,7 +224,9 @@ select option{background:var(--surface);color:var(--text);}
 .reaction-btn{background:var(--surface2);border:1px solid var(--border);border-radius:99px;padding:5px 11px;font-size:14px;cursor:pointer;transition:all 0.15s;display:flex;align-items:center;gap:4px;}
 .reaction-btn:active{transform:scale(0.92);}
 .reaction-btn.reacted{border-color:var(--accent);background:rgba(79,142,247,0.12);}
-.reaction-count{font-size:12px;font-weight:700;color:var(--muted);}
+.reaction-count{font-size:12px;font-weight:700;color:var(--muted);cursor:pointer;padding:1px 6px;border-radius:99px;transition:background 0.15s;}
+.reaction-count:hover{background:rgba(255,255,255,0.08);}
+.reaction-count:active{transform:scale(0.9);}
 .reaction-btn.reacted .reaction-count{color:var(--accent);}
 .onboarding-highlight{outline:2px solid var(--accent);outline-offset:3px;border-radius:8px;}
 </style>
@@ -2353,11 +2355,9 @@ async function deletePost(postId){
 function showReactors(postId,emoji){
   const names=reactions.filter(r=>r.post_id===postId&&r.emoji===emoji).map(r=>displayName(r.user_id));
   if(names.length===0)return;
-  const header='<div style="text-align:center;padding:8px 0 16px;border-bottom:1px solid var(--border);margin-bottom:8px;">'
-    +'<div style="font-size:44px;line-height:1;">'+emoji+'</div>'
-    +'<div style="font-size:13px;color:var(--muted);margin-top:6px;">'+names.length+' '+(names.length===1?'person':'people')+' reacted</div></div>';
+  const title=emoji+' '+names.length+' '+(names.length===1?'reaction':'reactions');
   const rows=names.map(n=>'<div class="account-row"><div style="flex:1;"><div class="account-name">'+esc(n)+'</div></div></div>').join('');
-  openDashModal(emoji+' Reactions',header+rows,null);
+  openDashModal(title,rows,null);
 }
 async function autoPost(message){
   if(myProfile&&myProfile.auto_post===false)return;
