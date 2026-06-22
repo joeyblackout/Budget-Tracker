@@ -1124,74 +1124,76 @@ function monthIncome(yr,mo,fallbackAvg){
 function billsDueInMonth(yr,mo){
   return bills.filter(b=>!b.debt_id&&isBillDueInMonth(b,yr,mo)).reduce((s,b)=>s+parseFloat(b.amount||0),0);
 }
-// Per-month extra-payment budget = strategy % of THAT month's DISCRETIONARY income (no carry-over).
-// Discretionary = month income (scheduled or fallback) − bills due that month (frequency-aware). No expenses.
-function makeMonthExtraFn(){
-  if(forecastStrategy==='min')return ()=>0;
-  const fb=recurringFallbackAvg().avg;
-  const now=new Date();
-  return (m)=>{
-    const d=new Date(now.getFullYear(),now.getMonth()+m,1);
-    const yr=d.getFullYear(),mo=d.getMonth();
-    const disc=monthIncome(yr,mo,fb).amount-billsDueInMonth(yr,mo);
-    if(disc<=0)return 0; // negative discretionary → minimums only this month
-    if(forecastStrategy==='10')return 0.10*disc;
-    if(forecastStrategy==='25')return 0.25*disc;
-    if(forecastStrategy==='50')return 0.50*disc;
-    if(forecastStrategy==='custom')return forecastCustomMode==='%'?(forecastCustomAmt/100)*disc:forecastCustomAmt;
-    return 0;
-  };
+// Strategy extra allocation given a month's discretionary income. The full amount goes to the first
+// debt in sorted order (handled inside the sim). disc already includes freed payments.
+function strategyExtraOfDisc(disc){
+  if(forecastStrategy==='min'||disc<=0)return 0;
+  if(forecastStrategy==='10')return 0.10*disc;
+  if(forecastStrategy==='25')return 0.25*disc;
+  if(forecastStrategy==='50')return 0.50*disc;
+  if(forecastStrategy==='custom')return forecastCustomMode==='%'?(forecastCustomAmt/100)*disc:forecastCustomAmt;
+  return 0;
 }
 // Month-by-month debt simulation over `maxMonths` (the actual horizon — NOT the forecast window).
-// Each call DEEP-COPIES the debt balances into a fresh `active` array (new objects, primitive values),
-// so separate runs (selected strategy vs minimums-only) share no state and cannot corrupt each other.
-// Payoff months are the real month a debt reaches $0; balEnd is the actual balance at the horizon.
-function runDebtSim(monthExtraFn,maxMonths){
+// extraOfDisc(discretionary) returns the strategy's extra allocation for a month; pass ()=>0 for
+// minimums-only. Implements the rollover cascade: freed minimums roll to the next debt within a month
+// AND permanently increase discretionary in later months. Each call DEEP-COPIES balances so separate
+// runs (strategy vs minimums-only) share no state.
+function runDebtSim(extraOfDisc,maxMonths){
   const active=debts.filter(d=>parseFloat(d.balance||0)>0).map(d=>({
     id:d.id,name:d.name,type:d.type,bal:parseFloat(d.balance||0),apr:parseFloat(d.apr||0),
     minPay:parseFloat(d.min_payment||0),interestPaid:0,payoffMonth:null,balEnd:0
   }));
+  const fb=recurringFallbackAvg().avg;
+  const now=new Date();
   const monthlyTotals=[];
+  let freedPayments=0; // cumulative & permanent — freed minimums boost discretionary every later month
   let sanityLogged=false;
   for(let m=0;m<maxMonths;m++){
     const live=active.filter(d=>d.bal>0.005);
     if(live.length===0)break;
     const startTotal=active.reduce((s,d)=>s+d.bal,0);
+    const d0=new Date(now.getFullYear(),now.getMonth()+m,1);
+    const income=monthIncome(d0.getFullYear(),d0.getMonth(),fb).amount;
+    const billsDue=billsDueInMonth(d0.getFullYear(),d0.getMonth());
+    const monthlyDiscretionary=income-billsDue+freedPayments;
+    const extraAllocation=Math.max(0,extraOfDisc(monthlyDiscretionary)||0);
+    // Re-sort each month (snowball order can shift as balances change)
+    const order=live.slice().sort((a,b)=>forecastDebtMethod==='snowball'?(a.bal-b.bal):(b.apr-a.apr));
+    let rolledOverPayment=0,extraGiven=false;
     let monthTotal=0,interestThisMonth=0,extraThisMonth=0;
-    // 1) accrue interest, 2) track it, then compute minimum (capped at balance, never negative)
-    live.forEach(d=>{
+    for(const d of order){
+      // 1) accrue interest
       const interest=d.bal*(d.apr/100/12);
       d.bal+=interest;d.interestPaid+=interest;interestThisMonth+=interest;
-      let min=(d.type==='Credit Card')?Math.max(25,d.bal*0.02):d.minPay;
-      if(min>d.bal)min=d.bal;
-      if(min<0)min=0;
-      d._min=min;
-    });
-    // 3) apply minimum payment (floor at 0)
-    live.forEach(d=>{d.bal=Math.max(0,d.bal-d._min);monthTotal+=d._min;});
-    // 4) distribute extra in strategy order (avalanche: highest APR first; snowball: lowest balance first).
-    //    Allocate to the first debt until it hits $0, then cascade the remainder to the next.
-    let extra=Math.max(0,monthExtraFn(m)||0); // never negative
-    const order=live.filter(d=>d.bal>0.005).sort((a,b)=>forecastDebtMethod==='snowball'?(a.bal-b.bal):(b.apr-a.apr));
-    for(const d of order){
-      if(extra<=0.005)break;
-      const pay=Math.min(extra,d.bal); // never more than this debt's balance, never negative
-      if(pay<=0)continue;
-      d.bal=Math.max(0,d.bal-pay);extra-=pay;monthTotal+=pay;extraThisMonth+=pay;
+      // 2) this debt's minimum
+      let minimum=(d.type==='Credit Card')?Math.max(25,d.bal*0.02):d.minPay;
+      if(minimum>d.bal)minimum=d.bal;
+      if(minimum<0)minimum=0;
+      // 3) total payment = minimum + rolled-over; extra goes ONLY to the first debt still carrying a balance
+      let totalPayment=minimum+rolledOverPayment;
+      if(!extraGiven&&extraAllocation>0&&d.bal>0.005){totalPayment+=extraAllocation;extraGiven=true;extraThisMonth+=extraAllocation;}
+      // 4) never pay more than the balance
+      const actualPayment=Math.min(totalPayment,d.bal);
+      // 5) apply
+      d.bal=Math.max(0,d.bal-actualPayment);monthTotal+=actualPayment;
+      // 6/7) payoff → free the minimum (permanent + roll to next this month); else this debt absorbed it all
+      if(d.bal<=0.005){
+        d.bal=0;
+        if(d.payoffMonth===null)d.payoffMonth=m;
+        freedPayments+=minimum;
+        rolledOverPayment+=minimum;
+      }else{
+        rolledOverPayment=0;
+      }
     }
-    // 5) floor + record payoff
-    live.forEach(d=>{d.bal=Math.max(0,d.bal);if(d.bal<=0.005&&d.payoffMonth===null){d.payoffMonth=m;d.bal=0;}});
     monthlyTotals.push(monthTotal);
-    // Per-month sanity check: end debt must equal start + interest − payments. If it exceeds that,
-    // a payment failed to reduce a balance (sign inversion). Also flag a rise despite extra applied.
+    // Per-month sanity check: end debt must equal start + interest − payments (else a payment isn't reducing balance)
     const endTotal=active.reduce((s,d)=>s+d.bal,0);
     const expectedEnd=startTotal+interestThisMonth-monthTotal;
     if(!sanityLogged&&endTotal>expectedEnd+0.5){
       sanityLogged=true;
       console.error('[forecast] SANITY FAIL @ month '+m+': end debt $'+endTotal.toFixed(2)+' > expected $'+expectedEnd.toFixed(2)+' (start $'+startTotal.toFixed(2)+' + interest $'+interestThisMonth.toFixed(2)+' − payments $'+monthTotal.toFixed(2)+') — a payment is not reducing the balance.');
-    }else if(!sanityLogged&&extraThisMonth>0&&endTotal>startTotal+0.5){
-      sanityLogged=true;
-      console.error('[forecast] SANITY: total debt rose $'+startTotal.toFixed(0)+'→$'+endTotal.toFixed(0)+' @ month '+m+' despite $'+extraThisMonth.toFixed(0)+' extra applied (interest $'+interestThisMonth.toFixed(0)+', total paid $'+monthTotal.toFixed(0)+') — likely negative amortization or an inversion bug.');
     }
   }
   // Actual remaining balance at the horizon (0 for debts already paid off)
@@ -1229,7 +1231,7 @@ function forecastStrategyUI(){
     if(forecastStrategy==='custom')extraAvg=forecastCustomMode==='%'?avgDisc*(forecastCustomAmt/100):forecastCustomAmt;
     else extraAvg=avgDisc*pct;
     const pctTxt=forecastStrategy==='custom'?(forecastCustomMode==='%'?forecastCustomAmt+'%':'fixed'):(pct*100)+'%';
-    let line='Based on recurring income schedule · avg ~'+fmt(avgIncome)+'/mo · '+pctTxt+' = ~'+fmt(extraAvg)+' avg extra/mo toward debt';
+    let line='Based on recurring income schedule · avg ~'+fmt(avgIncome)+'/mo · '+pctTxt+' = ~'+fmt(extraAvg)+'/mo extra toward debt · increases as debts pay off';
     if(lastSched>=0&&lastSched<599)line+=' · fallback avg '+fmt(fbInfo.avg)+'/mo used after '+monthLabelFromIndex(lastSched+1);
     if(higher>0)line+=' · Incl. '+higher+' higher-income month'+(higher!==1?'s':'');
     h+='<div style="font-size:11px;color:var(--muted);margin-bottom:10px;line-height:1.5;">'+line+'</div>';
@@ -1319,13 +1321,19 @@ function forecastStrategySection(){
     // Strategy simulation ALWAYS runs a fixed 10-year (120-month) horizon, fully independent of the
     // selected forecast window — both the selected strategy and the minimums-only comparison.
     const STRAT_MONTHS=120;
-    const sim=runDebtSim(makeMonthExtraFn(),STRAT_MONTHS);
+    const sim=runDebtSim(strategyExtraOfDisc,STRAT_MONTHS);
     const minSim=runDebtSim(()=>0,STRAT_MONTHS);
     // Dev-only sanity checks on the strategy simulation
     const totalDebtNow=debts.reduce((s,d)=>s+parseFloat(d.balance||0),0);
     const anyApr=debts.some(d=>parseFloat(d.apr||0)>0);
     if(sim.debtFreeMonth!==null&&sim.debtFreeMonth<1&&totalDebtNow>1000)console.warn('[forecast] Debt-free <1 month away with >$1,000 debt — simulation may be broken');
     if(sim.totalInterest<10&&totalDebtNow>1000&&anyApr)console.warn('[forecast] Total interest <$10 with >$1,000 debt and APR>0 — simulation may be broken');
+    // Correctness: an extra-payment strategy must never be slower or accrue more interest than minimums-only
+    if(forecastStrategy!=='min'){
+      const sm=sim.debtFreeMonth,mm=minSim.debtFreeMonth;
+      if((sm===null&&mm!==null)||(sm!==null&&mm!==null&&sm>mm))console.error('[forecast] CORRECTNESS: strategy debt-free month ('+sm+') is later than minimums-only ('+mm+') — cascade/extra logic is wrong.');
+      if(sim.totalInterest>minSim.totalInterest+0.5)console.error('[forecast] CORRECTNESS: strategy interest ($'+sim.totalInterest.toFixed(0)+') exceeds minimums-only ($'+minSim.totalInterest.toFixed(0)+') — impossible, logic is wrong.');
+    }
     html+='<div style="margin-bottom:14px;">'+forecastStrategyUI()+forecastDebtCallout(sim,minSim)+forecastDebtTimeline(sim)+'</div>';
   }
   return html;
