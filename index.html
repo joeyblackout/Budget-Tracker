@@ -585,6 +585,7 @@ select option{background:var(--surface);color:var(--text);}
   <div class="field"><label>Category</label><select id="bill-category"><option>Housing</option><option>Utilities</option><option>Insurance</option><option>Subscriptions</option><option>Phone</option><option>Internet</option><option>Transportation</option><option>Debt</option><option>Other</option></select></div>
   <div class="field"><label>Recurring</label><select id="bill-recurring" onchange="updateBillDueMonthVisibility()"><option value="monthly">Monthly</option><option value="weekly">Weekly</option><option value="biweekly">Every 2 Weeks</option><option value="quarterly">Quarterly</option><option value="semi-annual">Semi-Annual</option><option value="annually">Annually</option><option value="once">One Time</option></select></div>
   <div class="field" id="bill-due-month-field" style="display:none;"><label id="bill-due-month-label">First Due Month</label><select id="bill-due-month"><option value="1">January</option><option value="2">February</option><option value="3">March</option><option value="4">April</option><option value="5">May</option><option value="6">June</option><option value="7">July</option><option value="8">August</option><option value="9">September</option><option value="10">October</option><option value="11">November</option><option value="12">December</option></select></div>
+  <div class="field"><label>End Date (optional)</label><input type="date" id="bill-end-date"/><div style="font-size:11px;color:var(--muted);margin-top:4px;">Bill stops after this date</div></div>
   <div class="field"><label>Notes (optional)</label><input type="text" id="bill-notes" placeholder="Optional notes…"/></div>
   <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal('bill-modal')">Cancel</button><button class="btn btn-primary" onclick="saveBill()">Save</button></div>
 </div></div>
@@ -1864,6 +1865,7 @@ function getRoutineBillsList(){
   const thisMonth=new Date().toISOString().slice(0,7);
   return bills.filter(b=>{
     if(b.debt_id)return false;
+    if(isBillExpired(b))return false;
     if(!isBillDueThisMonth(b))return false;
     if(billPayments.some(p=>p.bill_id===b.id&&(p.paid_date||'').startsWith(thisMonth)))return false;
     return true;
@@ -2141,7 +2143,7 @@ function renderDashboard(){
   const thisYearStr=new Date().getFullYear().toString();
   const dispBillsPaid=dashBalancePeriod==='month'?billPayments.filter(p=>(p.paid_date||'').startsWith(thisMonthStr)).reduce((s,p)=>s+parseFloat(p.amount||0),0):dashBalancePeriod==='year'?billPayments.filter(p=>(p.paid_date||'').startsWith(thisYearStr)).reduce((s,p)=>s+parseFloat(p.amount||0),0):totalBillsPaid;
   const dispExpenses=dashBalancePeriod==='month'?expenses.filter(e=>(e.exp_date||'').startsWith(thisMonthStr)).reduce((s,e)=>s+parseFloat(e.amount||0),0):dashBalancePeriod==='year'?expenses.filter(e=>(e.exp_date||'').startsWith(thisYearStr)).reduce((s,e)=>s+parseFloat(e.amount||0),0):totalExpenses;
-  const monthlyBills=bills.filter(isBillDueThisMonth);
+  const monthlyBills=bills.filter(b=>!isBillExpired(b)&&isBillDueThisMonth(b));
   const monthlyTotal=monthlyBills.reduce((s,b)=>s+parseFloat(b.amount||0),0);
   const monthlyPaidAmt=billPayments.filter(p=>(p.paid_date||'').startsWith(thisMonthStr)).reduce((s,p)=>s+parseFloat(p.amount||0),0);
   const monthlyPaidCount=monthlyBills.filter(b=>billPayments.some(p=>p.bill_id===b.id&&(p.paid_date||'').startsWith(thisMonthStr))).length;
@@ -2783,7 +2785,15 @@ async function autoPost(message){
 }
 
 // BILLS
+// ALTER TABLE bills ADD COLUMN IF NOT EXISTS end_date date;
+// True if a bill has an end_date and today (or the given date) is past it — stops recurring after that date.
+function isBillExpired(b,refDateStr){
+  if(!b||!b.end_date)return false;
+  return (refDateStr||today())>b.end_date;
+}
 function isBillDueInMonth(b,year,month){
+  // Past the bill's end_date for this whole month → not due
+  if(b.end_date){const monthStart=new Date(year,month,1).toISOString().slice(0,10);if(b.end_date<monthStart)return false;}
   const rec=b.recurring||'monthly';
   if(rec==='monthly'||rec==='weekly'||rec==='biweekly')return true;
   if(rec==='once')return false;
@@ -2805,9 +2815,10 @@ function renderBills(){
   if(bills.length===0){el.innerHTML=`<div class="empty"><div class="icon"><i class="ti ti-home"></i></div><p>No bills yet. Tap <strong>+</strong> to add one.</p></div>`;return;}
   const todayDay=new Date().getDate();
   const thisMonth=new Date().toISOString().slice(0,7);
-  const monthly=bills.filter(b=>b.recurring==='monthly');
-  const other=bills.filter(b=>b.recurring!=='monthly');
-  const dueThisMonth=bills.filter(isBillDueThisMonth);
+  const visibleBills=bills.filter(b=>!isBillExpired(b)); // hide bills past their end_date
+  const monthly=visibleBills.filter(b=>b.recurring==='monthly');
+  const other=visibleBills.filter(b=>b.recurring!=='monthly');
+  const dueThisMonth=visibleBills.filter(isBillDueThisMonth);
   const monthlyTotal=dueThisMonth.reduce((s,b)=>s+parseFloat(b.amount||0),0);
   const monthlyPaidThisMonth=billPayments.filter(p=>(p.paid_date||'').startsWith(thisMonth)).reduce((s,b)=>s+parseFloat(b.amount||0),0);
   const monthlyPaidCount=dueThisMonth.filter(b=>billPayments.some(p=>p.bill_id===b.id&&(p.paid_date||'').startsWith(thisMonth))).length;
@@ -2824,6 +2835,7 @@ function renderBills(){
       <div style="flex:1;">
         <div class="bill-name">${esc(b.name)} ${isPaid?'<span style="font-size:11px;color:var(--success);font-weight:700;">✓ Paid</span>':''}</div>
         <div class="bill-meta">${esc(b.category)}${(()=>{const MO=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];const rec=b.recurring||'monthly';const dm=b.due_month?parseInt(b.due_month)-1:null;const day=b.due_day?' · Day '+b.due_day:'';const rl={'weekly':'Weekly','biweekly':'Every 2 Weeks','quarterly':'Quarterly','semi-annual':'Semi-Annual','annually':'Annually','once':'One Time'};if(rec==='annually'&&dm!=null)return' · Due '+MO[dm]+day+' · Annual';if(rec==='semi-annual'&&dm!=null)return' · Due '+MO[dm]+' & '+MO[(dm+6)%12]+day+' · Semi-Annual';if(rec==='quarterly'&&dm!=null)return' · Due '+MO[dm]+'/'+MO[(dm+3)%12]+'/'+MO[(dm+6)%12]+'/'+MO[(dm+9)%12]+day+' · Quarterly';const freqLabel=rec!=='monthly'?' · '+(rl[rec]||capFirst(rec)):'';return(b.due_day?' · Due day '+b.due_day:'')+freqLabel;})()}${(()=>{const last=billPayments.filter(p=>p.bill_id===b.id).sort((a,c)=>a.paid_date<c.paid_date?1:-1)[0];return last?' · Last paid '+fmtDate(last.paid_date):'';})()}${b.notes?' · '+esc(b.notes):''}</div>
+        ${b.end_date?`<div class="bill-meta" style="color:var(--warning);">Ends ${fmtDate(b.end_date)}</div>`:''}
         <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px;">
           ${isPaid?`<span class="bill-recur" style="background:rgba(45,212,160,0.15);color:var(--success);">Paid ${fmt(paidAmount)}</span>`
             :dueSoon?`<span class="bill-due-soon">Due in ${dueDay-todayDay} days</span>`
@@ -2857,9 +2869,9 @@ function renderBills(){
   </div>`;
   let groupedHTML='';
   if(billsGroupBy==='category'){
-    const cats=[...new Set(bills.map(b=>b.category||'Uncategorized'))].sort();
+    const cats=[...new Set(visibleBills.map(b=>b.category||'Uncategorized'))].sort();
     groupedHTML=cats.map(cat=>{
-      const group=bills.filter(b=>(b.category||'Uncategorized')===cat);
+      const group=visibleBills.filter(b=>(b.category||'Uncategorized')===cat);
       const catTotal=group.reduce((s,b)=>s+parseFloat(b.amount||0),0);
       const isOpen=!!billsCatOpen[cat];
       const paidCount=group.filter(b=>billPayments.some(p=>p.bill_id===b.id&&(p.paid_date||'').startsWith(thisMonth))).length;
@@ -2892,11 +2904,11 @@ function renderBills(){
     ${groupToggle}
     ${(()=>{
       if(billsGroupBy!=='category')return'';
-      const allCats=[...new Set(bills.map(b=>b.category||'Uncategorized'))].sort();
-      const grandTotal=bills.reduce((s,b)=>s+parseFloat(b.amount||0),0);
+      const allCats=[...new Set(visibleBills.map(b=>b.category||'Uncategorized'))].sort();
+      const grandTotal=visibleBills.reduce((s,b)=>s+parseFloat(b.amount||0),0);
       if(grandTotal===0)return'';
       const slices=allCats.map((cat,i)=>{
-        const amt=bills.filter(b=>(b.category||'Uncategorized')===cat).reduce((s,b)=>s+parseFloat(b.amount||0),0);
+        const amt=visibleBills.filter(b=>(b.category||'Uncategorized')===cat).reduce((s,b)=>s+parseFloat(b.amount||0),0);
         return{cat,amt,pct:amt/grandTotal,col:CAT_COLORS[i%CAT_COLORS.length]};
       });
       // SVG donut: cx=90,cy=90,r=70
@@ -2941,8 +2953,8 @@ function updateBillDueMonthVisibility(){
 function openBillModal(id=null){
   document.getElementById('bill-modal-title').textContent=id?'Edit Bill':'Add Bill';
   document.getElementById('bill-edit-id').value=id||'';
-  if(id){const b=bills.find(x=>x.id===id);if(b){document.getElementById('bill-name').value=b.name||'';document.getElementById('bill-amount').value=b.amount||'';document.getElementById('bill-due-day').value=b.due_day||'';document.getElementById('bill-category').value=b.category||'Other';document.getElementById('bill-recurring').value=b.recurring||'monthly';document.getElementById('bill-due-month').value=b.due_month||new Date().getMonth()+1;document.getElementById('bill-notes').value=b.notes||'';}}
-  else{['bill-name','bill-amount','bill-due-day','bill-notes'].forEach(i=>document.getElementById(i).value='');document.getElementById('bill-category').value='Other';document.getElementById('bill-recurring').value='monthly';document.getElementById('bill-due-month').value=new Date().getMonth()+1;}
+  if(id){const b=bills.find(x=>x.id===id);if(b){document.getElementById('bill-name').value=b.name||'';document.getElementById('bill-amount').value=b.amount||'';document.getElementById('bill-due-day').value=b.due_day||'';document.getElementById('bill-category').value=b.category||'Other';document.getElementById('bill-recurring').value=b.recurring||'monthly';document.getElementById('bill-due-month').value=b.due_month||new Date().getMonth()+1;document.getElementById('bill-end-date').value=b.end_date||'';document.getElementById('bill-notes').value=b.notes||'';}}
+  else{['bill-name','bill-amount','bill-due-day','bill-end-date','bill-notes'].forEach(i=>document.getElementById(i).value='');document.getElementById('bill-category').value='Other';document.getElementById('bill-recurring').value='monthly';document.getElementById('bill-due-month').value=new Date().getMonth()+1;}
   updateBillDueMonthVisibility();
   openModal('bill-modal');
 }
@@ -2953,7 +2965,7 @@ async function saveBill(){
   if(!name){toast('Enter a bill name');return;}
   const _rec=document.getElementById('bill-recurring').value;
   const _needsMonth=['quarterly','semi-annual','annually'].includes(_rec);
-  const payload={user_id:currentUser.id,name,amount:parseFloat(document.getElementById('bill-amount').value)||0,due_day:parseInt(document.getElementById('bill-due-day').value)||null,category:document.getElementById('bill-category').value,recurring:_rec,due_month:_needsMonth?parseInt(document.getElementById('bill-due-month').value):null,notes:document.getElementById('bill-notes').value.trim()||null};
+  const payload={user_id:currentUser.id,name,amount:parseFloat(document.getElementById('bill-amount').value)||0,due_day:parseInt(document.getElementById('bill-due-day').value)||null,category:document.getElementById('bill-category').value,recurring:_rec,due_month:_needsMonth?parseInt(document.getElementById('bill-due-month').value):null,end_date:document.getElementById('bill-end-date').value||null,notes:document.getElementById('bill-notes').value.trim()||null};
   const res=id?await sb.from('bills').update(payload).eq('id',id):await sb.from('bills').insert(payload);
   if(res.error){toast('Error: '+res.error.message);return;}
   closeModal('bill-modal');await loadBills();renderBills();renderDashboard();toast(id?'Bill updated ✓':'Bill added ✓');
@@ -2963,6 +2975,7 @@ function getDueBills(){
   const todayDay=new Date().getDate();
   const thisMonth=new Date().toISOString().slice(0,7);
   return bills.filter(b=>{
+    if(isBillExpired(b))return false;
     const dueDay=parseInt(b.due_day||0);
     if(!dueDay)return false;
     const isPaid=billPayments.some(p=>p.bill_id===b.id&&(p.paid_date||'').startsWith(thisMonth));
@@ -4235,6 +4248,7 @@ function updateBillBadge(){
   const todayDay=new Date().getDate();
   const thisMonth=new Date().toISOString().slice(0,7);
   const urgent=bills.filter(b=>{
+    if(isBillExpired(b))return false;
     const dueDay=parseInt(b.due_day||0);
     if(!dueDay)return false;
     const isPaid=billPayments.some(p=>p.bill_id===b.id&&(p.paid_date||'').startsWith(thisMonth));
@@ -4532,11 +4546,11 @@ function getNotifications(){
     notifs.push({type:'invite',priority:1,icon:'<i class="ti ti-users"></i>',title:`${displayName(inv.inviter_id)} invited you`,body:`Join "${esc(inv.pot_name)}" shared savings pot`,action:()=>{closeNotifications();switchView('savings',null);},accept:()=>acceptInvite(inv.id,inv.pot_id),decline:()=>declineInvite(inv.id)});
   });
   // 2. Overdue bills
-  bills.filter(b=>{const d=parseInt(b.due_day||0);if(!d)return false;const paid=billPayments.some(p=>p.bill_id===b.id&&(p.paid_date||'').startsWith(thisMonth));return!paid&&todayDay>d;}).forEach(b=>{
+  bills.filter(b=>{if(isBillExpired(b))return false;const d=parseInt(b.due_day||0);if(!d)return false;const paid=billPayments.some(p=>p.bill_id===b.id&&(p.paid_date||'').startsWith(thisMonth));return!paid&&todayDay>d;}).forEach(b=>{
     notifs.push({type:'bill-overdue',priority:2,icon:'<i class="ti ti-alert-circle" style="color:var(--danger);"></i>',title:`${esc(b.name)} is overdue`,body:`$${parseFloat(b.amount).toFixed(2)} was due on day ${b.due_day}`,action:()=>{closeNotifications();switchView('bills',null);}});
   });
   // 3. Bills due soon (within 5 days)
-  bills.filter(b=>{const d=parseInt(b.due_day||0);if(!d)return false;const paid=billPayments.some(p=>p.bill_id===b.id&&(p.paid_date||'').startsWith(thisMonth));const diff=d-todayDay;return!paid&&diff>=0&&diff<=5;}).forEach(b=>{
+  bills.filter(b=>{if(isBillExpired(b))return false;const d=parseInt(b.due_day||0);if(!d)return false;const paid=billPayments.some(p=>p.bill_id===b.id&&(p.paid_date||'').startsWith(thisMonth));const diff=d-todayDay;return!paid&&diff>=0&&diff<=5;}).forEach(b=>{
     const diff=parseInt(b.due_day)-todayDay;
     notifs.push({type:'bill-soon',priority:3,icon:'<i class="ti ti-calendar"></i>',title:`${esc(b.name)} due ${diff===0?'today':`in ${diff} day${diff!==1?'s':''}`}`,body:`$${parseFloat(b.amount).toFixed(2)} due day ${b.due_day}`,action:()=>{closeNotifications();switchView('bills',null);}});
   });
