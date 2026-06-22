@@ -213,6 +213,8 @@ select option{background:var(--surface);color:var(--text);}
 .feed-post{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;margin-bottom:12px;}
 .feed-post.milestone{border-color:var(--accent);background:linear-gradient(135deg,rgba(79,142,247,0.06),rgba(124,77,255,0.04));}
 .feed-header{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
+.feed-delete-btn{margin-left:auto;background:none;border:none;color:var(--muted);cursor:pointer;padding:4px 6px;font-size:16px;line-height:1;border-radius:6px;transition:color 0.15s,background 0.15s;}
+.feed-delete-btn:hover{color:var(--danger);background:rgba(247,90,90,0.1);}
 .feed-avatar{width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;color:#fff;flex-shrink:0;}
 .feed-name{font-size:14px;font-weight:700;}
 .feed-time{font-size:11px;color:var(--muted);}
@@ -2305,10 +2307,12 @@ function renderCommunity(){
     const postReactions=reactions.filter(r=>r.post_id===post.id);
     const reactionCounts={};
     REACTION_EMOJIS.forEach(e=>{reactionCounts[e]=postReactions.filter(r=>r.emoji===e).length;});
+    const isAuthor=post.user_id===currentUser.id;
     return`<div class="feed-post ${post.is_milestone?'milestone':''}">
       <div class="feed-header">
         <div class="feed-avatar">${initials(name)}</div>
         <div><div class="feed-name">${esc(name)}</div><div class="feed-time">${timeAgo(post.created_at)}</div></div>
+        ${isAuthor?`<button class="feed-delete-btn" onclick="deletePost('${post.id}')" title="Delete post"><i class="ti ti-trash"></i></button>`:''}
       </div>
       ${post.is_milestone?`<span class="feed-milestone-tag"><i class="ti ti-trophy"></i> Milestone</span>`:''}
       <div class="feed-message">${esc(post.message)}</div>
@@ -2316,7 +2320,7 @@ function renderCommunity(){
         ${REACTION_EMOJIS.map(e=>{
           const mine=postReactions.some(r=>r.emoji===e&&r.user_id===currentUser.id);
           const count=reactionCounts[e];
-          return`<button class="reaction-btn ${mine?'reacted':''}" onclick="toggleReaction('${post.id}','${e}')">${e}${count>0?`<span class="reaction-count">${count}</span>`:''}</button>`;
+          return`<button class="reaction-btn ${mine?'reacted':''}" onclick="toggleReaction('${post.id}','${e}')">${e}${count>0?`<span class="reaction-count" onclick="event.stopPropagation();showReactors('${post.id}','${e}')">${count}</span>`:''}</button>`;
         }).join('')}
       </div>
     </div>`;
@@ -2339,6 +2343,21 @@ async function toggleReaction(postId,emoji){
   if(existing){await sb.from('post_reactions').delete().eq('id',existing.id);}
   else{await sb.from('post_reactions').insert({user_id:currentUser.id,post_id:postId,emoji});}
   await loadReactions();renderCommunity();
+}
+async function deletePost(postId){
+  if(!confirm('Delete this post permanently? This cannot be undone.'))return;
+  const{error}=await sb.from('community_posts').delete().eq('id',postId);
+  if(error){toast('Error: '+error.message);return;}
+  await loadPosts();renderCommunity();toast('Post deleted');
+}
+function showReactors(postId,emoji){
+  const names=reactions.filter(r=>r.post_id===postId&&r.emoji===emoji).map(r=>displayName(r.user_id));
+  if(names.length===0)return;
+  const header='<div style="text-align:center;padding:8px 0 16px;border-bottom:1px solid var(--border);margin-bottom:8px;">'
+    +'<div style="font-size:44px;line-height:1;">'+emoji+'</div>'
+    +'<div style="font-size:13px;color:var(--muted);margin-top:6px;">'+names.length+' '+(names.length===1?'person':'people')+' reacted</div></div>';
+  const rows=names.map(n=>'<div class="account-row"><div style="flex:1;"><div class="account-name">'+esc(n)+'</div></div></div>').join('');
+  openDashModal(emoji+' Reactions',header+rows,null);
 }
 async function autoPost(message){
   if(myProfile&&myProfile.auto_post===false)return;
