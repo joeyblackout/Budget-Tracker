@@ -3198,18 +3198,32 @@ function renderWeekly(){
   const active=sorted.filter(w=>w.pay_date>=cutoffStr&&(incomeFilter==='all'||w.source_name===incomeFilter||!w.source_name));
   const archived=sorted.filter(w=>w.pay_date<cutoffStr&&(incomeFilter==='all'||w.source_name===incomeFilter||!w.source_name));
   // Totals bar
-  const confirmedTotal=paychecks.filter(p=>{
+  const confirmedPaychecks=paychecks.filter(p=>{
     const w=weeks.find(x=>x.id===p.pay_week_id);
     return incomeFilter==='all'||w?.source_name===incomeFilter||!w?.source_name;
-  }).reduce((s,p)=>s+parseFloat(p.amount||0),0);
+  });
+  const confirmedTotal=confirmedPaychecks.reduce((s,p)=>s+parseFloat(p.amount||0),0);
   const allFiltered=[...active,...archived];
   const pendingPeriods=allFiltered.filter(w=>paychecks.filter(p=>p.pay_week_id===w.id).length===0);
   const expectedTotal=pendingPeriods.reduce((s,w)=>s+parseFloat(w.expected_amount||0),0);
+  // Date-range subtitles under each stat
+  const fmtStatDate=(dateStr)=>new Date(dateStr+'T00:00:00').toLocaleString('en-US',{month:'short',day:'numeric'});
+  const curYear=new Date().getFullYear();
+  const dateRangeSub=(dates)=>{
+    const ds=dates.filter(Boolean).slice().sort();
+    if(ds.length===0)return '';
+    const first=ds[0],last=ds[ds.length-1];
+    const fmtOne=(d)=>new Date(d+'T00:00:00').getFullYear()===curYear?fmtStatDate(d):new Date(d+'T00:00:00').toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric'});
+    const label=first===last?fmtOne(first):`${fmtOne(first)} – ${fmtOne(last)}`;
+    return `<div style="font-size:10px;color:var(--muted);margin-top:1px;">${label}</div>`;
+  };
+  const confirmedSub=dateRangeSub(confirmedPaychecks.map(p=>p.pay_date));
+  const pendingSub=dateRangeSub(pendingPeriods.map(w=>w.pay_date));
   const totalsBar=`<div class="card" style="margin-bottom:14px;">
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
-      <div onclick="showConfirmedIncomeModal()" style="cursor:pointer;"><div class="stat-label">Confirmed</div><div style="font-size:18px;font-weight:800;color:var(--success);">${fmt(confirmedTotal)}</div></div>
-      <div><div class="stat-label">Expected</div><div style="font-size:18px;font-weight:800;color:var(--warning);">${fmt(expectedTotal)}</div></div>
-      <div><div class="stat-label">Pending</div><div style="font-size:18px;font-weight:800;color:var(--muted);">${pendingPeriods.length} period${pendingPeriods.length!==1?'s':''}</div></div>
+      <div onclick="showConfirmedIncomeModal()" style="cursor:pointer;"><div class="stat-label">Confirmed</div>${confirmedSub}<div style="font-size:18px;font-weight:800;color:var(--success);">${fmt(confirmedTotal)}</div></div>
+      <div><div class="stat-label">Expected</div>${pendingSub}<div style="font-size:18px;font-weight:800;color:var(--warning);">${fmt(expectedTotal)}</div></div>
+      <div><div class="stat-label">Pending</div>${pendingSub}<div style="font-size:18px;font-weight:800;color:var(--muted);">${pendingPeriods.length} period${pendingPeriods.length!==1?'s':''}</div></div>
     </div>
   </div>`;
   let html=filterBar+totalsBar;
