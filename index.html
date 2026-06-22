@@ -1090,8 +1090,9 @@ function buildForecastSchedule(){
       if(r.end_date&&ds>r.end_date)break;
       const idx=(d.getFullYear()-baseY)*12+(d.getMonth()-baseM);
       if(idx<0)continue;
-      if(!map[idx])map[idx]={amount:0,paychecks:0};
+      if(!map[idx])map[idx]={amount:0,paychecks:0,lastPayDate:null};
       map[idx].amount+=amt;map[idx].paychecks+=1;
+      if(!map[idx].lastPayDate||ds>map[idx].lastPayDate)map[idx].lastPayDate=ds; // latest payday in this month across sources
       if(!seen[idx]){seen[idx]=1;map[idx].amount+=allowance;} // monthly allowance once per month per source
       if(idx>lastMonth)lastMonth=idx;
     }
@@ -1145,7 +1146,7 @@ function strategyExtraOfDisc(disc){
 function runDebtSim(extraOfDisc,maxMonths){
   const active=debts.filter(d=>parseFloat(d.balance||0)>0).map(d=>({
     id:d.id,name:d.name,type:d.type,bal:parseFloat(d.balance||0),apr:parseFloat(d.apr||0),
-    minPay:parseFloat(d.min_payment||0),interestPaid:0,payoffMonth:null,balEnd:0
+    minPay:parseFloat(d.min_payment||0),interestPaid:0,payoffMonth:null,payoffDate:null,payoffDateEst:false,balEnd:0
   }));
   const fb=recurringFallbackAvg().avg;
   const now=new Date();
@@ -1183,7 +1184,17 @@ function runDebtSim(extraOfDisc,maxMonths){
       // 6/7) payoff → free the minimum (permanent + roll to next this month); else this debt absorbed it all
       if(d.bal<=0.005){
         d.bal=0;
-        if(d.payoffMonth===null)d.payoffMonth=m;
+        if(d.payoffMonth===null){
+          d.payoffMonth=m;
+          // Day-level payoff date: last scheduled payday in this month, else 15th estimate (fallback territory)
+          const sched=getForecastSchedule().map[m];
+          if(sched&&sched.paychecks>0&&sched.lastPayDate){
+            d.payoffDate=sched.lastPayDate;d.payoffDateEst=false;
+          }else{
+            const yr=d0.getFullYear(),mo=d0.getMonth();
+            d.payoffDate=yr+'-'+String(mo+1).padStart(2,'0')+'-15';d.payoffDateEst=true;
+          }
+        }
         freedPayments+=minimum;
         rolledOverPayment+=minimum;
       }else{
@@ -1255,19 +1266,25 @@ function forecastStrategyUI(){
   }
   return h;
 }
+// Format a YYYY-MM-DD payoff date: full "Jun 14, 2028" when exact, month+year "Jun 2028" when estimated
+function fmtPayoffDate(dateStr,est){
+  const d=new Date(dateStr+'T00:00:00');
+  return est?d.toLocaleString('en-US',{month:'short',year:'numeric'}):d.toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric'});
+}
 function forecastDebtCallout(sim,minSim){
   if(sim.debts.length===0){
     return '<div class="card" style="border-color:var(--success);background:rgba(45,212,160,0.08);margin-bottom:14px;text-align:center;"><div style="font-size:16px;font-weight:800;color:var(--success);">You have no remaining debt 🎉</div></div>';
   }
   const dfm=sim.debtFreeMonth; // actual month all debts hit $0, within the fixed 120-month simulation
-  let color,main,sub='',dfDateStr='';
+  let color,main,sub='',dfDateStr='',dfDateEst=false;
   if(dfm===null){
     color='var(--danger)';main='Not paid off within 10 years at this pace';sub='Increase your monthly payment to make real progress.';
   }else{
     color=dfm>36?'var(--warning)':'var(--success)';
     main='Debt-free by '+monthLabelFromIndex(dfm);
-    const dfDate=new Date(new Date().getFullYear(),new Date().getMonth()+dfm,1);
-    dfDateStr=dfDate.toLocaleString('en-US',{month:'long',day:'numeric',year:'numeric'});
+    // The last debt to clear drives the overall day-level target date
+    const lastDebt=sim.debts.filter(d=>d.payoffMonth!==null).reduce((a,d)=>d.payoffMonth>a.payoffMonth?d:a);
+    if(lastDebt&&lastDebt.payoffDate){dfDateStr=fmtPayoffDate(lastDebt.payoffDate,lastDebt.payoffDateEst);dfDateEst=lastDebt.payoffDateEst;}
   }
   let savingsLine='';
   if(forecastStrategy!=='min'){
@@ -1282,7 +1299,7 @@ function forecastDebtCallout(sim,minSim){
   return '<div class="card" style="border-color:'+color+';background:var(--surface);margin-bottom:14px;">'
     +'<div style="font-size:18px;font-weight:800;color:'+color+';">'+main+'</div>'
     +(sub?'<div style="font-size:12px;color:var(--muted);margin-top:2px;">'+sub+'</div>':'')
-    +(dfm!==null?'<div style="font-size:12px;color:var(--muted);margin-top:4px;">Target date: <span style="color:var(--text);font-weight:700;">'+dfDateStr+'</span></div>':'')
+    +(dfm!==null&&dfDateStr?'<div style="font-size:12px;color:var(--muted);margin-top:4px;">Target date: <span style="color:var(--text);font-weight:700;">'+dfDateStr+'</span>'+(dfDateEst?' (est.)':'')+'</div>':'')
     +'<div style="margin-top:12px;font-size:13px;color:var(--muted);">Est. interest paid: <span style="color:var(--text);font-weight:800;">'+fmt(sim.totalInterest)+'</span></div>'
     +savingsLine+'</div>';
 }
@@ -1293,8 +1310,14 @@ function forecastDebtTimeline(sim){
   const fallbackStarts=(forecastStrategy!=='min'&&lastSched>=0&&lastSched<599)?lastSched+1:null;
   const rows=sim.debts.map(d=>{
     const paid=d.payoffMonth!==null; // sim runs the fixed 120 months, so this is paid-within-10-years
-    const estimated=fallbackStarts!==null&&(!paid||d.payoffMonth>=fallbackStarts);
-    const label=(paid?'Paid off ~'+monthLabelFromIndex(d.payoffMonth)+' ✓':'Not paid off within 10 years')+(estimated?' (est.)':'');
+    const estimated=(fallbackStarts!==null&&(!paid||d.payoffMonth>=fallbackStarts))||(paid&&d.payoffDateEst);
+    let label;
+    if(paid){
+      const dateTxt=d.payoffDate?fmtPayoffDate(d.payoffDate,estimated):monthLabelFromIndex(d.payoffMonth);
+      label=(estimated?'~'+dateTxt+' ✓':'Paid off '+dateTxt+' ✓')+(estimated?' (est.)':'');
+    }else{
+      label='Not paid off within 10 years';
+    }
     const remain=paid?0:d.balEnd; // actual simulated balance at payoff (0) or at month 120
     return '<div class="account-row"><div style="flex:1;min-width:0;"><div class="account-name">'+esc(d.name)+'</div>'
       +'<div class="account-detail" style="color:'+(paid?'var(--success)':'var(--danger)')+';font-weight:700;">'+label+'</div></div>'
