@@ -1143,6 +1143,8 @@ function makeMonthExtraFn(){
   };
 }
 // Month-by-month debt simulation. Returns per-debt payoff data, monthly totals, total interest.
+// Each call DEEP-COPIES the debt balances into a fresh `active` array (new objects, primitive values),
+// so separate runs (selected strategy vs minimums-only) share no state and cannot corrupt each other.
 function runDebtSim(monthExtraFn,windowMonths){
   const active=debts.filter(d=>parseFloat(d.balance||0)>0).map(d=>({
     id:d.id,name:d.name,type:d.type,bal:parseFloat(d.balance||0),apr:parseFloat(d.apr||0),
@@ -1151,29 +1153,49 @@ function runDebtSim(monthExtraFn,windowMonths){
   const CAP=600;
   const monthlyTotals=[];
   let interest10yr=0; // interest accrued within the first 120 months (10 years)
+  let sanityLogged=false;
   for(let m=0;m<CAP;m++){
     const live=active.filter(d=>d.bal>0.005);
     if(live.length===0)break;
-    let monthTotal=0;
-    // 1) accrue interest + compute minimum (never more than balance)
+    const startTotal=active.reduce((s,d)=>s+d.bal,0);
+    let monthTotal=0,interestThisMonth=0,extraThisMonth=0;
+    // 1) accrue interest, 2) track it, then compute minimum (capped at balance, never negative)
     live.forEach(d=>{
       const interest=d.bal*(d.apr/100/12);
-      d.bal+=interest;d.interestPaid+=interest;
+      d.bal+=interest;d.interestPaid+=interest;interestThisMonth+=interest;
       if(m<120)interest10yr+=interest;
       let min=(d.type==='Credit Card')?Math.max(25,d.bal*0.02):d.minPay;
       if(min>d.bal)min=d.bal;
+      if(min<0)min=0;
       d._min=min;
     });
-    // 2) apply base minimum
-    live.forEach(d=>{d.bal-=d._min;monthTotal+=d._min;});
-    // 3) distribute this month's extra by strategy order (no carry-over between months)
-    let extra=monthExtraFn(m)||0;
+    // 3) apply minimum payment (floor at 0)
+    live.forEach(d=>{d.bal=Math.max(0,d.bal-d._min);monthTotal+=d._min;});
+    // 4) distribute extra in strategy order (avalanche: highest APR first; snowball: lowest balance first).
+    //    Allocate to the first debt until it hits $0, then cascade the remainder to the next.
+    let extra=Math.max(0,monthExtraFn(m)||0); // never negative
     const order=live.filter(d=>d.bal>0.005).sort((a,b)=>forecastDebtMethod==='snowball'?(a.bal-b.bal):(b.apr-a.apr));
-    for(const d of order){if(extra<=0.005)break;const pay=Math.min(extra,d.bal);d.bal-=pay;extra-=pay;monthTotal+=pay;}
-    // 4) record payoff / zero out
-    live.forEach(d=>{if(d.bal<=0.005&&d.payoffMonth===null){d.payoffMonth=m;d.bal=0;}});
+    for(const d of order){
+      if(extra<=0.005)break;
+      const pay=Math.min(extra,d.bal); // never more than this debt's balance, never negative
+      if(pay<=0)continue;
+      d.bal=Math.max(0,d.bal-pay);extra-=pay;monthTotal+=pay;extraThisMonth+=pay;
+    }
+    // 5) floor + record payoff
+    live.forEach(d=>{d.bal=Math.max(0,d.bal);if(d.bal<=0.005&&d.payoffMonth===null){d.payoffMonth=m;d.bal=0;}});
     if(m===windowMonths-1)active.forEach(d=>{d.balAtWindow=Math.max(0,d.bal);});
     monthlyTotals.push(monthTotal);
+    // Per-month sanity check: end debt must equal start + interest − payments. If it exceeds that,
+    // a payment failed to reduce a balance (sign inversion). Also flag a rise despite extra applied.
+    const endTotal=active.reduce((s,d)=>s+d.bal,0);
+    const expectedEnd=startTotal+interestThisMonth-monthTotal;
+    if(!sanityLogged&&endTotal>expectedEnd+0.5){
+      sanityLogged=true;
+      console.error('[forecast] SANITY FAIL @ month '+m+': end debt $'+endTotal.toFixed(2)+' > expected $'+expectedEnd.toFixed(2)+' (start $'+startTotal.toFixed(2)+' + interest $'+interestThisMonth.toFixed(2)+' − payments $'+monthTotal.toFixed(2)+') — a payment is not reducing the balance.');
+    }else if(!sanityLogged&&extraThisMonth>0&&endTotal>startTotal+0.5){
+      sanityLogged=true;
+      console.error('[forecast] SANITY: total debt rose $'+startTotal.toFixed(0)+'→$'+endTotal.toFixed(0)+' @ month '+m+' despite $'+extraThisMonth.toFixed(0)+' extra applied (interest $'+interestThisMonth.toFixed(0)+', total paid $'+monthTotal.toFixed(0)+') — likely negative amortization or an inversion bug.');
+    }
   }
   if(windowMonths>monthlyTotals.length)active.forEach(d=>{if(d.payoffMonth!==null)d.balAtWindow=0;});
   const totalInterest=active.reduce((s,d)=>s+d.interestPaid,0);
