@@ -1250,7 +1250,10 @@ function forecastStrategyUI(){
     // Most months have real paychecks → say "scheduled income"; only fully/mostly-fallback → show the flat avg
     const incomeDesc=(schedMonths>0&&schedMonths>=fbMonths)?'scheduled income':'avg ~'+fmt(avgIncome)+'/mo';
     let line='Based on recurring income schedule · '+incomeDesc+' · '+pctTxt+' = ~'+fmt(extraAvg)+'/mo extra toward debt · increases as debts pay off';
-    if(lastSched>=0&&lastSched<599)line+=' · fallback avg '+fmt(fbInfo.avg)+'/mo used after '+monthLabelFromIndex(lastSched+1);
+    // Only mention the fallback avg if debts aren't already cleared before fallback territory begins
+    const _dfm=runDebtSim(strategyExtraOfDisc,120).debtFreeMonth;
+    if(lastSched>=0&&lastSched<599&&(_dfm===null||_dfm>lastSched))
+      line+=' · fallback avg '+fmt(fbInfo.avg)+'/mo used after '+monthLabelFromIndex(lastSched+1);
     if(higher>0)line+=' · Incl. '+higher+' higher-income month'+(higher!==1?'s':'');
     line += ' · Discretionary = income − monthly bills';
     h+='<div style="font-size:11px;color:var(--muted);margin-bottom:10px;line-height:1.5;">'+line+'</div>';
