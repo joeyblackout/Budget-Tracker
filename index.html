@@ -1056,16 +1056,52 @@ function monthlyBillsEstimate(){
     if(rec==='weekly')m+=amt*52/12;else if(rec==='biweekly')m+=amt*26/12;else if(rec==='quarterly')m+=amt/3;else if(rec==='semi-annual')m+=amt/6;else if(rec==='annually'||rec==='annual')m+=amt/12;else m+=amt;});
   return m;
 }
-function forecastExtraPool(){
-  const incomeLessBills=Math.max(0,monthlyIncomeEstimate()-monthlyBillsEstimate());
-  if(forecastStrategy==='10')return 0.10*incomeLessBills;
-  if(forecastStrategy==='25')return 0.25*incomeLessBills;
-  if(forecastStrategy==='50')return 0.50*incomeLessBills;
-  if(forecastStrategy==='custom')return forecastCustomMode==='%'?(forecastCustomAmt/100)*incomeLessBills:forecastCustomAmt;
-  return 0;
+// How many paydays a recurring source lands in a given calendar month
+function paydaysInMonth(r,yr,mo){
+  if(!r.next_date)return 0;
+  const monthStart=new Date(yr,mo,1),monthEnd=new Date(yr,mo+1,0);
+  let count=0;
+  for(let i=0;i<500;i++){
+    const ds=addInterval(r.next_date,r.frequency,i);
+    const d=new Date(ds+'T00:00:00');
+    if(d>monthEnd)break;
+    if(r.end_date&&ds>r.end_date)break;
+    if(d>=monthStart&&d<=monthEnd)count++;
+  }
+  return count;
+}
+// Projected income for a specific calendar month: prefer real pay periods, else project from recurring sources
+function projectedIncomeForMonth(yr,mo){
+  const key=String(yr)+'-'+String(mo+1).padStart(2,'0');
+  const fromWeeks=weeks.filter(w=>(w.pay_date||'').startsWith(key)).reduce((s,w)=>s+parseFloat(w.expected_amount||0),0);
+  if(fromWeeks>0)return fromWeeks;
+  let total=0;
+  recurringSources.forEach(r=>{
+    const amt=parseFloat(r.amount||0);if(amt<=0)return;
+    const count=paydaysInMonth(r,yr,mo);
+    if(count>0){total+=amt*count+parseFloat(r.monthly_allowance||0);}
+  });
+  return total;
+}
+// Per-month extra-payment budget: % of THAT month's income-less-bills (no carry-over); $0 if no income that month
+function makeMonthExtraFn(){
+  if(forecastStrategy==='min')return ()=>0;
+  const monthlyBills=monthlyBillsEstimate();
+  const now=new Date();
+  return (m)=>{
+    const d=new Date(now.getFullYear(),now.getMonth()+m,1);
+    const income=projectedIncomeForMonth(d.getFullYear(),d.getMonth());
+    if(income<=0)return 0; // gap month → minimums only
+    const net=Math.max(0,income-monthlyBills);
+    if(forecastStrategy==='10')return 0.10*net;
+    if(forecastStrategy==='25')return 0.25*net;
+    if(forecastStrategy==='50')return 0.50*net;
+    if(forecastStrategy==='custom')return forecastCustomMode==='%'?(forecastCustomAmt/100)*net:forecastCustomAmt;
+    return 0;
+  };
 }
 // Month-by-month debt simulation. Returns per-debt payoff data, monthly totals, total interest.
-function runDebtSim(extraPool,windowMonths){
+function runDebtSim(monthExtraFn,windowMonths){
   const active=debts.filter(d=>parseFloat(d.balance||0)>0).map(d=>({
     id:d.id,name:d.name,type:d.type,bal:parseFloat(d.balance||0),apr:parseFloat(d.apr||0),
     minPay:parseFloat(d.min_payment||0),interestPaid:0,payoffMonth:null,balAtWindow:0
@@ -1086,8 +1122,8 @@ function runDebtSim(extraPool,windowMonths){
     });
     // 2) apply base minimum
     live.forEach(d=>{d.bal-=d._min;monthTotal+=d._min;});
-    // 3) distribute extra by strategy order
-    let extra=extraPool;
+    // 3) distribute this month's extra by strategy order (no carry-over between months)
+    let extra=monthExtraFn(m)||0;
     const order=live.filter(d=>d.bal>0.005).sort((a,b)=>forecastDebtMethod==='snowball'?(a.bal-b.bal):(b.apr-a.apr));
     for(const d of order){if(extra<=0.005)break;const pay=Math.min(extra,d.bal);d.bal-=pay;extra-=pay;monthTotal+=pay;}
     // 4) record payoff / zero out
@@ -1261,9 +1297,14 @@ function renderForecast(){
   }
   // Debt simulation (dynamic month-by-month) drives the projected debt payments
   const windowMonths=(endDate.getFullYear()-todayDate.getFullYear())*12+(endDate.getMonth()-todayDate.getMonth())+1;
-  const extraPool=forecastExtraPool();
-  const sim=runDebtSim(extraPool,windowMonths);
-  const minSim=runDebtSim(0,windowMonths);
+  const sim=runDebtSim(makeMonthExtraFn(),windowMonths);
+  const minSim=runDebtSim(()=>0,windowMonths);
+  // Sanity checks (dev console only) — flag results that indicate the simulation is broken
+  const totalDebtNow=debts.reduce((s,d)=>s+parseFloat(d.balance||0),0);
+  const anyApr=debts.some(d=>parseFloat(d.apr||0)>0);
+  if(sim.debtFreeMonth!==null&&sim.debtFreeMonth<1&&totalDebtNow>1000)console.warn('[forecast] Debt-free <1 month away with >$1,000 debt — simulation may be broken');
+  if(sim.totalInterest<10&&totalDebtNow>1000&&anyApr)console.warn('[forecast] Total interest <$10 with >$1,000 debt and APR>0 — simulation may be broken');
+  if(forecastStrategy!=='min'&&(minSim.totalInterest-sim.totalInterest)>totalDebtNow)console.warn('[forecast] Interest savings exceed total current debt — mathematically impossible');
   // Inject one debt-payment event per month within the window (15th of each month)
   for(let m=0;m<windowMonths&&m<sim.monthlyTotals.length;m++){
     const amt=sim.monthlyTotals[m];
