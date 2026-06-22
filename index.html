@@ -498,6 +498,30 @@ select option{background:var(--surface);color:var(--text);}
   <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal('edit-paycheck-modal')">Cancel</button><button class="btn btn-primary" onclick="saveEditPaycheck()">Save</button></div>
 </div></div>
 
+<!-- USE AMOUNT (ADD TO INCOME) MODAL -->
+<div class="modal-overlay" id="use-amount-modal"><div class="modal">
+  <div class="modal-handle"></div><div class="modal-title">Add to Income</div>
+  <div style="text-align:center;margin-bottom:16px;"><div style="font-size:12px;color:var(--muted);margin-bottom:2px;">Amount</div><div id="ua-amount-display" style="font-size:30px;font-weight:800;color:var(--success);letter-spacing:-0.02em;"></div></div>
+  <div class="field"><label>Pay Date</label><input type="date" id="ua-date"/></div>
+  <div class="field"><label>Type</label>
+    <div style="display:flex;gap:8px;">
+      <button type="button" id="ua-mode-once" class="toggle-btn active" style="flex:1;" onclick="setUseAmountMode('once')">One-time</button>
+      <button type="button" id="ua-mode-recurring" class="toggle-btn" style="flex:1;" onclick="setUseAmountMode('recurring')">Recurring</button>
+    </div>
+  </div>
+  <div class="field" id="ua-frequency-field" style="display:none;"><label>Frequency</label>
+    <select id="ua-frequency">
+      <option value="weekly">Weekly</option>
+      <option value="biweekly">Every 2 weeks</option>
+      <option value="semimonthly">Twice a month (1st & 15th)</option>
+      <option value="monthly">Monthly</option>
+    </select>
+  </div>
+  <div class="field" id="ua-end-field" style="display:none;"><label>End Date — optional (leave blank for ongoing)</label><input type="date" id="ua-end"/></div>
+  <div class="field"><label>Job name or income source</label><input type="text" id="ua-source" placeholder="e.g. Main Job"/></div>
+  <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal('use-amount-modal')">Cancel</button><button class="btn btn-primary" onclick="confirmUseAmount()">Confirm</button></div>
+</div></div>
+
 <!-- PAYCHECK MODAL -->
 <div class="modal-overlay" id="paycheck-modal"><div class="modal">
   <div class="modal-handle"></div><div class="modal-title">Log Paycheck</div>
@@ -4225,8 +4249,59 @@ function updatePaycalcOutput(){
     +'<div style="font-size:13px;color:var(--muted);margin-bottom:4px;">Net Pay ('+{weekly:'Weekly',biweekly:'Biweekly',monthly:'Monthly'}[freq]+')</div>'
     +'<div style="font-size:32px;font-weight:800;color:var(--success);letter-spacing:-0.02em;">'+fmt(netPay)+'</div>'
     +'<div style="font-size:12px;color:var(--muted);margin-top:4px;">'+((netPay/gross)*100).toFixed(1)+'% of gross</div>'
-    +'<button onclick="paycalcPrefill='+netPay.toFixed(2)+';switchView(\'weekly\',null);toast(\'Amount pre-filled — open any pay period to log it\');" style="margin-top:14px;width:100%;padding:12px;background:linear-gradient(135deg,var(--success),#0a9e74);color:#fff;border:none;border-radius:99px;font-size:14px;font-weight:700;cursor:pointer;">Use this amount →</button>'
+    +'<button onclick="openUseAmountModal('+netPay.toFixed(2)+')" style="margin-top:14px;width:100%;padding:12px;background:linear-gradient(135deg,var(--success),#0a9e74);color:#fff;border:none;border-radius:99px;font-size:14px;font-weight:700;cursor:pointer;">Use this amount →</button>'
     +'</div>';
+}
+let useAmountValue=0;
+let useAmountMode='once';
+function openUseAmountModal(amount){
+  useAmountValue=parseFloat(amount)||0;
+  document.getElementById('ua-amount-display').textContent=fmt(useAmountValue);
+  document.getElementById('ua-date').value=today();
+  document.getElementById('ua-end').value='';
+  document.getElementById('ua-frequency').value='biweekly';
+  // Pre-fill source from the calculator's source field if one exists
+  document.getElementById('ua-source').value=document.getElementById('pc-source')?.value||'';
+  setUseAmountMode('once');
+  openModal('use-amount-modal');
+}
+function setUseAmountMode(mode){
+  useAmountMode=mode;
+  document.getElementById('ua-mode-once').classList.toggle('active',mode==='once');
+  document.getElementById('ua-mode-recurring').classList.toggle('active',mode==='recurring');
+  const rec=mode==='recurring';
+  document.getElementById('ua-frequency-field').style.display=rec?'':'none';
+  document.getElementById('ua-end-field').style.display=rec?'':'none';
+}
+async function confirmUseAmount(){
+  const amount=useAmountValue;
+  const payDate=document.getElementById('ua-date').value;
+  const source=document.getElementById('ua-source').value.trim();
+  if(!payDate){toast('Pick a pay date');return;}
+  if(!amount||amount<=0){toast('Invalid amount');return;}
+  if(useAmountMode==='once'){
+    const{data:weekData,error}=await sb.from('pay_weeks').insert({user_id:currentUser.id,pay_date:payDate,bills_amount:0,expected_amount:amount,source_name:source||null}).select().single();
+    if(error){toast('Error: '+error.message);return;}
+    const{error:pErr}=await sb.from('paychecks').insert({user_id:currentUser.id,pay_week_id:weekData.id,amount,pay_date:payDate,notes:'From Paycheck Calculator'});
+    if(pErr){toast('Error: '+pErr.message);return;}
+    await Promise.all([loadWeeks(),loadPaychecks()]);
+    closeModal('use-amount-modal');
+    switchView('weekly',null);renderDashboard();
+    toast('Paycheck added ✓');
+  }else{
+    const frequency=document.getElementById('ua-frequency').value;
+    const end=document.getElementById('ua-end').value||null;
+    if(!source){toast('Enter a source name');return;}
+    if(end&&end<=payDate){toast('End date must be after start date');return;}
+    const{error}=await sb.from('recurring_income').insert({user_id:currentUser.id,name:source,amount,frequency,next_date:payDate,end_date:end});
+    if(error){toast('Error: '+error.message);return;}
+    await Promise.all([loadRecurring(),loadWeeks(),loadPaychecks()]);
+    await topUpPeriods();
+    await Promise.all([loadRecurring(),loadWeeks(),loadPaychecks()]);
+    closeModal('use-amount-modal');
+    switchView('weekly',null);renderDashboard();
+    toast('Recurring income saved ✓');
+  }
 }
 function renderInstructions(){
   const el=document.getElementById('instructions-content');
