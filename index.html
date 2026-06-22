@@ -4280,10 +4280,11 @@ async function confirmUseAmount(){
   if(!payDate){toast('Pick a pay date');return;}
   if(!amount||amount<=0){toast('Invalid amount');return;}
   if(useAmountMode==='once'){
-    const{data:weekData,error}=await sb.from('pay_weeks').insert({user_id:currentUser.id,pay_date:payDate,bills_amount:0,expected_amount:amount,source_name:source||null}).select().single();
+    // Insert only the pay period with an expected amount — no paychecks row.
+    // That leaves it PENDING so the Income tab shows the normal
+    // "✓ Received" / "Different amount" options instead of a confirmed entry.
+    const{error}=await sb.from('pay_weeks').insert({user_id:currentUser.id,pay_date:payDate,bills_amount:0,expected_amount:amount,source_name:source||null});
     if(error){toast('Error: '+error.message);return;}
-    const{error:pErr}=await sb.from('paychecks').insert({user_id:currentUser.id,pay_week_id:weekData.id,amount,pay_date:payDate,notes:'From Paycheck Calculator'});
-    if(pErr){toast('Error: '+pErr.message);return;}
     await Promise.all([loadWeeks(),loadPaychecks()]);
     closeModal('use-amount-modal');
     switchView('weekly',null);renderDashboard();
