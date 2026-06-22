@@ -2919,8 +2919,12 @@ async function saveRecurring(){
   if(!amount||amount<=0){toast('Enter a valid amount');return;}
   if(!start){toast('Enter a start date');return;}
   if(end&&end<=start){toast('End date must be after start date');return;}
+  // Only include monthly_allowance in the DB payload when set, so a missing column
+  // (schema cache not yet refreshed) doesn't break the save.
   if(editId){
-    const{error}=await sb.from('recurring_income').update({name,amount,monthly_allowance,frequency,next_date:start,end_date:end}).eq('id',editId);
+    const payload={name,amount,frequency,next_date:start,end_date:end};
+    if(monthly_allowance>0)payload.monthly_allowance=monthly_allowance;
+    const{error}=await sb.from('recurring_income').update(payload).eq('id',editId);
     if(error){toast('Error: '+error.message);return;}
     const oldRec=recurringSources.find(r=>r.id===editId);
     if(oldRec){
@@ -2933,10 +2937,12 @@ async function saveRecurring(){
     await generatePeriods({user_id:currentUser.id,name,amount,monthly_allowance,frequency,next_date:start,end_date:end});
     toast('Source updated ✓');
   }else{
-    const{data:rec,error}=await sb.from('recurring_income').insert({user_id:currentUser.id,name,amount,monthly_allowance,frequency,next_date:start,end_date:end}).select().single();
+    const payload={user_id:currentUser.id,name,amount,frequency,next_date:start,end_date:end};
+    if(monthly_allowance>0)payload.monthly_allowance=monthly_allowance;
+    const{data:rec,error}=await sb.from('recurring_income').insert(payload).select().single();
     if(error){toast('Error: '+error.message);return;}
     await loadWeeks();
-    await generatePeriods(rec);
+    await generatePeriods({...rec,monthly_allowance});
     toast('Recurring source added ✓');
   }
   await Promise.all([loadRecurring(),loadWeeks(),loadPaychecks()]);
@@ -4329,7 +4335,10 @@ async function confirmUseAmount(){
     const monthly_allowance=parseFloat(document.getElementById('ua-allowance').value)||0;
     if(!source){toast('Enter a source name');return;}
     if(end&&end<=payDate){toast('End date must be after start date');return;}
-    const{error}=await sb.from('recurring_income').insert({user_id:currentUser.id,name:source,amount,monthly_allowance,frequency,next_date:payDate,end_date:end});
+    // Only include monthly_allowance when set, so a missing column doesn't break the save.
+    const payload={user_id:currentUser.id,name:source,amount,frequency,next_date:payDate,end_date:end};
+    if(monthly_allowance>0)payload.monthly_allowance=monthly_allowance;
+    const{error}=await sb.from('recurring_income').insert(payload);
     if(error){toast('Error: '+error.message);return;}
     await Promise.all([loadRecurring(),loadWeeks(),loadPaychecks()]);
     await topUpPeriods();
