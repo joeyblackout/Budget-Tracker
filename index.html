@@ -2183,7 +2183,6 @@ function renderDashboard(){
       <div style="font-size:13px;color:var(--muted);font-weight:600;">${greeting()},</div>
       <div style="font-size:26px;font-weight:800;letter-spacing:-0.03em;">${myProfile?.display_name?esc(myProfile.display_name):'Welcome'}</div>
     </div>
-    ${onboardingChecklistHtml()}
     ${sharedInvites.map(inv=>`<div class="card" style="border-color:var(--accent);background:rgba(79,142,247,0.06);margin-bottom:14px;">
       <div style="font-size:15px;font-weight:700;margin-bottom:6px;"><i class="ti ti-users"></i> ${esc(displayName(inv.inviter_id))} invited you!</div>
       <div class="text-muted mb8">Join "${esc(inv.pot_name)}" shared savings pot</div>
@@ -4701,7 +4700,8 @@ function startPolling(){
   },60000);
 }
 
-// NET WORTH (#5)async function loadNetWorthHistory(){try{const{data,error}=await sb.from('net_worth_snapshots').select('*').eq('user_id',currentUser.id).order('snapshot_date');if(error)throw error;netWorthHistory=data||[];}catch(e){netWorthHistory=[];}}
+// NET WORTH (#5)
+async function loadNetWorthHistory(){try{const{data,error}=await sb.from('net_worth_snapshots').select('*').eq('user_id',currentUser.id).order('snapshot_date');if(error)throw error;netWorthHistory=data||[];}catch(e){netWorthHistory=[];}}
 function computeNetWorth(){
   const potTotals={};savingsTxns.forEach(t=>{if(!potTotals[t.pot_id])potTotals[t.pot_id]=0;potTotals[t.pot_id]+=(t.type==='deposit'||t.type==='transfer_in')?parseFloat(t.amount||0):-(parseFloat(t.amount||0));});
   const totalSaved=Object.values(potTotals).reduce((s,v)=>s+Math.max(0,v),0);
