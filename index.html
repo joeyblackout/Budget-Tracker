@@ -4070,6 +4070,7 @@ const DEFAULT_QUICK_ADDS=[
   {emoji:'🧺',label:'Laundry',category:'Laundry',desc:''},
   {emoji:'🎮',label:'Fun',category:'Entertainment',desc:''},
 ];
+const EMOJI_OPTIONS=['⛽','🛒','🍔','🌮','🍕','🍜','☕','🥤','🚬','🧺','🎮','🎬','🎵','🏋️','💊','🏥','🚗','🚌','✈️','🛍️','👕','💄','🐾','🏠','💡','📱','💻','🎁','💰','🍺','🍷','🧃'];
 function getQuickAdds(){try{const s=localStorage.getItem('bt-quick-adds');return s?JSON.parse(s):DEFAULT_QUICK_ADDS;}catch(e){return DEFAULT_QUICK_ADDS;}}
 function saveQuickAdds(arr){localStorage.setItem('bt-quick-adds',JSON.stringify(arr));}
 function renderQuickAddBar(){
@@ -4078,7 +4079,7 @@ function renderQuickAddBar(){
   const qa=getQuickAdds();
   el.innerHTML=`<div class="quick-add-bar">
     ${qa.map((q,i)=>`<button class="quick-btn" onclick="openQuickExpense('${esc(q.category)}','${esc(q.desc)}','${esc(q.label)}','${esc(q.emoji)}')"><span class="quick-btn-emoji">${q.emoji}</span><span class="quick-btn-label">${esc(q.label)}</span></button>`).join('')}
-    <button class="quick-btn" onclick="openQuickAddEditor()" style="border-style:dashed;"><span class="quick-btn-emoji"><i class="ti ti-edit"></i></span><span class="quick-btn-label">Edit</span></button>
+    <button class="quick-btn" onclick="openQuickAddEditor()" style="border-color:var(--danger);background:rgba(247,90,90,0.08);"><span class="quick-btn-emoji" style="color:var(--danger);"><i class="ti ti-edit"></i></span><span class="quick-btn-label" style="color:var(--danger);">Edit</span></button>
   </div>`;
 }
 function openQuickExpense(category,desc,label,emoji){
@@ -4105,11 +4106,30 @@ async function repeatExpense(id){
   if(error){toast('Error: '+error.message);return;}
   await loadExpenses();renderExpenses();renderDashboard();toast('Expense repeated ✓');
 }
+function toggleEmojiPicker(i){
+  const picker=document.getElementById('qe-emoji-picker-'+i);
+  if(!picker)return;
+  const isOpen=picker.style.display==='flex';
+  document.querySelectorAll('[id^="qe-emoji-picker-"]').forEach(p=>{p.style.display='none';});
+  picker.style.display=isOpen?'none':'flex';
+}
+function pickEmoji(i,emoji){
+  const inp=document.getElementById('qe-emoji-'+i);
+  const btn=document.getElementById('qe-emoji-btn-'+i);
+  if(inp)inp.value=emoji;
+  if(btn)btn.textContent=emoji;
+  const picker=document.getElementById('qe-emoji-picker-'+i);
+  if(picker)picker.style.display='none';
+}
 function openQuickAddEditor(){
   const qa=getQuickAdds();
   const cats=['Groceries','Dining','DoorDash','Gas Station','Nicotine','Laundry','Medical / Pharmacy','Personal Care','Clothing','Entertainment','Household Supplies','Transportation / Rideshare','Subscriptions','Other'];
-  const rows=qa.map((q,i)=>`<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
-    <input type="text" value="${esc(q.emoji)}" id="qe-emoji-${i}" style="width:48px;background:var(--bg);border:1.5px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:18px;padding:8px;text-align:center;" maxlength="2"/>
+  const rows=qa.map((q,i)=>`<div style="display:flex;gap:8px;align-items:flex-start;margin-bottom:8px;">
+    <div style="display:flex;flex-direction:column;flex-shrink:0;">
+      <input type="hidden" id="qe-emoji-${i}" value="${esc(q.emoji)}"/>
+      <button type="button" id="qe-emoji-btn-${i}" onclick="toggleEmojiPicker(${i})" style="width:48px;height:40px;background:var(--bg);border:1.5px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:22px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;">${q.emoji}</button>
+      <div id="qe-emoji-picker-${i}" style="display:none;flex-wrap:wrap;gap:4px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px;margin-top:4px;width:200px;">${EMOJI_OPTIONS.map(e=>`<span onclick="pickEmoji(${i},'${e}')" onmousedown="this.style.transform='scale(0.85)'" onmouseup="this.style.transform=''" ontouchstart="this.style.transform='scale(0.85)'" ontouchend="this.style.transform=''" style="font-size:22px;cursor:pointer;padding:4px;border-radius:6px;">${e}</span>`).join('')}</div>
+    </div>
     <input type="text" value="${esc(q.label)}" id="qe-label-${i}" style="width:80px;background:var(--bg);border:1.5px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:14px;padding:8px;"/>
     <select id="qe-cat-${i}" style="flex:1;background:var(--bg);border:1.5px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:13px;padding:8px;">${cats.map(c=>`<option value="${c}" ${c===q.category?'selected':''}>${c}</option>`).join('')}</select>
   </div>`).join('');
