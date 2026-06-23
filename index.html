@@ -1010,13 +1010,18 @@ async function loadShared(){
   try{
     const{data:memberRows}=await sb.from('shared_members').select('*');
     sharedMembers=memberRows||[];
-    const myPotIds=sharedMembers.filter(m=>m.user_id===currentUser.id).map(m=>m.pot_id);
+    const{data:potRows}=await sb.from('shared_pots').select('*');
+    sharedPots=potRows||[];
+    // Only keep pots the user owns or is still a member of (drops pots left via leaveSharedPot, whose pot row remains)
+    sharedPots=sharedPots.filter(p=>
+      p.owner_id===currentUser.id||
+      sharedMembers.some(m=>m.pot_id===p.id&&m.user_id===currentUser.id)
+    );
+    const myPotIds=sharedPots.map(p=>p.id);
     if(myPotIds.length>0){
-      const{data:potRows}=await sb.from('shared_pots').select('*').in('id',myPotIds);
-      sharedPots=potRows||[];
       const{data:txnRows}=await sb.from('shared_transactions').select('*').in('pot_id',myPotIds).order('txn_date',{ascending:false});
       sharedTxns=txnRows||[];
-    }else{sharedPots=[];sharedTxns=[];}
+    }else{sharedTxns=[];}
     const{data:inviteRows}=await sb.from('shared_invites').select('*').eq('invitee_id',currentUser.id).eq('status','pending');
     sharedInvites=inviteRows||[];
   }catch(e){sharedPots=[];sharedMembers=[];sharedTxns=[];sharedInvites=[];}
