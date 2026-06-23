@@ -4120,9 +4120,15 @@ function renderQuickAddBar(){
   const el=document.getElementById('quick-add-bar');
   if(!el)return;
   const qa=getQuickAdds();
-  el.innerHTML=`<div class="quick-add-bar">
+  el.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;padding:0 2px;">
+    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);">
+      <i class="ti ti-bolt"></i> Quick Add Expense
+    </div>
+    <div style="font-size:11px;color:var(--muted);">Tap a category to log instantly</div>
+  </div>
+  <div class="quick-add-bar">
     ${qa.map((q,i)=>`<button class="quick-btn" onclick="openQuickExpense('${esc(q.category)}','${esc(q.desc)}','${esc(q.label)}','${esc(q.emoji)}')"><span class="quick-btn-emoji">${q.emoji}</span><span class="quick-btn-label">${esc(q.label)}</span></button>`).join('')}
-    <button class="quick-btn" onclick="openQuickAddEditor()" style="border-color:var(--danger);background:rgba(247,90,90,0.08);"><span class="quick-btn-emoji" style="color:var(--danger);"><i class="ti ti-edit"></i></span><span class="quick-btn-label" style="color:var(--danger);">Edit</span></button>
+    <button class="quick-btn" onclick="openQuickAddEditor()" style="border-color:var(--danger);background:rgba(247,90,90,0.08);"><span class="quick-btn-emoji" style="color:var(--danger);"><i class="ti ti-edit"></i></span><span class="quick-btn-label" style="color:var(--danger);line-height:1.2;">Edit<br><span style="font-size:9px;font-weight:400;color:var(--muted);">customize</span></span></button>
   </div>`;
 }
 function openQuickExpense(category,desc,label,emoji){
