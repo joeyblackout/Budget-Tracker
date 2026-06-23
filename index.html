@@ -1257,7 +1257,6 @@ function forecastStrategyUI(){
       '<div style="background:var(--surface2);border-radius:var(--radius-sm);padding:12px 14px;margin-bottom:10px;font-size:12px;line-height:1.8;color:var(--muted);">'
       // Row 1: Income source
       +'<div><span style="color:var(--text);font-weight:700;">Income:</span> Based on your recurring pay schedule'
-      +(higher>0?' (incl. <span style="color:var(--accent);font-weight:700;">'+higher+' higher-income month'+(higher!==1?'s':'')+'</span>)':'')
       +(fallbackNeeded?' · falls back to avg '+fmt(fbInfo.avg)+'/mo after '+monthLabelFromIndex(lastSched+1):'')
       +'</div>'
       // Row 2: How discretionary is calculated
