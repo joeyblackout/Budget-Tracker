@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="apple-mobile-web-app-title" content="Budget Tracker"/>
-<meta name="theme-color" content="#0d0f14"/>
+<meta name="theme-color" content="#080808"/>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 <style>
@@ -82,7 +82,8 @@ select option{background:var(--surface);color:var(--text);}
 .quick-btn:active{border-color:var(--accent);transform:scale(0.96);}
 .quick-btn-emoji{font-size:22px;line-height:1;}
 .quick-btn-label{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;text-align:center;}
-.quick-btn-edit{background:none;border:none;color:var(--muted);font-size:11px;cursor:pointer;padding:4px 8px;text-decoration:underline;}flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:20px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-size:13px;font-weight:600;cursor:pointer;transition:all 0.15s;}
+.quick-btn-edit{background:none;border:none;color:var(--muted);font-size:11px;cursor:pointer;padding:4px 8px;text-decoration:underline;}
+.more-item{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:20px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-size:13px;font-weight:600;cursor:pointer;transition:all 0.15s;}
 .more-item:active{transform:scale(0.96);border-color:var(--accent);}
 .tooltip-wrap{position:relative;display:inline-block;}
 .tooltip-box{display:none;position:absolute;top:calc(100% + 8px);right:0;width:220px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;font-size:12px;color:var(--muted);line-height:1.5;z-index:200;box-shadow:0 4px 20px rgba(0,0,0,0.4);}
@@ -386,15 +387,11 @@ select option{background:var(--surface);color:var(--text);}
       <div class="section-head"><div class="section-title">My <span style="color:var(--success);">Debts</span></div><button class="add-btn" onclick="openDebtModal()">+</button></div>
       <div id="debts-list"></div>
     </div>
-    <div id="view-payments" class="view">
-      <div class="section-head"><div class="section-title">Debt Payments</div><button class="add-btn" onclick="openPaymentModal()">+</button></div>
-      <div id="payments-list"></div>
-    </div>
     <div id="view-bills" class="view">
       <div class="section-head">
         <div class="section-title">Monthly <span style="color:var(--success);">Bills</span></div>
         <div style="display:flex;gap:8px;">
-          <button id="pay-all-due-btn" onclick="openPayAllDue()" style="display:none;background:rgba(45,212,160,0.15);border:1px solid rgba(45,212,160,0.3);color:var(--success);border-radius:99px;padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer;">✓ Pay All Due</button>
+          <button id="pay-all-due-btn" onclick="openPayAllDue()" style="display:none;background:rgba(45,212,160,0.15);border:1px solid rgba(45,212,160,0.3);color:var(--success);border-radius:99px;padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer;"><i class="ti ti-check"></i> Pay All Due</button>
           <div style="position:relative;display:inline-flex;align-items:center;gap:4px;" class="tooltip-wrap" id="sync-tooltip-wrap">
             <button onclick="syncDebtMinimums()" style="background:var(--surface2);border:1px solid var(--border);color:var(--accent);border-radius:99px;padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer;"><i class="ti ti-bolt"></i> Sync Debts</button>
             <button onclick="toggleTooltip('sync-tooltip-wrap')" style="background:none;border:none;color:var(--muted);font-size:14px;cursor:pointer;padding:2px 4px;line-height:1;"><i class="ti ti-info-circle"></i></button>
@@ -5223,7 +5220,7 @@ const ONBOARDING_STEPS=[
   {view:'bills',navBtn:'bills',title:'Bills',desc:'Never miss a bill. Track due dates, mark them paid, and sync minimums from your debts automatically.'},
   {view:'savings',navBtn:'savings',title:'Savings',desc:'Build your future. Create savings pots, set goals, and track deposits and withdrawals.'},
   {view:'expenses',navBtn:'expenses',title:'Expenses',desc:'Log your spending. Quick-add buttons make it fast, and Spending Insights shows where your money goes.'},
-  {view:'setup',navBtn:null,title:'Settings',desc:'Set your starting cash balance here first — it\'s the foundation your available balance builds on. You can also change your display name and app theme.'},
+  {view:'setup',navBtn:null,title:'Settings',desc:'Set your starting cash balance here first — it\'s the foundation your available balance builds on. You can also change your display name and toggle auto-posting.'},
 ];
 let onboardingIdx=0;
 function showOnboardingSplash(){
