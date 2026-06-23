@@ -2692,8 +2692,13 @@ async function deleteSharedPot(id){
 }
 async function leaveSharedPot(potId){
   if(!confirm("Leave this shared pot? You'll lose access to the history and can't rejoin unless re-invited."))return;
-  await sb.from('shared_members').delete().eq('pot_id',potId).eq('user_id',currentUser.id);
-  await loadShared();renderSavings();renderDashboard();toast('You left the pot');
+  const{error}=await sb.from('shared_members').delete().eq('pot_id',potId).eq('user_id',currentUser.id);
+  if(error){toast('Error leaving pot: '+error.message);return;}
+  await loadShared();
+  renderSavings();
+  if(typeof renderShared==='function')renderShared();
+  renderDashboard();
+  toast('You left the pot');
 }
 
 function openInviteModal(potId){
