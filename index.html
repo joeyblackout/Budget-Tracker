@@ -4060,9 +4060,12 @@ function renderTrendsInsights(){
       // For completed periods: under target = green (no pace to check), already checked >target above
       return'var(--success)';
     })();
+    const subtitleText=periodTarget>0
+      ?`${fmt(latestVal)} <span style="color:var(--muted);">/ ${fmt(periodTarget)}</span> ${latestLabel}`
+      :`${fmt(latestVal)} ${latestLabel}`;
     return`<div onclick="showCatHistory('${esc(cat).replace(/'/g,"\\'")}','${col}')" style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);cursor:pointer;" onmousedown="this.style.background='var(--surface2)'" onmouseup="this.style.background=''" onmouseleave="this.style.background='' " ontouchstart="this.style.background='var(--surface2)'" ontouchend="this.style.background=''">
       <div style="width:8px;height:8px;border-radius:50%;background:${col};flex-shrink:0;"></div>
-      <div style="flex:1;min-width:0;"><div style="font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(cat)}</div><div style="font-size:11px;color:${latestLabelColor};font-weight:${periodTarget>0?'700':'400'};">${fmt(latestVal)} ${latestLabel}</div></div>
+      <div style="flex:1;min-width:0;"><div style="font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(cat)}</div><div style="font-size:11px;color:${latestLabelColor};font-weight:${periodTarget>0?'700':'400'};">${subtitleText}</div></div>
       <svg width="${svgWidth}" height="32" style="flex-shrink:0;overflow:visible;">
         ${targetLine}
         <polyline points="${pts}" class="sparkline" stroke="${col}" fill="none"/>
