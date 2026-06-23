@@ -4039,7 +4039,7 @@ function renderTrendsInsights(){
     const trendColor=trend>5?'var(--danger)':trend<-5?'var(--success)':'var(--muted)';
     const col=CAT_COLORS[ci%CAT_COLORS.length];
     const latestVal=trendsWindow==='yearly'?vals.reduce((s,v)=>s+v,0):vals[vals.length-1];
-    const latestLabel=trendsWindow==='weekly'?'this wk':trendsWindow==='yearly'?'this yr':'this mo';
+    const latestLabel=trendsWindow==='weekly'?'this wk':trendsWindow==='yearly'?'this yr':(trendsWindow==='3mo'||trendsWindow==='6mo')?'this period':'this mo';
     const lineWidth=(periods.length-1)*ptSpacing;
     const targetY=periodTarget>0?(30-(periodTarget/maxV)*28):null;
     const targetLine=targetY!==null
@@ -4060,7 +4060,12 @@ function renderTrendsInsights(){
       // For completed periods: under target = green (no pace to check), already checked >target above
       return'var(--success)';
     })();
-    const displayTarget=trendsWindow==='yearly'?monthlyTarget*12:periodTarget;
+    const windowMultiplier=trendsWindow==='weekly'?0.25
+      :trendsWindow==='3mo'?3
+      :trendsWindow==='6mo'?6
+      :trendsWindow==='yearly'?12
+      :1;
+    const displayTarget=monthlyTarget*windowMultiplier;
     const subtitleText=displayTarget>0
       ?`${fmt(latestVal)} <span style="color:var(--muted);">/ ${fmt(displayTarget)}</span> ${latestLabel}`
       :`${fmt(latestVal)} ${latestLabel}`;
