@@ -4060,8 +4060,9 @@ function renderTrendsInsights(){
       // For completed periods: under target = green (no pace to check), already checked >target above
       return'var(--success)';
     })();
-    const subtitleText=periodTarget>0
-      ?`${fmt(latestVal)} <span style="color:var(--muted);">/ ${fmt(periodTarget)}</span> ${latestLabel}`
+    const displayTarget=trendsWindow==='yearly'?monthlyTarget*12:periodTarget;
+    const subtitleText=displayTarget>0
+      ?`${fmt(latestVal)} <span style="color:var(--muted);">/ ${fmt(displayTarget)}</span> ${latestLabel}`
       :`${fmt(latestVal)} ${latestLabel}`;
     return`<div onclick="showCatHistory('${esc(cat).replace(/'/g,"\\'")}','${col}')" style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);cursor:pointer;" onmousedown="this.style.background='var(--surface2)'" onmouseup="this.style.background=''" onmouseleave="this.style.background='' " ontouchstart="this.style.background='var(--surface2)'" ontouchend="this.style.background=''">
       <div style="width:8px;height:8px;border-radius:50%;background:${col};flex-shrink:0;"></div>
