@@ -1254,15 +1254,15 @@ function forecastStrategyUI(){
       ?(forecastCustomMode==='%'?forecastCustomAmt+'%':fmt(forecastCustomAmt)+' fixed')
       :(pct*100)+'%';
     const summaryHtml=
-      '<div style="background:rgba(168,85,247,0.06);border:1px solid rgba(168,85,247,0.25);border-radius:var(--radius-sm);padding:12px 14px;margin-bottom:10px;font-size:12px;line-height:1.8;color:var(--muted);">'
+      '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px;margin-bottom:10px;font-size:12px;line-height:1.8;color:var(--muted);">'
       // Row 1: Income source
-      +'<div><span style="color:#c084fc;font-weight:700;">Income:</span> Based on your recurring pay schedule'
+      +'<div><span style="color:var(--accent);font-weight:700;">Income:</span> Based on your recurring pay schedule'
       +(fallbackNeeded?' · falls back to avg '+fmt(fbInfo.avg)+'/mo after '+monthLabelFromIndex(lastSched+1):'')
       +'</div>'
       // Row 2: How discretionary is calculated
-      +'<div><span style="color:#c084fc;font-weight:700;">Discretionary:</span> Income <span style="color:var(--muted);">−</span> monthly bills = avg <span style="color:var(--accent);font-weight:700;">~'+fmt(avgDisc)+'/mo</span> available</div>'
+      +'<div><span style="color:var(--accent);font-weight:700;">Discretionary:</span> Income <span style="color:var(--muted);">−</span> monthly bills = avg <span style="color:var(--accent);font-weight:700;">~'+fmt(avgDisc)+'/mo</span> available</div>'
       // Row 3: Strategy allocation
-      +'<div><span style="color:#c084fc;font-weight:700;">Extra toward debt:</span> '+pctLabel+' of discretionary = avg <span style="color:var(--success);font-weight:700;">~'+fmt(extraAvg)+'/mo</span> · increases as each debt pays off</div>'
+      +'<div><span style="color:var(--accent);font-weight:700;">Extra toward debt:</span> '+pctLabel+' of discretionary = avg <span style="color:var(--success);font-weight:700;">~'+fmt(extraAvg)+'/mo</span> · increases as each debt pays off</div>'
       +'</div>';
     h+=summaryHtml;
   }
@@ -1308,7 +1308,7 @@ function forecastDebtCallout(sim,minSim){
   if(forecastStrategy==='min'&&sim.debtFreeMonth===null){
     savingsLine='<div style="font-size:12px;color:var(--warning);margin-top:2px;">Minimums only: Est. '+fmt(sim.totalInterest)+' interest over 10 years (not paid off)</div>';
   }
-  return '<div class="card" style="border-color:#a855f7;background:rgba(168,85,247,0.06);margin-bottom:14px;">'
+  return '<div class="card" style="border-color:#a855f7;background:var(--surface);margin-bottom:14px;">'
     +'<div style="font-size:18px;font-weight:800;color:'+color+';">'+main+'</div>'
     +(sub?'<div style="font-size:12px;color:var(--muted);margin-top:2px;">'+sub+'</div>':'')
     +(dfm!==null&&dfDateStr?'<div style="font-size:12px;color:var(--muted);margin-top:4px;">Target date: <span style="color:var(--text);font-weight:700;">'+dfDateStr+'</span>'+(dfDateEst?' (est.)':'')+'</div>':'')
