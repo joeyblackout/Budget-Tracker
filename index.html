@@ -571,16 +571,14 @@ select option{background:var(--surface);color:var(--text);}
   <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal('payment-modal')">Cancel</button><button class="btn btn-primary" onclick="savePayment()">Save</button></div>
 </div></div>
 
-<!-- BILL MODAL -->
-<!-- SQL: ALTER TABLE bills ADD COLUMN IF NOT EXISTS due_month integer; -->
-<div class="modal-overlay" id="bill-modal"><div class="modal">
+<!-- BILL MODAL --><div class="modal-overlay" id="bill-modal"><div class="modal">
   <div class="modal-handle"></div><div class="modal-title" id="bill-modal-title">Add Bill</div>
   <input type="hidden" id="bill-edit-id"/>
   <div class="field"><label>Bill Name</label><input type="text" id="bill-name" placeholder="e.g. Netflix, TXU Electric"/></div>
   <div class="field"><label>Amount ($)</label><input type="number" id="bill-amount" placeholder="0.00" step="0.01" min="0"/></div>
   <div class="field"><label>Due Day of Month</label><input type="number" id="bill-due-day" placeholder="e.g. 15" min="1" max="31"/></div>
   <div class="field"><label>Category</label><select id="bill-category"><option>Housing</option><option>Utilities</option><option>Insurance</option><option>Subscriptions</option><option>Phone</option><option>Internet</option><option>Transportation</option><option>Debt</option><option>Other</option></select></div>
-  <div class="field"><label>Recurring</label><select id="bill-recurring" onchange="updateBillDueMonthVisibility()"><option value="monthly">Monthly</option><option value="weekly">Weekly</option><option value="biweekly">Every 2 Weeks</option><option value="quarterly">Quarterly</option><option value="semi-annual">Semi-Annual</option><option value="annually">Annually</option><option value="once">One Time</option></select></div>
+  <div class="field"><label>Recurring</label><select id="bill-recurring" onchange="updateBillDueMonthVisibility()"><option value="monthly">Monthly</option><option value="quarterly">Quarterly</option><option value="semi-annual">Semi-Annual</option><option value="annually">Annually</option><option value="once">One Time</option></select></div>
   <div class="field" id="bill-due-month-field" style="display:none;"><label id="bill-due-month-label">First Due Month</label><select id="bill-due-month"><option value="1">January</option><option value="2">February</option><option value="3">March</option><option value="4">April</option><option value="5">May</option><option value="6">June</option><option value="7">July</option><option value="8">August</option><option value="9">September</option><option value="10">October</option><option value="11">November</option><option value="12">December</option></select></div>
   <div class="field"><label>End Date (optional)</label><input type="date" id="bill-end-date"/><div style="font-size:11px;color:var(--muted);margin-top:4px;">Bill stops after this date</div></div>
   <div class="field"><label>Notes (optional)</label><input type="text" id="bill-notes" placeholder="Optional notes…"/></div>
@@ -4697,9 +4695,7 @@ function startPolling(){
   },60000);
 }
 
-// NET WORTH (#5)
-// CREATE TABLE IF NOT EXISTS net_worth_snapshots (id uuid default gen_random_uuid() primary key, user_id uuid references auth.users, snapshot_date date, net_worth numeric, created_at timestamptz default now());
-async function loadNetWorthHistory(){try{const{data,error}=await sb.from('net_worth_snapshots').select('*').eq('user_id',currentUser.id).order('snapshot_date');if(error)throw error;netWorthHistory=data||[];}catch(e){netWorthHistory=[];}}
+// NET WORTH (#5)async function loadNetWorthHistory(){try{const{data,error}=await sb.from('net_worth_snapshots').select('*').eq('user_id',currentUser.id).order('snapshot_date');if(error)throw error;netWorthHistory=data||[];}catch(e){netWorthHistory=[];}}
 function computeNetWorth(){
   const potTotals={};savingsTxns.forEach(t=>{if(!potTotals[t.pot_id])potTotals[t.pot_id]=0;potTotals[t.pot_id]+=(t.type==='deposit'||t.type==='transfer_in')?parseFloat(t.amount||0):-(parseFloat(t.amount||0));});
   const totalSaved=Object.values(potTotals).reduce((s,v)=>s+Math.max(0,v),0);
@@ -5156,8 +5152,8 @@ function renderInstructions(){
       ['How do I start saving?','Go to the Savings tab and tap +. Give your savings pot a name, an emoji, and an optional goal amount (like $1,000 for an emergency fund).'],
       ['What is a Starting Balance?','If you already have money set aside for this goal, enter it as the starting balance. It counts toward the pot\'s total but does not change your checking-account cash, since it is money you already had.'],
       ['How do deposits affect my balance?','A deposit moves money from your available balance into savings, so your spendable cash goes down while your savings go up. A withdrawal moves it back.'],
-      ['What are Shared Pots?','A savings pot you share with another family member — great for a joint goal like a trip. Tap 🤝 Shared, invite someone by their display name, and each person can only take out what they personally put in.'],
-      ['What are Physical Assets?','Tap 🏠 Asset to add things you own that are worth money — a car, investments, and so on. These do not affect your cash, but they count toward your Net Worth on the Dashboard.'],
+      ['What are Shared Pots?','A savings pot you share with another family member — great for a joint goal like a trip. Tap Shared, invite someone by their display name, and each person can only take out what they personally put in.'],
+      ['What are Physical Assets?','Tap Asset to add things you own that are worth money — a car, investments, and so on. These do not affect your cash, but they count toward your Net Worth on the Dashboard.'],
     ])}
     ${section('5️⃣','Step 5 — Log Your Expenses',[
       ['How do I log spending?','Go to the Expenses tab. Tap one of the quick-add buttons (like Groceries or Gas), type the amount, and tap Log It. That is it — two taps.'],
@@ -5213,7 +5209,7 @@ function greeting(){const h=new Date().getHours();if(h<12)return'Good morning';i
 function timeAgo(ts){if(!ts)return'';const d=new Date(ts);const secs=Math.floor((Date.now()-d.getTime())/1000);if(secs<60)return'just now';const mins=Math.floor(secs/60);if(mins<60)return mins+'m ago';const hrs=Math.floor(mins/60);if(hrs<24)return hrs+'h ago';const days=Math.floor(hrs/24);if(days<7)return days+'d ago';return d.toLocaleDateString('en-US',{month:'short',day:'numeric'});}
 // ONBOARDING
 const ONBOARDING_STEPS=[
-  {view:'dashboard',navBtn:null,title:'Dashboard',desc:'Your home base. See your available balance, net worth, debt progress, and everything at a glance.'},
+  {view:'dashboard',navBtn:null,title:'Dashboard',desc:'Your home base. See your available balance, net worth, debt progress, and everything at a glance. When a paycheck is pending, a Payday Routine banner walks you through confirming income, paying bills, and logging payments in one pass.'},
   {view:'forecast',navBtn:'forecast',title:'Forecast',desc:'See your financial future. Projects your balance weeks or months ahead based on income, bills, and spending.'},
   {view:'weekly',navBtn:'weekly',title:'Income',desc:'Track your paychecks. Set up recurring income and confirm checks as you receive them.'},
   {view:'debts',navBtn:'debts',title:'Debts',desc:'Manage what you owe. Log payments, track balances, and see your payoff progress.'},
