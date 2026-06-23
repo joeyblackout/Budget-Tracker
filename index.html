@@ -4788,7 +4788,16 @@ function computeNetWorth(){
   const myShared=Object.values(sp).reduce((s,v)=>s+Math.max(0,v),0);
   const totalAssetValue=assets.reduce((s,a)=>s+parseFloat(a.value||0),0);
   const totalDebt=debts.reduce((s,d)=>s+parseFloat(d.balance||0),0);
-  return totalSaved+myShared+totalAssetValue-totalDebt;
+  // Cash on hand (Available Balance) is a real asset — mirror renderDashboard()'s formula
+  const startingCash=myProfile?.starting_cash?parseFloat(myProfile.starting_cash):0;
+  const totalIncome=paychecks.reduce((s,p)=>s+parseFloat(p.amount||0),0);
+  const totalPaid=payments.reduce((s,p)=>s+parseFloat(p.amount||0),0);
+  const totalExpenses=expenses.reduce((s,e)=>s+parseFloat(e.amount||0),0);
+  const totalBillsPaid=billPayments.reduce((s,b)=>s+parseFloat(b.amount||0),0);
+  const totalSavedNet=savingsTxns.filter(t=>t.type==='deposit'&&t.notes!=='__starting_balance__').reduce((s,t)=>s+parseFloat(t.amount||0),0)-savingsTxns.filter(t=>t.type==='withdraw').reduce((s,t)=>s+parseFloat(t.amount||0),0);
+  const mySharedNet=sharedTxns.filter(t=>t.user_id===currentUser.id).reduce((s,t)=>s+(t.type==='deposit'?parseFloat(t.amount||0):-(parseFloat(t.amount||0))),0);
+  const availableBalance=startingCash+totalIncome-totalPaid-totalExpenses-totalBillsPaid-totalSavedNet-mySharedNet;
+  return availableBalance+totalSaved+myShared+totalAssetValue-totalDebt;
 }
 async function snapshotNetWorth(){
   const todayStr=today();
@@ -4864,7 +4873,16 @@ function renderNetWorth(){
   sharedTxns.filter(t=>t.user_id===currentUser.id).forEach(t=>{if(!sharedPotTotals[t.pot_id])sharedPotTotals[t.pot_id]=0;sharedPotTotals[t.pot_id]+=(t.type==='deposit'?parseFloat(t.amount||0):-(parseFloat(t.amount||0)));});
   const myShared=Object.values(sharedPotTotals).reduce((s,v)=>s+Math.max(0,v),0);
   const totalAssetValue=assets.reduce((s,a)=>s+parseFloat(a.value||0),0);
-  const totalAssets=totalSaved+myShared+totalAssetValue;
+  // Cash on hand (Available Balance) is a real asset — mirror renderDashboard()'s formula
+  const startingCash=myProfile?.starting_cash?parseFloat(myProfile.starting_cash):0;
+  const totalIncome=paychecks.reduce((s,p)=>s+parseFloat(p.amount||0),0);
+  const totalPaid=payments.reduce((s,p)=>s+parseFloat(p.amount||0),0);
+  const totalExpenses=expenses.reduce((s,e)=>s+parseFloat(e.amount||0),0);
+  const totalBillsPaid=billPayments.reduce((s,b)=>s+parseFloat(b.amount||0),0);
+  const totalSavedNet=savingsTxns.filter(t=>t.type==='deposit'&&t.notes!=='__starting_balance__').reduce((s,t)=>s+parseFloat(t.amount||0),0)-savingsTxns.filter(t=>t.type==='withdraw').reduce((s,t)=>s+parseFloat(t.amount||0),0);
+  const mySharedNet=sharedTxns.filter(t=>t.user_id===currentUser.id).reduce((s,t)=>s+(t.type==='deposit'?parseFloat(t.amount||0):-(parseFloat(t.amount||0))),0);
+  const availableBalance=startingCash+totalIncome-totalPaid-totalExpenses-totalBillsPaid-totalSavedNet-mySharedNet;
+  const totalAssets=availableBalance+totalSaved+myShared+totalAssetValue;
   const totalDebt=debts.reduce((s,d)=>s+parseFloat(d.balance||0),0);
   const netWorth=totalAssets-totalDebt;
   return`<div class="card" style="margin-bottom:14px;border-color:${netWorth>=0?'var(--success)':'var(--danger)'};">
@@ -4873,6 +4891,7 @@ function renderNetWorth(){
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px;">
       <div class="balance-line" onclick="showNetWorthAssetsBreakdown()" style="cursor:pointer;"><span class="balance-line-label">Total Assets</span><span class="balance-line-val text-success">${fmt(totalAssets)}</span></div>
       <div class="balance-line" onclick="showDebtBreakdown()" style="cursor:pointer;"><span class="balance-line-label">Total Debt</span><span class="balance-line-val text-danger">-${fmt(totalDebt)}</span></div>
+      <div class="balance-line" style="cursor:pointer;" onclick="switchView('dashboard',null)"><span class="balance-line-label">Cash on Hand</span><span class="balance-line-val ${availableBalance>=0?'text-success':'text-danger'}">${availableBalance>=0?'+':''}${fmt(availableBalance)}</span></div>
       <div class="balance-line" onclick="switchView('savings',null)" style="cursor:pointer;"><span class="balance-line-label">In Savings</span><span class="balance-line-val text-accent">${fmt(totalSaved)}</span></div>
       <div class="balance-line" onclick="switchView('savings',null)" style="cursor:pointer;"><span class="balance-line-label">Shared Pots</span><span class="balance-line-val text-accent">${fmt(myShared)}</span></div>
       ${totalAssetValue>0?`<div class="balance-line" onclick="switchView('savings',null)" style="cursor:pointer;"><span class="balance-line-label">Physical Assets</span><span class="balance-line-val text-warning">${fmt(totalAssetValue)}</span></div>`:''}
