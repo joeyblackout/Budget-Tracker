@@ -4842,28 +4842,17 @@ function netWorthSparklineHtml(){
   if(min<0&&max>0){zones=redPoly+greenPoly+zeroLine;}
   else if(min>=0){zones=greenPoly;}
   else{zones=redPoly;}
-  // Value labels: starting (left, muted) and current (right, colored by sign)
-  const firstVal=vals[0];
+  // Current net worth shown as plain HTML in the header row (not inside the SVG)
   const lastVal=vals[vals.length-1];
-  const fmtSvg=v=>{
-    const abs=Math.abs(Math.round(v));
-    const formatted='$'+abs.toLocaleString('en-US');
-    return (v>=0?'+':'-')+formatted;
-  };
-  const firstLabel=fmtSvg(firstVal);
-  const lastLabel=fmtSvg(lastVal);
-  const firstLabelY=Math.max(pad+10,Y[0]-6);
-  // Only show the starting label when there's enough history that start/end differ meaningfully
-  const startLabelSvg=snaps.length>=5
-    ?'<text x="'+pad+'" y="'+firstLabelY+'" text-anchor="start" font-size="9" font-family="system-ui, -apple-system, sans-serif" fill="var(--muted)">'+firstLabel+'</text>'
-    :'';
+  const lastLabel=(lastVal>=0?'+':'-')+fmt(Math.abs(lastVal));
   return '<div class="card" style="margin-bottom:14px;">'
-    +'<div style="font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);margin-bottom:8px;">Net Worth Over Time</div>'
+    +'<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;">'
+      +'<div style="font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);">Net Worth Over Time</div>'
+      +'<div style="font-size:18px;font-weight:800;color:'+(lastVal>=0?'var(--success)':'var(--danger)')+';">'+lastLabel+'</div>'
+    +'</div>'
     +'<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" style="width:100%;height:70px;display:block;">'
     +zones
     +'<polyline points="'+pts.join(' ')+'" fill="none" stroke="'+col+'" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>'
-    +'<text x="'+(W-pad)+'" y="'+(pad+10)+'" text-anchor="end" font-size="9" font-weight="700" font-family="system-ui, -apple-system, sans-serif" fill="'+(lastVal>=0?'var(--success)':'var(--danger)')+'">'+lastLabel+'</text>'
-    +startLabelSvg
     +'</svg>'
     +'<div style="font-size:11px;color:var(--muted);margin-top:6px;">'+fmtDate(snaps[0].snapshot_date)+' – '+fmtDate(snaps[snaps.length-1].snapshot_date)+'</div></div>';
 }
