@@ -3831,6 +3831,8 @@ function renderBudgetInsights(){
   const _elapsed=_now.getDate();
   const paceStatus=(spent,tgt)=>{
     if(spent>tgt)return'over';
+    const rem=tgt-spent;
+    if(rem<=5&&rem>=0)return'reached';
     const exp=(tgt/_daysInMo)*_elapsed;
     if(spent>exp*1.1)return'close';
     return'on';
@@ -3842,13 +3844,15 @@ function renderBudgetInsights(){
     const rem=tgt-spent;
     const pct=Math.min((spent/tgt)*100,100);
     const status=paceStatus(spent,tgt);
-    const bc=status==='over'?'var(--danger)':status==='close'?'var(--warning)':'var(--success)';
-    const rc=rem<0?'var(--danger)':status==='over'?'var(--danger)':status==='close'?'var(--warning)':'var(--success)';
+    const bc=status==='over'?'var(--danger)':status==='reached'?'var(--danger)':status==='close'?'var(--warning)':'var(--success)';
+    const rc=rem<0?'var(--danger)':(status==='over'||status==='reached')?'var(--danger)':status==='close'?'var(--warning)':'var(--success)';
     const badge=status==='over'
       ?'<span style="font-size:9px;font-weight:700;color:var(--danger);margin-left:4px;white-space:nowrap;">✕ Over Budget</span>'
-      :status==='close'
-        ?'<span style="font-size:9px;font-weight:700;color:var(--warning);margin-left:4px;white-space:nowrap;">⚠ Getting Close</span>'
-        :'<span style="font-size:9px;font-weight:700;color:var(--success);margin-left:4px;white-space:nowrap;">✓ On Track</span>';
+      :status==='reached'
+        ?'<span style="font-size:9px;font-weight:700;color:var(--danger);margin-left:4px;white-space:nowrap;">⚠ Budget Reached</span>'
+        :status==='close'
+          ?'<span style="font-size:9px;font-weight:700;color:var(--warning);margin-left:4px;white-space:nowrap;">⚠ Getting Close</span>'
+          :'<span style="font-size:9px;font-weight:700;color:var(--success);margin-left:4px;white-space:nowrap;">✓ On Track</span>';
     const col=catColorMap[cat]||'var(--accent)';
     const isEditing=budgetEditingCat===cat;
     const tgtCell=isEditing
