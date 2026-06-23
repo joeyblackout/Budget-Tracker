@@ -5205,7 +5205,7 @@ function renderInstructions(){
 function fmt(n){return'$'+parseFloat(n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
 function fmtDate(str){if(!str)return'—';const[y,m,d]=str.split('-');const months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];return`${months[parseInt(m)-1]} ${parseInt(d)}, ${y}`;}
 function fmtMonth(str){if(!str)return'—';const[y,m]=str.split('-');const months=['January','February','March','April','May','June','July','August','September','October','November','December'];return`${months[parseInt(m)-1]} ${y}`;}
-function today(){return new Date().toISOString().slice(0,10);}
+function today(){const d=new Date();const z=n=>String(n).padStart(2,'0');return d.getFullYear()+'-'+z(d.getMonth()+1)+'-'+z(d.getDate());}
 function esc(str){if(!str)return'';return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 function capFirst(str){if(!str)return'';return str.charAt(0).toUpperCase()+str.slice(1);}
 function greeting(){const h=new Date().getHours();if(h<12)return'Good morning';if(h<18)return'Good afternoon';return'Good evening';}
