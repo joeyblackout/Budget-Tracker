@@ -797,11 +797,28 @@ select option{background:var(--surface);color:var(--text);}
   <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal('import-modal')">Cancel</button><button class="btn btn-primary" id="import-confirm-btn" onclick="confirmImport()" disabled>Confirm Import</button></div>
 </div></div>
 
+<!-- WHAT'S NEW MODAL -->
+<div class="modal-overlay" id="whats-new-modal"><div class="modal">
+  <div class="modal-handle"></div>
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;">
+    <img src="favicon.ico" style="width:32px;height:32px;border-radius:7px;" alt=""/>
+    <div>
+      <div style="font-size:18px;font-weight:800;letter-spacing:-0.02em;">What's New</div>
+      <div style="font-size:12px;color:var(--muted);">Version 2.1</div>
+    </div>
+  </div>
+  <div id="whats-new-content"></div>
+  <div class="modal-actions" style="margin-top:20px;">
+    <button class="btn btn-primary" onclick="closeModal('whats-new-modal')">Got it</button>
+  </div>
+</div></div>
+
 <script>
 const SUPABASE_URL='https://edhsytkmmltzhgxxhpqy.supabase.co';
 const SUPABASE_ANON_KEY='sb_publishable_tAn5TF5Cuear3qJMzZdN5Q_4G_mUVUh';
 const {createClient}=supabase;
 const sb=createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
+const APP_VERSION='2.1';
 let currentUser=null;
 let debts=[],payments=[],expenses=[],weeks=[],paychecks=[],bills=[],billPayments=[],pots=[],savingsTxns=[];
 let billsGroupBy='type';
@@ -969,7 +986,7 @@ async function cleanupPaidOffDebtBills(){
   await loadBills();
   return true;
 }
-async function loadAll(){await Promise.all([loadDebts(),loadPayments(),loadExpenses(),loadWeeks(),loadPaychecks(),loadBills(),loadBillPayments(),loadPots(),loadSavingsTxns(),loadProfiles(),loadPosts(),loadReactions(),loadShared(),loadRecurring(),loadAssets(),loadBudgetTargets(),loadNetWorthHistory()]);await topUpPeriods();await migrateDiningCategory();await cleanupPaidOffDebtBills();await snapshotNetWorth();switchView('dashboard',null);updateBillBadge();updateNotifBadge();startPolling();await openPaydayRoutine();}
+async function loadAll(){await Promise.all([loadDebts(),loadPayments(),loadExpenses(),loadWeeks(),loadPaychecks(),loadBills(),loadBillPayments(),loadPots(),loadSavingsTxns(),loadProfiles(),loadPosts(),loadReactions(),loadShared(),loadRecurring(),loadAssets(),loadBudgetTargets(),loadNetWorthHistory()]);await topUpPeriods();await migrateDiningCategory();await cleanupPaidOffDebtBills();await snapshotNetWorth();switchView('dashboard',null);updateBillBadge();updateNotifBadge();startPolling();await openPaydayRoutine();checkWhatsNew();}
 async function topUpPeriods(){
   // Only extend recurring sources if the furthest period is within 10 months out
   if(recurringSources.length===0)return;
@@ -4527,6 +4544,30 @@ async function confirmImport(){
 // MODALS
 function openModal(id){document.getElementById(id).classList.add('open');}
 function closeModal(id){document.getElementById(id).classList.remove('open');}
+function checkWhatsNew(){
+  const seen=localStorage.getItem('bt-version-seen');
+  if(seen===APP_VERSION)return;
+  setTimeout(showWhatsNew,1200);
+}
+function showWhatsNew(){
+  localStorage.setItem('bt-version-seen',APP_VERSION);
+  const items=[
+    ['ti-chart-line','Net Worth Zones','The net worth chart now shows green shading above $0 and red shading below, so you can see at a glance when you crossed into positive territory.'],
+    ['ti-flag','Budget Reached alert','When a spending category has $5 or less remaining, it now shows a red Budget Reached badge — before you actually go over.'],
+    ['ti-edit','Emoji picker for quick-add buttons','Tap Edit on the quick-add bar to pick a new emoji from a visual picker instead of typing one.'],
+    ['ti-calendar-due','Payday Routine','A guided 4-step flow now appears on your Dashboard when a paycheck is pending — confirm income, pay bills, log debt payments, and deposit to savings in one pass.'],
+    ['ti-receipt','Expense Budget card on Dashboard','Your monthly spending budget summary now appears directly on the Dashboard so you can check your pace without going to Expenses.'],
+    ['ti-chart-dots','Spending Trends','The Expenses tab now has a Trends view — sparkline charts per category across Weekly, 3 Month, 6 Month, and Yearly windows.'],
+    ['ti-file-upload','Import Data','New users can now bulk-import debts, bills, savings, income, expenses, and assets from an Excel template in Settings.']
+  ];
+  const html=items.map((it,i)=>'<div style="display:flex;gap:12px;align-items:flex-start;padding:12px 0;'+(i<items.length-1?'border-bottom:1px solid var(--border);':'')+'">'
+    +'<span style="font-size:20px;width:28px;text-align:center;color:var(--accent);flex-shrink:0;"><i class="ti '+it[0]+'"></i></span>'
+    +'<div><div style="font-size:14px;font-weight:700;margin-bottom:2px;">'+it[1]+'</div>'
+    +'<div style="font-size:12px;color:var(--muted);line-height:1.5;">'+it[2]+'</div></div>'
+    +'</div>').join('');
+  document.getElementById('whats-new-content').innerHTML=html;
+  openModal('whats-new-modal');
+}
 document.querySelectorAll('.modal-overlay').forEach(o=>{o.addEventListener('click',e=>{if(e.target===o)o.classList.remove('open');});});
 
 // SWIPE TO DELETE
