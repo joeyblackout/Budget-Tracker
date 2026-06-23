@@ -1347,20 +1347,6 @@ function forecastStrategySection(){
     +'<div><div style="font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:#c084fc;">Debt Payoff Strategy</div><div style="font-size:12px;color:var(--muted);margin-top:3px;">See how different payment strategies affect your payoff timeline</div></div>'
     +'<span style="font-size:14px;color:var(--muted);flex-shrink:0;">'+(open?'▲':'▼')+'</span></div></div>';
   if(open){
-    // Dev-only: log the per-month scheduled income, paycheck counts & discretionary so it can be verified
-    (function(){
-      const now=new Date();const rows=[];const fb=recurringFallbackAvg();
-      for(let m=0;m<12;m++){
-        const d=new Date(now.getFullYear(),now.getMonth()+m,1);
-        const yr=d.getFullYear(),mo=d.getMonth();
-        const s=scheduledIncomeForMonth(yr,mo);
-        const income=s.paychecks>0?s.amount:fb.avg;
-        const billsDue=billsDueInMonth(yr,mo);
-        rows.push({month:monthLabelFromIndex(m),paychecks:s.paychecks,income:Math.round(income),fallback:s.paychecks===0,billsDue:Math.round(billsDue),discretionary:Math.round(income-billsDue)});
-      }
-      console.log('[forecast] schedule-based income across '+recurringSources.length+' source(s) · fallback avg=$'+fb.avg.toFixed(0)+'/mo (from '+fb.count+' month(s)) · schedule ends month '+lastScheduledMonthIndex());
-      if(console.table)console.table(rows);else console.log(rows);
-    })();
     // Strategy simulation ALWAYS runs a fixed 10-year (120-month) horizon, fully independent of the
     // selected forecast window — both the selected strategy and the minimums-only comparison.
     const STRAT_MONTHS=120;
@@ -2160,7 +2146,6 @@ function onboardingChecklistHtml(){
 }
 function renderDashboard(){
   const el=document.getElementById('dashboard-content');
-  if(debts.length===0){el.innerHTML=onboardingChecklistHtml()+`<div class="empty"><div class="icon"><i class="ti ti-layout-dashboard"></i></div><p>Welcome! Add your debt accounts under <strong>Debts</strong> to get started.</p></div>`;return;}
   const totalDebt=debts.reduce((s,d)=>s+parseFloat(d.balance||0),0);
   const totalPaid=payments.reduce((s,p)=>s+parseFloat(p.amount||0),0);
   const startDebt=totalDebt+totalPaid;
@@ -2193,6 +2178,7 @@ function renderDashboard(){
   const billsProgress=monthlyTotal>0?Math.min((monthlyPaidAmt/monthlyTotal)*100,100):0;
 
   el.innerHTML=`
+    ${onboardingChecklistHtml()}
     <div style="margin-bottom:16px;">
       <div style="font-size:13px;color:var(--muted);font-weight:600;">${greeting()},</div>
       <div style="font-size:26px;font-weight:800;letter-spacing:-0.03em;">${myProfile?.display_name?esc(myProfile.display_name):'Welcome'}</div>
