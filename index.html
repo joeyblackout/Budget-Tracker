@@ -4545,8 +4545,8 @@ async function confirmImport(){
 function openModal(id){document.getElementById(id).classList.add('open');}
 function closeModal(id){document.getElementById(id).classList.remove('open');}
 function checkWhatsNew(){
-  const seen=localStorage.getItem('bt-version-seen');
-  if(seen===APP_VERSION)return;
+  if(!localStorage.getItem('bt-onboarded'))return; // skip for brand-new users seeing the onboarding tour
+  if(localStorage.getItem('bt-version-seen')===APP_VERSION)return;
   setTimeout(showWhatsNew,1200);
 }
 function showWhatsNew(){
