@@ -4728,12 +4728,45 @@ function netWorthSparklineHtml(){
   const vals=snaps.map(s=>parseFloat(s.net_worth||0));
   const min=Math.min(...vals),max=Math.max(...vals),range=(max-min)||1;
   const W=300,H=70,pad=5;
-  const pts=vals.map((v,i)=>{const x=pad+(i/(vals.length-1))*(W-2*pad);const y=pad+(1-(v-min)/range)*(H-2*pad);return x.toFixed(1)+','+y.toFixed(1);});
+  const X=vals.map((v,i)=>pad+(i/(vals.length-1))*(W-2*pad));
+  const Y=vals.map(v=>pad+(1-(v-min)/range)*(H-2*pad));
+  const pts=X.map((x,i)=>x.toFixed(1)+','+Y[i].toFixed(1));
   const up=vals[vals.length-1]>=vals[0];
   const col=up?'var(--success)':'var(--danger)';
+  // Zero line in pixel space, clamped to the chart area
+  const zeroY=pad+(1-(0-min)/range)*(H-2*pad);
+  const clampedZeroY=Math.max(pad,Math.min(H-pad,zeroY));
+  // Build a filled zone polygon: keep the real line where the value is on the
+  // chosen side of zero (above for green, below for red), otherwise cap at the
+  // baseline. Interpolate exact X at each zero crossing, then close along baseline.
+  function buildZone(above){
+    const poly=[];
+    for(let i=0;i<vals.length;i++){
+      const keep=above?vals[i]>0:vals[i]<0;
+      poly.push(X[i].toFixed(1)+','+(keep?Y[i]:clampedZeroY).toFixed(1));
+      if(i<vals.length-1){
+        const a=vals[i],b=vals[i+1];
+        if((a>0&&b<0)||(a<0&&b>0)){
+          const xc=X[i]+(a/(a-b))*(X[i+1]-X[i]);
+          poly.push(xc.toFixed(1)+','+clampedZeroY.toFixed(1));
+        }
+      }
+    }
+    poly.push(X[X.length-1].toFixed(1)+','+clampedZeroY.toFixed(1));
+    poly.push(X[0].toFixed(1)+','+clampedZeroY.toFixed(1));
+    return poly.join(' ');
+  }
+  const greenPoly='<polygon points="'+buildZone(true)+'" fill="rgba(45,212,160,0.15)" stroke="none"/>';
+  const redPoly='<polygon points="'+buildZone(false)+'" fill="rgba(247,90,90,0.12)" stroke="none"/>';
+  const zeroLine='<line x1="'+pad+'" y1="'+clampedZeroY.toFixed(1)+'" x2="'+(W-pad)+'" y2="'+clampedZeroY.toFixed(1)+'" stroke="rgba(255,255,255,0.15)" stroke-width="1" stroke-dasharray="3,3"/>';
+  let zones;
+  if(min<0&&max>0){zones=redPoly+greenPoly+zeroLine;}
+  else if(min>=0){zones=greenPoly;}
+  else{zones=redPoly;}
   return '<div class="card" style="margin-bottom:14px;">'
     +'<div style="font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);margin-bottom:8px;">Net Worth Over Time</div>'
     +'<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" style="width:100%;height:70px;display:block;">'
+    +zones
     +'<polyline points="'+pts.join(' ')+'" fill="none" stroke="'+col+'" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>'
     +'</svg>'
     +'<div style="font-size:11px;color:var(--muted);margin-top:6px;">'+fmtDate(snaps[0].snapshot_date)+' – '+fmtDate(snaps[snaps.length-1].snapshot_date)+'</div></div>';
