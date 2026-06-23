@@ -1228,7 +1228,7 @@ function forecastStrategyUI(){
     const fbInfo=recurringFallbackAvg();
     const lastSched=lastScheduledMonthIndex();
     const pct={'25':0.25,'50':0.50,'75':0.75}[forecastStrategy];
-    let incomeSum=0,extraSum=0,higher=0,minPc=Infinity,schedMonths=0,fbMonths=0;
+    let incomeSum=0,discSum=0,extraSum=0,higher=0,minPc=Infinity,schedMonths=0,fbMonths=0;
     const rows=[];
     for(let m=0;m<12;m++){
       const d=new Date(now.getFullYear(),now.getMonth()+m,1);const yr=d.getFullYear(),mo=d.getMonth();
@@ -1239,24 +1239,33 @@ function forecastStrategyUI(){
       if(scheduled){schedMonths++;rows.push(s.paychecks);if(s.paychecks<minPc)minPc=s.paychecks;}else{fbMonths++;}
       // Per-month extra: strategy % of THIS month's discretionary (so 3-paycheck months contribute more)
       const disc=Math.max(0,income-billsDueInMonth(yr,mo));
+      discSum+=disc;
       const monthExtra=forecastStrategy==='custom'?(forecastCustomMode==='%'?disc*(forecastCustomAmt/100):forecastCustomAmt):disc*pct;
       extraSum+=Math.max(0,monthExtra||0);
     }
     if(minPc===Infinity)minPc=0;
     higher=rows.filter(pc=>pc>minPc).length;
-    const avgIncome=incomeSum/12;
+    const avgDisc=discSum/12;
     const extraAvg=extraSum/12; // average of the actual per-month extra allocations
-    const pctTxt=forecastStrategy==='custom'?(forecastCustomMode==='%'?forecastCustomAmt+'%':'fixed'):(pct*100)+'%';
-    // Most months have real paychecks → say "scheduled income"; only fully/mostly-fallback → show the flat avg
-    const incomeDesc=(schedMonths>0&&schedMonths>=fbMonths)?'scheduled income':'avg ~'+fmt(avgIncome)+'/mo';
-    let line='Based on recurring income schedule · '+incomeDesc+' · '+pctTxt+' = ~'+fmt(extraAvg)+'/mo extra toward debt · increases as debts pay off';
     // Only mention the fallback avg if debts aren't already cleared before fallback territory begins
     const _dfm=runDebtSim(strategyExtraOfDisc,120).debtFreeMonth;
-    if(lastSched>=0&&lastSched<599&&(_dfm===null||_dfm>lastSched))
-      line+=' · fallback avg '+fmt(fbInfo.avg)+'/mo used after '+monthLabelFromIndex(lastSched+1);
-    if(higher>0)line+=' · Incl. '+higher+' higher-income month'+(higher!==1?'s':'');
-    line += ' · Discretionary = income − monthly bills';
-    h+='<div style="font-size:11px;color:var(--muted);margin-bottom:10px;line-height:1.5;">'+line+'</div>';
+    const fallbackNeeded=lastSched>=0&&lastSched<599&&(_dfm===null||_dfm>lastSched);
+    const pctLabel=forecastStrategy==='custom'
+      ?(forecastCustomMode==='%'?forecastCustomAmt+'%':fmt(forecastCustomAmt)+' fixed')
+      :(pct*100)+'%';
+    const summaryHtml=
+      '<div style="background:var(--surface2);border-radius:var(--radius-sm);padding:12px 14px;margin-bottom:10px;font-size:12px;line-height:1.8;color:var(--muted);">'
+      // Row 1: Income source
+      +'<div><span style="color:var(--text);font-weight:700;">Income:</span> Based on your recurring pay schedule'
+      +(higher>0?' (incl. <span style="color:var(--accent);font-weight:700;">'+higher+' higher-income month'+(higher!==1?'s':'')+'</span>)':'')
+      +(fallbackNeeded?' · falls back to avg '+fmt(fbInfo.avg)+'/mo after '+monthLabelFromIndex(lastSched+1):'')
+      +'</div>'
+      // Row 2: How discretionary is calculated
+      +'<div><span style="color:var(--text);font-weight:700;">Discretionary:</span> Income <span style="color:var(--muted);">−</span> monthly bills = avg <span style="color:var(--accent);font-weight:700;">~'+fmt(avgDisc)+'/mo</span> available</div>'
+      // Row 3: Strategy allocation
+      +'<div><span style="color:var(--text);font-weight:700;">Extra toward debt:</span> '+pctLabel+' of discretionary = avg <span style="color:var(--success);font-weight:700;">~'+fmt(extraAvg)+'/mo</span> · increases as each debt pays off</div>'
+      +'</div>';
+    h+=summaryHtml;
   }
   if(forecastStrategy==='custom'){
     h+='<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap;">'
