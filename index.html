@@ -1781,6 +1781,7 @@ let routinePaycheckTotal=0;
 let routineBillsTotal=0;
 let routineDebtsTotal=0;
 let routineSubmittedStep=0;
+let routinePendingWhatsNew=false;
 
 function getPendingPaydays(){
   const todayStr=today();
@@ -2140,6 +2141,10 @@ async function routineFinish(){
   renderDashboard();renderBills();updateBillBadge();
   if(typeof renderDebts==='function')renderDebts();
   toast('Payday routine complete ✓');
+  if(routinePendingWhatsNew){
+    routinePendingWhatsNew=false;
+    setTimeout(showWhatsNew,600);
+  }
 }
 function onboardingChecklistHtml(){
   if(localStorage.getItem('onboarding_complete'))return '';
@@ -4556,6 +4561,12 @@ function closeModal(id){document.getElementById(id).classList.remove('open');}
 function checkWhatsNew(){
   if(!localStorage.getItem('bt-onboarded'))return; // skip for brand-new users seeing the onboarding tour
   if(localStorage.getItem('bt-version-seen')===APP_VERSION)return;
+  // If the Payday Routine is open, defer until it finishes so the modal isn't hidden behind it
+  const routineEl=document.getElementById('routine-overlay');
+  if(routineEl&&routineEl.style.display!=='none'){
+    routinePendingWhatsNew=true;
+    return;
+  }
   setTimeout(showWhatsNew,1200);
 }
 function showWhatsNew(){
