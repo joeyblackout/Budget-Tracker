@@ -4395,6 +4395,7 @@ function updateBillBadge(){
   const thisMonth=new Date().toISOString().slice(0,7);
   const urgent=bills.filter(b=>{
     if(isBillExpired(b))return false;
+    if(!isBillDueThisMonth(b))return false;
     const dueDay=parseInt(b.due_day||0);
     if(!dueDay)return false;
     const isPaid=billPayments.some(p=>p.bill_id===b.id&&(p.paid_date||'').startsWith(thisMonth));
