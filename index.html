@@ -357,7 +357,7 @@ select option{background:var(--surface);color:var(--text);}
       <button class="side-item" data-sview="expenses" onclick="sideNav('expenses')"><span class="side-icon"><i class="ti ti-receipt"></i></span>Expenses</button>
       <button class="side-item" data-sview="community" onclick="sideNav('community')"><span class="side-icon"><i class="ti ti-confetti"></i></span>Community</button>
       <button class="side-item" data-sview="instructions" onclick="sideNav('instructions')"><span class="side-icon"><i class="ti ti-book"></i></span>How to Use</button>
-      <button class="side-item" data-sview="paycalc" onclick="sideNav('paycalc')"><span class="side-icon"><i class="ti ti-calculator"></i></span>Paycheck Calculator</button>
+      <button class="side-item" data-sview="paycalc" onclick="closeSidebar();openPaycalcModal()"><span class="side-icon"><i class="ti ti-calculator"></i></span>Paycheck Calculator</button>
       <button class="side-item" data-sview="setup" onclick="sideNav('setup')"><span class="side-icon"><i class="ti ti-settings"></i></span>Settings</button>
     </nav>
     <div class="sidebar-footer">
@@ -377,6 +377,7 @@ select option{background:var(--surface);color:var(--text);}
       <div class="section-head">
         <div class="section-title">My <span style="color:var(--success);">Income</span></div>
         <div style="display:flex;gap:8px;">
+          <button onclick="openPaycalcModal()" style="background:var(--surface2);border:1px solid var(--border);color:var(--muted);border-radius:99px;padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer;"><i class="ti ti-calculator"></i> Calculator</button>
           <button onclick="openRecurringModal()" style="background:var(--surface2);border:1px solid var(--border);color:var(--accent);border-radius:99px;padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer;"><i class="ti ti-refresh"></i> Recurring</button>
           <button class="add-btn" onclick="openWeekModal()">+</button>
         </div>
@@ -433,10 +434,7 @@ select option{background:var(--surface);color:var(--text);}
       <div class="section-head"><div class="section-title">How to Use</div></div>
       <div id="instructions-content"></div>
     </div>
-    <div id="view-paycalc" class="view">
-      <div class="section-head"><div class="section-title">Paycheck Calculator</div></div>
-      <div id="paycalc-content" style="padding:0 16px 100px;"></div>
-    </div>
+    <div id="view-paycalc" class="view"></div>
   </div>
   <nav class="nav">
     <button class="nav-btn" data-view="forecast" onclick="switchView('forecast',this)"><span class="icon"><i class="ti ti-chart-line"></i></span>Forecast</button>
@@ -786,6 +784,16 @@ select option{background:var(--surface);color:var(--text);}
   <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal('expense-modal')">Cancel</button><button class="btn btn-primary" onclick="saveExpense()">Save</button></div>
 </div></div>
 
+<!-- PAYCHECK CALCULATOR MODAL -->
+<div class="modal-overlay" id="paycalc-modal"><div class="modal" style="max-height:92dvh;overflow-y:auto;padding-bottom:24px;">
+  <div class="modal-handle"></div>
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+    <div class="modal-title" style="margin-bottom:0;">Paycheck Calculator</div>
+    <button onclick="closeModal('paycalc-modal')" style="background:none;border:none;color:var(--muted);font-size:24px;cursor:pointer;line-height:1;padding:0 4px;">×</button>
+  </div>
+  <div id="paycalc-content"></div>
+</div></div>
+
 <!-- IMPORT DATA MODAL -->
 <div class="modal-overlay" id="import-modal"><div class="modal">
   <div class="modal-handle"></div><div class="modal-title">Import Data</div>
@@ -979,7 +987,7 @@ function switchView(name,btn){
   if(name==='expenses'){collapsedMonths=new Set();renderExpenses();}
   if(name==='setup')renderSetup();
   if(name==='instructions')renderInstructions();
-  if(name==='paycalc')renderPaycalc();
+  if(name==='paycalc'){openPaycalcModal();return;}
 }
 function openSidebar(){document.getElementById('sidebar').classList.add('open');document.getElementById('sidebar-overlay').classList.add('open');}
 function closeSidebar(){document.getElementById('sidebar').classList.remove('open');document.getElementById('sidebar-overlay').classList.remove('open');}
@@ -4621,6 +4629,7 @@ async function confirmImport(){
 // MODALS
 function openModal(id){document.getElementById(id).classList.add('open');}
 function closeModal(id){document.getElementById(id).classList.remove('open');}
+function openPaycalcModal(){openModal('paycalc-modal');renderPaycalc();}
 function checkWhatsNew(previousLogin){
   if(!localStorage.getItem('bt-onboarded'))return; // skip for brand-new users seeing the onboarding tour
   // If the Payday Routine is open, defer until it finishes so the modal isn't hidden behind it
