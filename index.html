@@ -3296,8 +3296,15 @@ function renderWeekly(){
   // Split: active = within 7 days, archived = older than 7 days
   const cutoff=new Date();cutoff.setDate(cutoff.getDate()-7);
   const cutoffStr=cutoff.toISOString().slice(0,10);
-  // Income source filter
-  const sources=['all',...new Set(weeks.filter(w=>w.source_name).map(w=>w.source_name))];
+  // Income source filter — sorted by next upcoming pay_date ascending
+  const todayStr=today();
+  const uniqueSources=[...new Set(weeks.filter(w=>w.source_name).map(w=>w.source_name))];
+  uniqueSources.sort((a,b)=>{
+    const nextA=weeks.filter(w=>w.source_name===a&&w.pay_date>=todayStr).reduce((min,w)=>w.pay_date<min?w.pay_date:min,'9999-99-99');
+    const nextB=weeks.filter(w=>w.source_name===b&&w.pay_date>=todayStr).reduce((min,w)=>w.pay_date<min?w.pay_date:min,'9999-99-99');
+    return nextA<nextB?-1:nextA>nextB?1:0;
+  });
+  const sources=['all',...uniqueSources];
   const filterBar=sources.length>1?`<div class="toggle-row" style="flex-wrap:wrap;margin-bottom:14px;">${sources.map(s=>`<button class="toggle-btn ${incomeFilter===s?'active':''}" style="flex:0 0 auto;padding:7px 12px;font-size:11px;" onclick="setIncomeFilter('${esc(s)}')">${s==='all'?'All Sources':esc(s)}</button>`).join('')}</div>`:'';
   const active=sorted.filter(w=>w.pay_date>=cutoffStr&&(incomeFilter==='all'||w.source_name===incomeFilter||!w.source_name));
   const archived=sorted.filter(w=>w.pay_date<cutoffStr&&(incomeFilter==='all'||w.source_name===incomeFilter||!w.source_name));
