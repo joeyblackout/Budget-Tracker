@@ -1236,7 +1236,7 @@ function runDebtSim(extraOfDisc,maxMonths){
           }
         }
         freedPayments+=minimum;
-        rolledOverPayment+=(totalPayment-actualPayment);
+        rolledOverPayment=(totalPayment-actualPayment);
       }else{
         rolledOverPayment=0;
       }
@@ -1372,7 +1372,12 @@ function forecastDebtTimeline(sim){
   // Months after the schedule ends use the fallback average → flag any debt whose payoff reaches that territory
   const lastSched=lastScheduledMonthIndex();
   const fallbackStarts=(forecastStrategy!=='min'&&lastSched>=0&&lastSched<599)?lastSched+1:null;
-  const rows=sim.debts.map(d=>{
+  const rows=sim.debts.slice().sort((a,b)=>{
+    if(a.payoffMonth===null&&b.payoffMonth===null)return 0;
+    if(a.payoffMonth===null)return 1;
+    if(b.payoffMonth===null)return -1;
+    return a.payoffMonth-b.payoffMonth;
+  }).map(d=>{
     const paid=d.payoffMonth!==null; // sim runs the fixed 120 months, so this is paid-within-10-years
     const estimated=(fallbackStarts!==null&&(!paid||d.payoffMonth>=fallbackStarts))||(paid&&d.payoffDateEst);
     let label;
