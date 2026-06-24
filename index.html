@@ -3481,8 +3481,13 @@ async function deleteRecurring(id){
   if(error){toast('Error deleting: '+error.message);return;}
   if(rec){
     const todayStr=today();
-    const toDelete=weeks.filter(w=>w.source_name===rec.name&&w.pay_date>=todayStr&&paychecks.filter(p=>p.pay_week_id===w.id).length===0);
-    for(const w of toDelete){const{error:we}=await sb.from('pay_weeks').delete().eq('id',w.id);if(we)console.warn('Could not delete period',w.id,we.message);}
+    const confirmedIds=new Set(paychecks.map(p=>p.pay_week_id));
+    const toDelete=weeks.filter(w=>w.source_name===rec.name&&w.pay_date>todayStr&&!confirmedIds.has(w.id));
+    if(toDelete.length>0){
+      const ids=toDelete.map(w=>w.id);
+      const{error:we}=await sb.from('pay_weeks').delete().in('id',ids).eq('user_id',currentUser.id);
+      if(we)console.warn('Could not delete future periods:',we.message);
+    }
   }
   await Promise.all([loadRecurring(),loadWeeks(),loadPaychecks()]);
   cancelRecurringEdit();
