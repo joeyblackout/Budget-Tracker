@@ -385,6 +385,7 @@ select option{background:var(--surface);color:var(--text);}
     </div>
     <div id="view-debts" class="view">
       <div class="section-head"><div class="section-title">My <span style="color:var(--success);">Debts</span></div><button class="add-btn" onclick="openDebtModal()">+</button></div>
+      <div id="debts-strategy"></div>
       <div id="debts-list"></div>
     </div>
     <div id="view-bills" class="view">
@@ -1065,14 +1066,14 @@ let forecastDebtMethod=localStorage.getItem('forecast_debt_method')||'avalanche'
 let forecastCustomAmt=parseFloat(localStorage.getItem('forecast_custom_amt')||'0')||0;
 let forecastCustomMode=localStorage.getItem('forecast_custom_mode')||'$';
 let forecastStrategyOpen=false; // Debt Payoff Strategies section starts collapsed each session
-function toggleForecastStrategy(){forecastStrategyOpen=!forecastStrategyOpen;renderForecast();}
-function setForecastStrategy(s){forecastStrategy=s;localStorage.setItem('forecast_strategy',s);renderForecast();}
-function setForecastDebtMethod(m){forecastDebtMethod=m;localStorage.setItem('forecast_debt_method',m);renderForecast();}
-function setForecastCustomMode(mode){forecastCustomMode=mode;localStorage.setItem('forecast_custom_mode',mode);renderForecast();}
+function toggleForecastStrategy(){forecastStrategyOpen=!forecastStrategyOpen;renderDebts();}
+function setForecastStrategy(s){forecastStrategy=s;localStorage.setItem('forecast_strategy',s);renderDebts();}
+function setForecastDebtMethod(m){forecastDebtMethod=m;localStorage.setItem('forecast_debt_method',m);renderDebts();}
+function setForecastCustomMode(mode){forecastCustomMode=mode;localStorage.setItem('forecast_custom_mode',mode);renderDebts();}
 function applyForecastCustom(){
   const v=parseFloat(document.getElementById('forecast-custom-extra')?.value)||0;
   forecastCustomAmt=v;localStorage.setItem('forecast_custom_amt',String(v));localStorage.setItem('forecast_custom_mode',forecastCustomMode);
-  renderForecast();
+  renderDebts();
 }
 function updateCustomContextLines(inputVal){
   const v=parseFloat(inputVal)||0;
@@ -1606,7 +1607,6 @@ function renderForecast(){
     </div>`:`<div class="card" style="border-color:var(--success);background:rgba(45,212,160,0.06);">
       <div style="font-size:14px;font-weight:700;color:var(--success);">✓ You stay in the positive the whole window</div>
     </div>`}
-    ${forecastStrategySection()}
     ${timeline.length>0?`<div class="card-title" style="margin-top:8px;">Projected Timeline</div>
     ${(()=>{
       // Group by month
@@ -3534,6 +3534,8 @@ function debtPayoffLine(debtId,bal){
   return '<div style="font-size:12px;color:var(--muted);margin-top:10px;">Paid off ~'+d.toLocaleString('en-US',{month:'short',year:'numeric'})+' at current pace</div>';
 }
 function renderDebts(){
+  const stratEl=document.getElementById('debts-strategy');
+  if(stratEl)stratEl.innerHTML=forecastStrategySection();
   const el=document.getElementById('debts-list');
   if(debts.length===0){el.innerHTML=`<div class="empty"><div class="icon"><i class="ti ti-credit-card"></i></div><p>No accounts yet. Tap <strong>+</strong> to add one.</p></div>`;return;}
   el.innerHTML=debts.map(d=>{
