@@ -3297,7 +3297,6 @@ function renderWeekly(){
   const cutoff=new Date();cutoff.setDate(cutoff.getDate()-7);
   const cutoffStr=cutoff.toISOString().slice(0,10);
   // Income source filter — sorted by next upcoming pay_date ascending
-  const todayStr=today();
   const uniqueSources=[...new Set(weeks.filter(w=>w.source_name).map(w=>w.source_name))];
   uniqueSources.sort((a,b)=>{
     const nextA=weeks.filter(w=>w.source_name===a&&w.pay_date>=todayStr).reduce((min,w)=>w.pay_date<min?w.pay_date:min,'9999-99-99');
