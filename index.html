@@ -2893,8 +2893,9 @@ function renderBills(){
   const progress=monthlyTotal>0?Math.min((monthlyPaidThisMonth/monthlyTotal)*100,100):0;
   const billCard=(b)=>{
     const dueDay=parseInt(b.due_day||0);
-    const dueSoon=dueDay>0&&(dueDay-todayDay)>=0&&(dueDay-todayDay)<=5;
-    const overdue=dueDay>0&&todayDay>dueDay;
+    const dueThisMo=isBillDueThisMonth(b); // gate non-monthly bills (quarterly/semi-annual/annual) to their due months
+    const dueSoon=dueThisMo&&dueDay>0&&(dueDay-todayDay)>=0&&(dueDay-todayDay)<=5;
+    const overdue=dueThisMo&&dueDay>0&&todayDay>dueDay;
     const paidThisMonth=billPayments.filter(p=>p.bill_id===b.id&&(p.paid_date||'').startsWith(thisMonth));
     const isPaid=paidThisMonth.length>0;
     const paidAmount=paidThisMonth.reduce((s,p)=>s+parseFloat(p.amount||0),0);
@@ -3047,6 +3048,7 @@ function getDueBills(){
     if(!dueDay)return false;
     const isPaid=billPayments.some(p=>p.bill_id===b.id&&(p.paid_date||'').startsWith(thisMonth));
     if(isPaid)return false;
+    if(!isBillDueThisMonth(b))return false; // skip non-monthly bills not due this month
     return todayDay>=dueDay;
   });
 }
@@ -4706,11 +4708,11 @@ function getNotifications(){
     notifs.push({type:'invite',priority:1,icon:'<i class="ti ti-users"></i>',title:`${displayName(inv.inviter_id)} invited you`,body:`Join "${esc(inv.pot_name)}" shared savings pot`,action:()=>{closeNotifications();switchView('savings',null);},accept:()=>acceptInvite(inv.id,inv.pot_id),decline:()=>declineInvite(inv.id)});
   });
   // 2. Overdue bills
-  bills.filter(b=>{if(isBillExpired(b))return false;const d=parseInt(b.due_day||0);if(!d)return false;const paid=billPayments.some(p=>p.bill_id===b.id&&(p.paid_date||'').startsWith(thisMonth));return!paid&&todayDay>d;}).forEach(b=>{
+  bills.filter(b=>{if(isBillExpired(b))return false;const d=parseInt(b.due_day||0);if(!d)return false;const paid=billPayments.some(p=>p.bill_id===b.id&&(p.paid_date||'').startsWith(thisMonth));return!paid&&todayDay>d&&isBillDueThisMonth(b);}).forEach(b=>{
     notifs.push({type:'bill-overdue',priority:2,icon:'<i class="ti ti-alert-circle" style="color:var(--danger);"></i>',title:`${esc(b.name)} is overdue`,body:`$${parseFloat(b.amount).toFixed(2)} was due on day ${b.due_day}`,action:()=>{closeNotifications();switchView('bills',null);}});
   });
   // 3. Bills due soon (within 5 days)
-  bills.filter(b=>{if(isBillExpired(b))return false;const d=parseInt(b.due_day||0);if(!d)return false;const paid=billPayments.some(p=>p.bill_id===b.id&&(p.paid_date||'').startsWith(thisMonth));const diff=d-todayDay;return!paid&&diff>=0&&diff<=5;}).forEach(b=>{
+  bills.filter(b=>{if(isBillExpired(b))return false;const d=parseInt(b.due_day||0);if(!d)return false;const paid=billPayments.some(p=>p.bill_id===b.id&&(p.paid_date||'').startsWith(thisMonth));const diff=d-todayDay;return!paid&&diff>=0&&diff<=5&&isBillDueThisMonth(b);}).forEach(b=>{
     const diff=parseInt(b.due_day)-todayDay;
     notifs.push({type:'bill-soon',priority:3,icon:'<i class="ti ti-calendar"></i>',title:`${esc(b.name)} due ${diff===0?'today':`in ${diff} day${diff!==1?'s':''}`}`,body:`$${parseFloat(b.amount).toFixed(2)} due day ${b.due_day}`,action:()=>{closeNotifications();switchView('bills',null);}});
   });
