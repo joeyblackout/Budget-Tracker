@@ -840,9 +840,16 @@ function maybeShowApp(user){
   // can all fire for the same user on load. Only run showApp once per user.
   if(user.id===lastShownUserId)return;
   lastShownUserId=user.id;
-  // Capture the prior login time (for What's New filtering), then stamp this login
-  whatsNewPrevLogin=parseInt(localStorage.getItem('bt-last-login-ts')||'0');
-  localStorage.setItem('bt-last-login-ts',Date.now().toString());
+  // Capture the prior login time (for What's New filtering). Only advance the stamp
+  // when this is genuinely a new session (>30min gap) so quick reopens/refreshes
+  // don't wipe out the previous login reference.
+  const storedLogin=parseInt(localStorage.getItem('bt-last-login-ts')||'0');
+  const now=Date.now();
+  const sessionGap=1000*60*30; // 30 minutes
+  whatsNewPrevLogin=storedLogin;
+  if(now-storedLogin>sessionGap){
+    localStorage.setItem('bt-last-login-ts',now.toString());
+  }
   currentUser=user;
   showApp();
 }
@@ -4599,9 +4606,14 @@ function showWhatsNew(previousLogin){
     {date:new Date('2026-06-23T18:00:00').getTime(),icon:'ti-chart-dots',title:'Spending Trends',desc:'The Expenses tab now has a Trends view — sparkline charts per category across Weekly, 3 Month, 6 Month, and Yearly windows.'},
     {date:new Date('2026-06-23T17:00:00').getTime(),icon:'ti-file-upload',title:'Import Data',desc:'New users can bulk-import debts, bills, savings, income, expenses, and assets from an Excel template in Settings.'}
   ];
-  const newItems=CHANGELOG.filter(e=>e.date>previousLogin);
+  // Cutoff is the later of the prior login OR the newest item already dismissed,
+  // so a frozen-stamp session doesn't re-show the same items on every refresh.
+  const seenTs=parseInt(localStorage.getItem('bt-whatsnew-seen-ts')||'0');
+  const cutoff=Math.max(previousLogin,seenTs);
+  const newItems=CHANGELOG.filter(e=>e.date>cutoff);
   if(newItems.length===0){localStorage.setItem('bt-version-seen',APP_VERSION);return;}
   localStorage.setItem('bt-version-seen',APP_VERSION);
+  localStorage.setItem('bt-whatsnew-seen-ts',Math.max(...newItems.map(e=>e.date)).toString());
   const html=newItems.map((it,i)=>'<div style="display:flex;gap:12px;align-items:flex-start;padding:12px 0;'+(i<newItems.length-1?'border-bottom:1px solid var(--border);':'')+'">'
     +'<span style="font-size:20px;width:28px;text-align:center;color:var(--accent);flex-shrink:0;"><i class="ti '+it.icon+'"></i></span>'
     +'<div><div style="font-size:14px;font-weight:700;margin-bottom:2px;">'+it.title+'</div>'
