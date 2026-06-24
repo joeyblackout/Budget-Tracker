@@ -3531,7 +3531,7 @@ function debtPayoffLine(debtId,bal){
   if(avg<=0)return '<div style="font-size:12px;color:var(--muted);margin-top:10px;">Log a payment to see payoff estimate</div>';
   const monthsLeft=Math.ceil(bal/avg);
   const d=new Date();d.setMonth(d.getMonth()+monthsLeft);
-  return '<div style="font-size:11px;color:var(--muted);margin-top:5px;">Paid off ~'+d.toLocaleString('en-US',{month:'short',year:'numeric'})+' at current pace</div>';
+  return '<div style="font-size:10px;color:var(--muted);margin-top:3px;">Paid off ~'+d.toLocaleString('en-US',{month:'short',year:'numeric'})+' at current pace</div>';
 }
 function renderDebts(){
   const stratEl=document.getElementById('debts-strategy');
@@ -3544,37 +3544,37 @@ function renderDebts(){
     const u=lim>0?(bal/lim)*100:null;
     const debtPaid=payments.filter(p=>p.debt_id===d.id).reduce((s,p)=>s+parseFloat(p.amount||0),0);
     const collapsed=debtCollapsed.has(d.id);
-    return`<div class="card" style="padding:12px 14px;margin-bottom:10px;">
+    return`<div class="card" style="padding:8px 12px;margin-bottom:6px;">
       <div onclick="toggleDebtCard('${d.id}')" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none;">
         <div>
-          <div style="font-size:15px;font-weight:800;letter-spacing:-0.02em;">${esc(d.name)}</div>
-          <div style="color:var(--muted);font-size:12px;margin-top:3px;">${esc(d.type)} · ${fmt(bal)}</div>
+          <div style="font-size:14px;font-weight:800;letter-spacing:-0.02em;">${esc(d.name)}</div>
+          <div style="color:var(--muted);font-size:11px;margin-top:2px;">${esc(d.type)} · ${fmt(bal)}</div>
         </div>
         <div style="display:flex;align-items:center;gap:8px;">
           <span style="font-size:13px;color:var(--muted);">${collapsed?'▼':'▲'}</span>
         </div>
       </div>
       ${collapsed?'':`<div>
-      <div class="divider" style="margin:8px 0;"></div>
+      <div class="divider" style="margin:5px 0;"></div>
       <div style="display:flex;justify-content:flex-end;gap:6px;margin-bottom:6px;">
         <button class="del-btn" onclick="event.stopPropagation();showDebtDetail('${d.id}')">History</button>
         <button class="del-btn" onclick="event.stopPropagation();editDebt('${d.id}')">Edit</button>
         <button class="del-btn" onclick="event.stopPropagation();deleteDebt('${d.id}')">Delete</button>
       </div>
-      <div class="stat-grid" style="grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:0;">
-        <div><div class="pill-label">Balance</div><div style="font-size:14px;font-weight:800;color:var(--danger);">${fmt(bal)}</div></div>
-        ${lim>0?`<div><div class="pill-label">Limit</div><div style="font-size:14px;font-weight:700;">${fmt(lim)}</div></div>`:d.original_amount?`<div><div class="pill-label">Original</div><div style="font-size:14px;font-weight:700;">${fmt(d.original_amount)}</div></div>`:`<div><div class="pill-label">Total Paid</div><div style="font-size:14px;font-weight:700;color:var(--success);">${fmt(debtPaid)}</div></div>`}
-        <div><div class="pill-label">APR</div><div style="font-size:14px;font-weight:700;">${parseFloat(d.apr||0).toFixed(1)}%</div></div>
+      <div class="stat-grid" style="grid-template-columns:1fr 1fr 1fr;gap:4px;margin-bottom:0;">
+        <div><div class="pill-label">Balance</div><div style="font-size:13px;font-weight:800;color:var(--danger);">${fmt(bal)}</div></div>
+        ${lim>0?`<div><div class="pill-label">Limit</div><div style="font-size:13px;font-weight:700;">${fmt(lim)}</div></div>`:d.original_amount?`<div><div class="pill-label">Original</div><div style="font-size:13px;font-weight:700;">${fmt(d.original_amount)}</div></div>`:`<div><div class="pill-label">Total Paid</div><div style="font-size:13px;font-weight:700;color:var(--success);">${fmt(debtPaid)}</div></div>`}
+        <div><div class="pill-label">APR</div><div style="font-size:13px;font-weight:700;">${parseFloat(d.apr||0).toFixed(1)}%</div></div>
       </div>
-      ${u!==null?`<div style="margin:5px 0 6px;"><div class="progress-label"><span>Utilization</span><span class="${u>100?'text-danger':u>30?'text-warning':'text-success'}">${u.toFixed(1)}%</span></div><div class="progress-bar"><div class="progress-fill" style="width:${Math.min(u,100)}%;background:${u>100?'var(--danger)':u>30?'var(--warning)':'var(--success)'}"></div></div></div>`:''}
-      ${(()=>{if(u!==null)return'';const origAmt=parseFloat(d.original_amount||0);if(origAmt>0){const pct=Math.min(Math.max((origAmt-bal)/origAmt*100,0),100);const col=pct>=66?'var(--success)':pct>=33?'var(--warning)':'var(--danger)';return`<div style="margin:5px 0 6px;"><div class="progress-label"><span>Payoff Progress</span><span style="color:${col};font-weight:700;">${pct.toFixed(1)}% paid</span></div><div class="progress-bar"><div class="progress-fill" style="width:${pct}%;background:${col}"></div></div></div>`;}if(debtPaid<=0)return'';const orig=bal+debtPaid;const pct=Math.min((debtPaid/orig)*100,100);const col=pct>=66?'var(--success)':pct>=33?'var(--warning)':'var(--danger)';return`<div style="margin:5px 0 6px;"><div class="progress-label"><span>Payoff Progress</span><span style="color:${col};font-weight:700;">${pct.toFixed(1)}% paid</span></div><div class="progress-bar"><div class="progress-fill" style="width:${pct}%;background:${col}"></div></div></div>`;})()}
-      <div class="divider" style="margin:8px 0;"></div>
+      ${u!==null?`<div style="margin:3px 0 4px;"><div class="progress-label"><span>Utilization</span><span class="${u>100?'text-danger':u>30?'text-warning':'text-success'}">${u.toFixed(1)}%</span></div><div class="progress-bar"><div class="progress-fill" style="width:${Math.min(u,100)}%;background:${u>100?'var(--danger)':u>30?'var(--warning)':'var(--success)'}"></div></div></div>`:''}
+      ${(()=>{if(u!==null)return'';const origAmt=parseFloat(d.original_amount||0);if(origAmt>0){const pct=Math.min(Math.max((origAmt-bal)/origAmt*100,0),100);const col=pct>=66?'var(--success)':pct>=33?'var(--warning)':'var(--danger)';return`<div style="margin:3px 0 4px;"><div class="progress-label"><span>Payoff Progress</span><span style="color:${col};font-weight:700;">${pct.toFixed(1)}% paid</span></div><div class="progress-bar"><div class="progress-fill" style="width:${pct}%;background:${col}"></div></div></div>`;}if(debtPaid<=0)return'';const orig=bal+debtPaid;const pct=Math.min((debtPaid/orig)*100,100);const col=pct>=66?'var(--success)':pct>=33?'var(--warning)':'var(--danger)';return`<div style="margin:3px 0 4px;"><div class="progress-label"><span>Payoff Progress</span><span style="color:${col};font-weight:700;">${pct.toFixed(1)}% paid</span></div><div class="progress-bar"><div class="progress-fill" style="width:${pct}%;background:${col}"></div></div></div>`;})()}
+      <div class="divider" style="margin:5px 0;"></div>
       <div style="display:flex;justify-content:space-between;align-items:center;">
-        <div style="display:flex;gap:10px;">
-          <div><div class="pill-label">Min Payment</div><div style="font-size:13px;font-weight:700;">${fmt(d.min_payment||0)}</div></div>
-          <div><div class="pill-label">Due</div><div style="font-size:13px;font-weight:700;">Day ${d.due_date||'—'}</div></div>
+        <div style="display:flex;gap:8px;">
+          <div><div class="pill-label">Min Payment</div><div style="font-size:12px;font-weight:700;">${fmt(d.min_payment||0)}</div></div>
+          <div><div class="pill-label">Due</div><div style="font-size:12px;font-weight:700;">Day ${d.due_date||'—'}</div></div>
         </div>
-        ${bal>0?`<button onclick="event.stopPropagation();openPaymentForDebt('${d.id}')" style="background:linear-gradient(135deg,var(--success),#0a9e74);color:#fff;border:none;border-radius:99px;padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;"><i class="ti ti-credit-card"></i> Log Payment</button>`:`<span style="font-size:12px;color:var(--success);font-weight:700;">✓ Paid off!</span>`}
+        ${bal>0?`<button onclick="event.stopPropagation();openPaymentForDebt('${d.id}')" style="background:linear-gradient(135deg,var(--success),#0a9e74);color:#fff;border:none;border-radius:99px;padding:6px 12px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;"><i class="ti ti-credit-card"></i> Log Payment</button>`:`<span style="font-size:12px;color:var(--success);font-weight:700;">✓ Paid off!</span>`}
       </div>
       ${debtPayoffLine(d.id,bal)}
       </div>`}
