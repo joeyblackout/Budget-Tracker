@@ -1807,6 +1807,10 @@ async function openPaydayRoutine(){
 function routineCloseX(){
   if(routineSubmittedStep===0){if(!confirm("Exit payday routine? Your progress won't be saved."))return;}
   document.getElementById('routine-overlay').style.display='none';
+  if(routinePendingWhatsNew){
+    routinePendingWhatsNew=false;
+    setTimeout(()=>showWhatsNew(whatsNewPrevLogin),600);
+  }
 }
 
 function routineBack(){
