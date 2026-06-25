@@ -4432,11 +4432,20 @@ function renderTrendsInsights(){
   const titleMap={weekly:'Weekly','3mo':'3 Months','6mo':'6 Months',yearly:'Yearly'};
   const totalMonthlyBudget=Object.values(budgetTargets).reduce((s,v)=>s+v,0);
   const totalWindowBudget=totalMonthlyBudget*(trendsWindow==='weekly'?0.25:trendsWindow==='3mo'?3:trendsWindow==='6mo'?6:12);
-  const budgetBadge=totalWindowBudget>0?`<span style="color:var(--success);font-weight:800;text-transform:none;letter-spacing:0;"> · ${fmt(totalWindowBudget)}</span>`:'';
+  const totalSpent=(()=>{
+    if(trendsWindow==='weekly'){const p=periods[periods.length-1];return expenses.filter(e=>(e.exp_date||'')>=p.start&&(e.exp_date||'')<=p.end).reduce((s,e)=>s+parseFloat(e.amount||0),0);}
+    return periods.reduce((sum,p)=>sum+expenses.filter(e=>(e.exp_date||'').startsWith(p.month)).reduce((s,e)=>s+parseFloat(e.amount||0),0),0);
+  })();
+  const remaining=totalWindowBudget-totalSpent;
+  const remainingColor=remaining>=0?'var(--success)':'var(--danger)';
+  const remainingLabel=remaining>=0?'remaining':'over budget';
+  const budgetBadge=totalWindowBudget>0
+    ?`<div style="font-size:11px;font-weight:700;margin-top:2px;"><span style="color:var(--muted);">${fmt(totalWindowBudget)} budget</span><span style="color:${remainingColor};"> · ${fmt(Math.abs(remaining))} ${remainingLabel}</span></div>`
+    :'';
   return`
     ${projCard}
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;">${windowBtns}</div>
-    <div style="font-size:11px;font-weight:700;letter-spacing:0.08em;color:var(--muted);text-transform:uppercase;margin-bottom:8px;">Category Trends — ${titleMap[trendsWindow]}${budgetBadge}</div>
+    <div style="margin-bottom:8px;"><div style="font-size:11px;font-weight:700;letter-spacing:0.08em;color:var(--muted);text-transform:uppercase;">Category Trends — ${titleMap[trendsWindow]}</div>${budgetBadge}</div>
     <div style="display:flex;justify-content:flex-end;gap:${trendsWindow==='weekly'?'28':'16'}px;font-size:10px;color:var(--muted);margin-bottom:4px;">
       ${labels.map(l=>`<span>${l}</span>`).join('')}
     </div>
