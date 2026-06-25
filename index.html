@@ -1074,9 +1074,11 @@ let forecastDebtMethod=localStorage.getItem('forecast_debt_method')||'avalanche'
 let forecastCustomAmt=parseFloat(localStorage.getItem('forecast_custom_amt')||'0')||0;
 let forecastCustomMode=localStorage.getItem('forecast_custom_mode')||'$';
 let forecastStrategyOpen=false; // Debt Payoff Strategies section starts collapsed each session
+let forecastPayoffTarget=localStorage.getItem('forecast_payoff_target')||'debt-free';
 function toggleForecastStrategy(){forecastStrategyOpen=!forecastStrategyOpen;renderDebts();}
 function setForecastStrategy(s){forecastStrategy=s;localStorage.setItem('forecast_strategy',s);renderDebts();}
 function setForecastDebtMethod(m){forecastDebtMethod=m;localStorage.setItem('forecast_debt_method',m);renderDebts();}
+function setForecastPayoffTarget(t){forecastPayoffTarget=t;localStorage.setItem('forecast_payoff_target',t);renderDebts();}
 function setForecastCustomMode(mode){forecastCustomMode=mode;localStorage.setItem('forecast_custom_mode',mode);renderDebts();}
 function applyForecastCustom(){
   const v=parseFloat(document.getElementById('forecast-custom-extra')?.value)||0;
@@ -1266,9 +1268,77 @@ function runDebtSim(extraOfDisc,maxMonths){
   return{debts:active,totalInterest,debtFreeMonth,monthlyTotals};
 }
 function monthLabelFromIndex(m){const now=new Date();const d=new Date(now.getFullYear(),now.getMonth()+m,1);return d.toLocaleString('en-US',{month:'long',year:'numeric'});}
+// Simulates paying credit cards down to 30% utilization; loans pay minimums only.
+// Extra allocation goes to CCs above 30%, sorted by avalanche/snowball method.
+function runUtil30Sim(extraOfDisc,maxMonths){
+  const active=debts.filter(d=>parseFloat(d.balance||0)>0).map(d=>({
+    id:d.id,name:d.name,type:d.type,bal:parseFloat(d.balance||0),apr:parseFloat(d.apr||0),
+    minPay:parseFloat(d.min_payment||0),creditLimit:parseFloat(d.credit_limit||0),
+    interestPaid:0,targetMonth:null,targetDate:null,targetDateEst:false,balEnd:0
+  }));
+  const ccDebts=active.filter(d=>d.type==='Credit Card');
+  const target30=d=>d.creditLimit>0?d.creditLimit*0.30:0;
+  const fb=recurringFallbackAvg().avg;
+  const now=new Date();
+  const monthlyTotals=[];
+  let targetReachedMonth=null;
+  if(ccDebts.length===0||ccDebts.every(d=>d.bal<=target30(d)+0.005)){
+    targetReachedMonth=0;
+  }else{
+    for(let m=0;m<maxMonths;m++){
+      const ccAbove=ccDebts.filter(d=>d.bal>target30(d)+0.005);
+      if(ccAbove.length===0){targetReachedMonth=m;break;}
+      const d0=new Date(now.getFullYear(),now.getMonth()+m,1);
+      const income=monthIncome(d0.getFullYear(),d0.getMonth(),fb).amount;
+      const billsDue=billsDueInMonth(d0.getFullYear(),d0.getMonth());
+      const extraAllocation=Math.max(0,extraOfDisc(income-billsDue)||0);
+      let monthTotal=0;
+      for(const d of active){
+        if(d.bal<=0.005)continue;
+        const interest=d.bal*(d.apr/100/12);
+        d.bal+=interest;d.interestPaid+=interest;
+        let minimum=d.type==='Credit Card'?Math.max(25,d.bal*0.02):d.minPay;
+        minimum=Math.min(Math.max(0,minimum),d.bal);
+        d.bal=Math.max(0,d.bal-minimum);
+        monthTotal+=minimum;
+      }
+      let extraLeft=extraAllocation;
+      const ccOrder=ccDebts.filter(d=>d.bal>target30(d)+0.005).sort(
+        (a,b)=>forecastDebtMethod==='snowball'?(a.bal-target30(a))-(b.bal-target30(b)):b.apr-a.apr
+      );
+      for(const d of ccOrder){
+        if(extraLeft<=0.005)break;
+        const overage=Math.max(0,d.bal-target30(d));
+        const extra=Math.min(extraLeft,overage);
+        d.bal=Math.max(target30(d),d.bal-extra);
+        monthTotal+=extra;
+        extraLeft-=extra;
+        if(d.bal<=target30(d)+0.005&&d.targetMonth===null){
+          d.targetMonth=m;
+          const sched=getForecastSchedule().map[m];
+          if(sched&&sched.paychecks>0&&sched.lastPayDate){
+            d.targetDate=sched.lastPayDate;d.targetDateEst=false;
+          }else{
+            d.targetDate=d0.getFullYear()+'-'+String(d0.getMonth()+1).padStart(2,'0')+'-15';
+            d.targetDateEst=true;
+          }
+        }
+      }
+      monthlyTotals.push(monthTotal);
+    }
+  }
+  active.forEach(d=>{d.balEnd=Math.max(0,d.bal);});
+  const totalInterest=active.reduce((s,d)=>s+d.interestPaid,0);
+  const totalPaid=monthlyTotals.reduce((s,v)=>s+v,0);
+  return{debts:active,totalInterest,targetReachedMonth,monthlyTotals,totalPaid};
+}
 function forecastStrategyUI(){
   const opts=[['min','Minimums Only'],['25','25% of Discretionary'],['50','50% of Discretionary'],['75','75% of Discretionary'],['custom','Custom']];
-  let h='<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#c084fc;margin:6px 0 6px;">Debt Strategy</div>';
+  let h='<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#c084fc;margin:6px 0 6px;">Payoff Target</div>';
+  h+='<div style="display:flex;gap:6px;margin-bottom:10px;">'
+    +[['debt-free','<i class=\'ti ti-trophy\'></i> Debt-Free'],['util30','<i class=\'ti ti-chart-bar\'></i> 30% Utilization']].map(([k,l])=>'<button onclick="setForecastPayoffTarget(\''+k+'\')" style="flex:1;padding:7px 10px;border-radius:8px;border:1px solid '+(forecastPayoffTarget===k?'#a855f7':'var(--border)')+';background:'+(forecastPayoffTarget===k?'rgba(168,85,247,0.12)':'transparent')+';color:'+(forecastPayoffTarget===k?'#c084fc':'var(--muted)')+';font-size:12px;font-weight:700;cursor:pointer;">'+l+'</button>').join('')
+    +'</div>';
+  h+='<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#c084fc;margin:6px 0 6px;">Debt Strategy</div>';
   h+='<div class="toggle-row" style="flex-wrap:wrap;margin-bottom:8px;">'+opts.map(([k,l])=>'<button class="toggle-btn '+(forecastStrategy===k?'active':'')+'" style="flex:0 0 auto;padding:8px 12px;" onclick="setForecastStrategy(\''+k+'\')">'+l+'</button>').join('')+'</div>';
   // Summary based on the per-month recurring income schedule (varies month to month)
   if(forecastStrategy!=='min'){
@@ -1345,7 +1415,39 @@ function fmtPayoffDate(dateStr,est){
   const d=new Date(dateStr+'T00:00:00');
   return est?d.toLocaleString('en-US',{month:'short',year:'numeric'}):d.toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric'});
 }
+function forecastUtil30Callout(sim){
+  const ccDebts=sim.debts.filter(d=>d.type==='Credit Card');
+  const hasCCsWithLimits=ccDebts.some(d=>parseFloat(d.creditLimit||0)>0);
+  if(!hasCCsWithLimits){
+    return '<div class="card" style="margin-bottom:14px;text-align:center;"><div style="font-size:14px;color:var(--muted);">No credit cards with limits — add credit limits to use this target</div></div>';
+  }
+  const tm=sim.targetReachedMonth;
+  let color,main,sub='',targetDateStr='',targetDateEst=false;
+  if(tm===0){
+    color='var(--success)';main='Already at 30% Utilization!';
+  }else if(tm===null){
+    color='var(--danger)';main='Cannot reach 30% within 10 years at this pace';
+    sub='Increase your monthly payment or strategy allocation.';
+  }else{
+    color=tm>36?'var(--warning)':'var(--success)';
+    main=monthLabelFromIndex(tm)+' at 30% Utilization';
+    const ccsWithTarget=ccDebts.filter(d=>d.targetMonth!==null);
+    if(ccsWithTarget.length>0){
+      const lastCC=ccsWithTarget.reduce((a,d)=>d.targetMonth>a.targetMonth?d:a);
+      if(lastCC.targetDate){targetDateStr=fmtPayoffDate(lastCC.targetDate,lastCC.targetDateEst);targetDateEst=lastCC.targetDateEst;}
+    }
+  }
+  const totalPaid=sim.totalPaid||0;
+  return '<div class="card" style="margin-bottom:14px;">'
+    +'<div style="font-size:18px;font-weight:800;color:'+color+';">'+main+'</div>'
+    +(sub?'<div style="font-size:12px;color:var(--muted);margin-top:2px;">'+sub+'</div>':'')
+    +(tm!==null&&tm!==0&&targetDateStr?'<div style="font-size:12px;color:var(--muted);margin-top:4px;">Target date: <span style="color:var(--text);font-weight:700;">'+targetDateStr+'</span>'+(targetDateEst?' (est.)':'')+'</div>':'')
+    +'<div style="margin-top:12px;font-size:13px;color:var(--muted);">Est. interest paid: <span style="color:var(--text);font-weight:800;">'+fmt(sim.totalInterest)+'</span></div>'
+    +'<div style="margin-top:6px;font-size:13px;color:var(--muted);">Total paid to reach 30%: <span style="color:var(--text);font-weight:800;">'+fmt(totalPaid)+'</span></div>'
+    +'</div>';
+}
 function forecastDebtCallout(sim,minSim){
+  if(forecastPayoffTarget==='util30')return forecastUtil30Callout(sim);
   if(sim.debts.length===0){
     return '<div class="card" style="border-color:var(--success);background:rgba(45,212,160,0.08);margin-bottom:14px;text-align:center;"><div style="font-size:16px;font-weight:800;color:var(--success);">You have no remaining debt 🎉</div></div>';
   }
@@ -1375,8 +1477,44 @@ function forecastDebtCallout(sim,minSim){
     +'<div style="margin-top:6px;font-size:13px;color:var(--muted);">Total paid to become debt-free: <span style="color:var(--text);font-weight:800;">'+fmt(totalPaidOut)+'</span></div>'
     +savingsLine+'</div>';
 }
+function forecastUtil30Timeline(sim){
+  const ccDebts=sim.debts.filter(d=>d.type==='Credit Card'&&parseFloat(d.creditLimit||0)>0);
+  if(ccDebts.length===0)return '';
+  const lastSched=lastScheduledMonthIndex();
+  const fallbackStarts=(forecastStrategy!=='min'&&lastSched>=0&&lastSched<599)?lastSched+1:null;
+  const rows=ccDebts.slice().sort((a,b)=>{
+    if(a.targetMonth===null&&b.targetMonth===null)return 0;
+    if(a.targetMonth===null)return 1;
+    if(b.targetMonth===null)return -1;
+    return a.targetMonth-b.targetMonth;
+  }).map(d=>{
+    const target30=d.creditLimit*0.30;
+    const origDebt=debts.find(orig=>orig.id===d.id);
+    const origBal=origDebt?parseFloat(origDebt.balance||0):d.balEnd;
+    const startedAtTarget=origBal<=target30+0.005;
+    const hit=startedAtTarget||d.targetMonth!==null;
+    const estimated=!startedAtTarget&&hit&&((d.targetDateEst===true)||(fallbackStarts!==null&&d.targetMonth!==null&&d.targetMonth>=fallbackStarts));
+    let label;
+    if(startedAtTarget){
+      label='Already at 30% ✓';
+    }else if(hit&&d.targetDate){
+      const dateTxt=fmtPayoffDate(d.targetDate,estimated);
+      label=(estimated?'~'+dateTxt:dateTxt)+' ✓'+(estimated?' (est.)':'');
+    }else{
+      label='Not reached within 10 years';
+    }
+    const overAmt=Math.max(0,d.balEnd-target30);
+    return '<div class="account-row"><div style="flex:1;min-width:0;"><div class="account-name">'+esc(d.name)+'</div>'
+      +'<div class="account-detail" style="color:'+(hit?'var(--success)':'var(--danger)')+';font-weight:700;">'+label+'</div></div>'
+      +'<div style="text-align:right;"><div style="font-size:11px;color:var(--muted);">'+(hit?'at goal':'above 30%')+'</div>'
+      +'<div style="font-weight:700;color:'+(hit?'var(--success)':'var(--danger)')+';">'+(hit?'≤30%':fmt(overAmt)+' over')+'</div></div></div>';
+  }).join('');
+  return '<div class="card-title" style="margin-top:8px;color:#c084fc;">30% Utilization \xb7 '+(forecastDebtMethod==='snowball'?'Snowball':'Avalanche')+'</div>'
+    +'<div class="card" style="padding:0 18px;margin-bottom:0;">'+rows+'</div>';
+}
 function forecastDebtTimeline(sim){
   if(sim.debts.length===0)return '';
+  if(forecastPayoffTarget==='util30')return forecastUtil30Timeline(sim);
   // Months after the schedule ends use the fallback average → flag any debt whose payoff reaches that territory
   const lastSched=lastScheduledMonthIndex();
   const fallbackStarts=(forecastStrategy!=='min'&&lastSched>=0&&lastSched<599)?lastSched+1:null;
@@ -1414,18 +1552,21 @@ function forecastStrategySection(){
     // Strategy simulation ALWAYS runs a fixed 10-year (120-month) horizon, fully independent of the
     // selected forecast window — both the selected strategy and the minimums-only comparison.
     const STRAT_MONTHS=120;
-    const sim=runDebtSim(strategyExtraOfDisc,STRAT_MONTHS);
-    const minSim=runDebtSim(()=>0,STRAT_MONTHS);
+    const runSim=forecastPayoffTarget==='util30'?runUtil30Sim:runDebtSim;
+    const sim=runSim(strategyExtraOfDisc,STRAT_MONTHS);
+    const minSim=runSim(()=>0,STRAT_MONTHS);
     // Dev-only sanity checks on the strategy simulation
     const totalDebtNow=debts.reduce((s,d)=>s+parseFloat(d.balance||0),0);
     const anyApr=debts.some(d=>parseFloat(d.apr||0)>0);
-    if(sim.debtFreeMonth!==null&&sim.debtFreeMonth<1&&totalDebtNow>1000)console.warn('[forecast] Debt-free <1 month away with >$1,000 debt — simulation may be broken');
     if(sim.totalInterest<10&&totalDebtNow>1000&&anyApr)console.warn('[forecast] Total interest <$10 with >$1,000 debt and APR>0 — simulation may be broken');
-    // Correctness: an extra-payment strategy must never be slower or accrue more interest than minimums-only
-    if(forecastStrategy!=='min'){
-      const sm=sim.debtFreeMonth,mm=minSim.debtFreeMonth;
-      if((sm===null&&mm!==null)||(sm!==null&&mm!==null&&sm>mm))console.error('[forecast] CORRECTNESS: strategy debt-free month ('+sm+') is later than minimums-only ('+mm+') — cascade/extra logic is wrong.');
-      if(sim.totalInterest>minSim.totalInterest+0.5)console.error('[forecast] CORRECTNESS: strategy interest ($'+sim.totalInterest.toFixed(0)+') exceeds minimums-only ($'+minSim.totalInterest.toFixed(0)+') — impossible, logic is wrong.');
+    if(forecastPayoffTarget!=='util30'){
+      if(sim.debtFreeMonth!==null&&sim.debtFreeMonth<1&&totalDebtNow>1000)console.warn('[forecast] Debt-free <1 month away with >$1,000 debt — simulation may be broken');
+      // Correctness: an extra-payment strategy must never be slower or accrue more interest than minimums-only
+      if(forecastStrategy!=='min'){
+        const sm=sim.debtFreeMonth,mm=minSim.debtFreeMonth;
+        if((sm===null&&mm!==null)||(sm!==null&&mm!==null&&sm>mm))console.error('[forecast] CORRECTNESS: strategy debt-free month ('+sm+') is later than minimums-only ('+mm+') — cascade/extra logic is wrong.');
+        if(sim.totalInterest>minSim.totalInterest+0.5)console.error('[forecast] CORRECTNESS: strategy interest ($'+sim.totalInterest.toFixed(0)+') exceeds minimums-only ($'+minSim.totalInterest.toFixed(0)+') — impossible, logic is wrong.');
+      }
     }
     html+='<div style="border:1px solid rgba(168,85,247,0.35);border-radius:var(--radius-sm);padding:14px;margin-bottom:14px;background:var(--surface);">'+forecastStrategyUI()+forecastDebtCallout(sim,minSim)+forecastDebtTimeline(sim)+'</div>';
   }
