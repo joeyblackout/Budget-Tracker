@@ -1926,7 +1926,8 @@ function showDebtPaidBreakdown(){
   openDashModal('Debt Payment History',rows||'<div class="empty"><p>No payments logged yet.</p></div>','payments');
 }
 function showBillsPaidBreakdown(){
-  const rows=billPayments.slice(0,30).map(p=>{const b=bills.find(x=>x.id===p.bill_id);return`<div class="account-row"><div><div class="account-name">${b?esc(b.name):esc(p.notes||'Bill')}</div><div class="account-detail">${fmtDate(p.paid_date)}</div></div><div class="account-balance text-danger">-${fmt(p.amount)}</div></div>`;}).join('');
+  const linkedIds=new Set(bills.filter(b=>b.debt_id).map(b=>b.id));
+  const rows=billPayments.filter(p=>!linkedIds.has(p.bill_id)).slice(0,30).map(p=>{const b=bills.find(x=>x.id===p.bill_id);return`<div class="account-row"><div><div class="account-name">${b?esc(b.name):esc(p.notes||'Bill')}</div><div class="account-detail">${fmtDate(p.paid_date)}</div></div><div class="account-balance text-danger">-${fmt(p.amount)}</div></div>`;}).join('');
   openDashModal('Bills Paid',rows||'<div class="empty"><p>No bills marked paid yet.</p></div>','bills');
 }
 function showCatHistory(cat,col){
@@ -2395,7 +2396,8 @@ function renderDashboard(){
 
   const thisMonthStr=new Date().toISOString().slice(0,7);
   const thisYearStr=new Date().getFullYear().toString();
-  const dispBillsPaid=dashBalancePeriod==='month'?billPayments.filter(p=>(p.paid_date||'').startsWith(thisMonthStr)).reduce((s,p)=>s+parseFloat(p.amount||0),0):dashBalancePeriod==='year'?billPayments.filter(p=>(p.paid_date||'').startsWith(thisYearStr)).reduce((s,p)=>s+parseFloat(p.amount||0),0):totalBillsPaid;
+  const linkedBillIds=new Set(bills.filter(b=>b.debt_id).map(b=>b.id));
+  const dispBillsPaid=dashBalancePeriod==='month'?billPayments.filter(p=>(p.paid_date||'').startsWith(thisMonthStr)&&!linkedBillIds.has(p.bill_id)).reduce((s,p)=>s+parseFloat(p.amount||0),0):dashBalancePeriod==='year'?billPayments.filter(p=>(p.paid_date||'').startsWith(thisYearStr)&&!linkedBillIds.has(p.bill_id)).reduce((s,p)=>s+parseFloat(p.amount||0),0):billPayments.filter(p=>!linkedBillIds.has(p.bill_id)).reduce((s,p)=>s+parseFloat(p.amount||0),0);
   const dispExpenses=dashBalancePeriod==='month'?expenses.filter(e=>(e.exp_date||'').startsWith(thisMonthStr)).reduce((s,e)=>s+parseFloat(e.amount||0),0):dashBalancePeriod==='year'?expenses.filter(e=>(e.exp_date||'').startsWith(thisYearStr)).reduce((s,e)=>s+parseFloat(e.amount||0),0):totalExpenses;
   const monthlyBills=bills.filter(b=>!isBillExpired(b)&&isBillDueThisMonth(b));
   const monthlyTotal=monthlyBills.reduce((s,b)=>s+parseFloat(b.amount||0),0);
