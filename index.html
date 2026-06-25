@@ -832,6 +832,7 @@ let currentUser=null;
 let debts=[],payments=[],expenses=[],weeks=[],paychecks=[],bills=[],billPayments=[],pots=[],savingsTxns=[];
 let billsGroupBy='type';
 let billsCatOpen={};
+let billsPiePeriod='month';
 let dashBalancePeriod='month';
 let posts=[],reactions=[],profiles=[],myProfile=null;
 let sharedPots=[],sharedMembers=[],sharedTxns=[],sharedInvites=[];
@@ -3165,13 +3166,24 @@ function renderBills(){
     ${groupToggle}
     ${(()=>{
       if(billsGroupBy!=='category')return'';
-      const _piePaidIds=new Set(billPayments.filter(p=>(p.paid_date||'').startsWith(thisMonth)).map(p=>p.bill_id));
-      const _pieB=visibleBills.filter(b=>isBillDueThisMonth(b)||_piePaidIds.has(b.id));
-      const allCats=[...new Set(_pieB.map(b=>b.category||'Uncategorized'))].sort();
-      const grandTotal=_pieB.reduce((s,b)=>s+parseFloat(b.amount||0),0);
+      const _pieYear=new Date().getFullYear();
+      const _yearStr=_pieYear.toString();
+      let _pieEntries;
+      if(billsPiePeriod==='year'){
+        const _entries=[];
+        for(let mo=0;mo<12;mo++){visibleBills.forEach(b=>{if(isBillDueInMonth(b,_pieYear,mo))_entries.push({cat:b.category||'Uncategorized',amt:parseFloat(b.amount||0),id:b.id});});}
+        const _sched=new Set(_entries.map(e=>e.id));
+        billPayments.filter(p=>(p.paid_date||'').startsWith(_yearStr)).forEach(p=>{if(!_sched.has(p.bill_id)){const b=visibleBills.find(x=>x.id===p.bill_id);if(b)_entries.push({cat:b.category||'Uncategorized',amt:parseFloat(b.amount||0),id:b.id});}});
+        _pieEntries=_entries;
+      }else{
+        const _paid=new Set(billPayments.filter(p=>(p.paid_date||'').startsWith(thisMonth)).map(p=>p.bill_id));
+        _pieEntries=visibleBills.filter(b=>isBillDueThisMonth(b)||_paid.has(b.id)).map(b=>({cat:b.category||'Uncategorized',amt:parseFloat(b.amount||0),id:b.id}));
+      }
+      const allCats=[...new Set(_pieEntries.map(e=>e.cat))].sort();
+      const grandTotal=_pieEntries.reduce((s,e)=>s+e.amt,0);
       if(grandTotal===0)return'';
       const slices=allCats.map((cat,i)=>{
-        const amt=_pieB.filter(b=>(b.category||'Uncategorized')===cat).reduce((s,b)=>s+parseFloat(b.amount||0),0);
+        const amt=_pieEntries.filter(e=>e.cat===cat).reduce((s,e)=>s+e.amt,0);
         return{cat,amt,pct:amt/grandTotal,col:CAT_COLORS[i%CAT_COLORS.length]};
       });
       // SVG donut: cx=90,cy=90,r=70
@@ -3196,7 +3208,10 @@ function renderBills(){
         <div style="font-size:12px;color:var(--muted);white-space:nowrap;">${fmt(s.amt)}</div>
       </div>`).join('');
       return`<div class="card" style="margin-bottom:12px;">
-        <div style="font-size:11px;font-weight:700;letter-spacing:0.08em;color:var(--muted);text-transform:uppercase;margin-bottom:12px;">Breakdown by Category</div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <div style="font-size:11px;font-weight:700;letter-spacing:0.08em;color:var(--muted);text-transform:uppercase;">Breakdown by Category</div>
+          <div style="display:flex;gap:4px;">${[['month','This Month'],['year','This Year']].map(([v,l])=>'<button onclick="billsPiePeriod=\''+v+'\';renderBills();" style="padding:4px 10px;border-radius:99px;border:none;font-size:11px;font-weight:700;cursor:pointer;background:'+(billsPiePeriod===v?'var(--success)':'var(--surface2)')+';color:'+(billsPiePeriod===v?'var(--bg)':'var(--muted)')+';">'+l+'</button>').join('')}</div>
+        </div>
         <div style="display:flex;align-items:center;gap:16px;">
           <svg width="140" height="140" viewBox="0 0 180 180" style="flex-shrink:0;">${paths}</svg>
           <div style="flex:1;min-width:0;">${legend}</div>
