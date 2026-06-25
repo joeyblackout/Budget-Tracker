@@ -4430,10 +4430,13 @@ function renderTrendsInsights(){
     </div>`;
   }).join('');
   const titleMap={weekly:'Weekly','3mo':'3 Months','6mo':'6 Months',yearly:'Yearly'};
+  const totalMonthlyBudget=Object.values(budgetTargets).reduce((s,v)=>s+v,0);
+  const totalWindowBudget=totalMonthlyBudget*(trendsWindow==='weekly'?0.25:trendsWindow==='3mo'?3:trendsWindow==='6mo'?6:12);
+  const budgetBadge=totalWindowBudget>0?`<span style="color:var(--success);font-weight:800;text-transform:none;letter-spacing:0;"> · ${fmt(totalWindowBudget)}</span>`:'';
   return`
     ${projCard}
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;">${windowBtns}</div>
-    <div style="font-size:11px;font-weight:700;letter-spacing:0.08em;color:var(--muted);text-transform:uppercase;margin-bottom:8px;">Category Trends — ${titleMap[trendsWindow]}</div>
+    <div style="font-size:11px;font-weight:700;letter-spacing:0.08em;color:var(--muted);text-transform:uppercase;margin-bottom:8px;">Category Trends — ${titleMap[trendsWindow]}${budgetBadge}</div>
     <div style="display:flex;justify-content:flex-end;gap:${trendsWindow==='weekly'?'28':'16'}px;font-size:10px;color:var(--muted);margin-bottom:4px;">
       ${labels.map(l=>`<span>${l}</span>`).join('')}
     </div>
