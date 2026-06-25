@@ -1756,6 +1756,31 @@ function renderForecast(){
 
   const negativeFlags=timeline.filter(t=>t.balance<0);
 
+  // Diagnose the primary driver of the dip so the "Heads up" message can explain WHY.
+  // Compare the outflows that accumulate up to the trough (lowest.date) and pick the largest.
+  let headsUpReason='— consider adjusting spending or moving a bill';
+  if(negativeFlags.length>0){
+    const upto=timeline.filter(t=>t.date<=lowest.date);
+    const billsBefore=upto.filter(t=>t.type==='bill').reduce((s,t)=>s+Math.abs(t.amount),0);
+    const debtsBefore=upto.filter(t=>t.type==='debt').reduce((s,t)=>s+Math.abs(t.amount),0);
+    const dipDays=Math.max(0,Math.round((new Date(lowest.date+'T00:00:00')-todayDate)/(1000*60*60*24)));
+    const spendBefore=dailySpend*dipDays;
+    const incomeBefore=upto.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0);
+    const incomeAfter=timeline.some(t=>t.type==='income'&&t.date>lowest.date);
+    const drivers=[{k:'bill',v:billsBefore},{k:'debt',v:debtsBefore},{k:'spend',v:spendBefore}];
+    drivers.sort((a,b)=>b.v-a.v);
+    const top=drivers[0];
+    if(top.v>0&&top.k==='bill'){
+      headsUpReason=(incomeAfter||incomeBefore<=0)
+        ?'because bills are due before your next paycheck — consider moving a bill due date or confirming payday early'
+        :'because upcoming bills outpace your incoming cash — consider moving a bill due date';
+    }else if(top.v>0&&top.k==='spend'){
+      headsUpReason='because your spending pace ('+fmt(dailySpend)+'/day) outpaces income — consider reducing discretionary spending';
+    }else if(top.v>0&&top.k==='debt'){
+      headsUpReason='because debt minimums are due before your next paycheck — consider adjusting your payment strategy';
+    }
+  }
+
   // Store data for drill-down modals (onclick handlers reference global showForecastBreakdown)
   forecastBreakdownData={events,dailySpend,totalDays,projectedSpend,startBalance,startingCash,totalIncome,totalPaid,totalExpenses,totalBillsPaid,totalSaved,mySharedNet};
 
@@ -1784,7 +1809,7 @@ function renderForecast(){
     ${dailySpend>0?`<div style="font-size:12px;color:var(--muted);text-align:center;margin:-4px 0 14px;">Est. spending based on your recent average of ${fmt(dailySpend)}/day</div>`:`<div style="font-size:12px;color:var(--muted);text-align:center;margin:-4px 0 14px;">Log some expenses to project variable spending</div>`}
     ${negativeFlags.length>0?`<div class="card" style="border-color:var(--danger);background:rgba(247,90,90,0.06);">
       <div style="font-size:15px;font-weight:700;color:var(--danger);margin-bottom:6px;"><i class="ti ti-alert-triangle"></i> Heads up</div>
-      <div class="text-muted">Your projected cash dips below $0 around ${fmtDate(lowest.date)} (down to ${fmt(lowest.bal)}). Consider adjusting spending or moving a bill.</div>
+      <div class="text-muted">Your projected cash dips below $0 around ${fmtDate(lowest.date)} (down to ${fmt(lowest.bal)}) ${headsUpReason}.</div>
     </div>`:`<div class="card" style="border-color:var(--success);background:rgba(45,212,160,0.06);">
       <div style="font-size:14px;font-weight:700;color:var(--success);">✓ You stay in the positive the whole window</div>
     </div>`}
