@@ -532,6 +532,17 @@ select option{background:var(--surface);color:var(--text);}
   <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal('use-amount-modal')">Cancel</button><button class="btn btn-primary" onclick="confirmUseAmount()">Confirm</button></div>
 </div></div>
 
+<!-- EXPECTED INCOME MODAL -->
+<div class="modal-overlay" id="expected-income-modal"><div class="modal">
+  <div class="modal-handle"></div><div class="modal-title">Expected Income</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">
+    <div class="field" style="margin:0;"><label>From</label><input type="date" id="exp-income-from" oninput="calcExpectedIncome()"/></div>
+    <div class="field" style="margin:0;"><label>To</label><input type="date" id="exp-income-to" oninput="calcExpectedIncome()"/></div>
+  </div>
+  <div id="exp-income-result"></div>
+  <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal('expected-income-modal')">Close</button></div>
+</div></div>
+
 <!-- PAYCHECK MODAL -->
 <div class="modal-overlay" id="paycheck-modal"><div class="modal">
   <div class="modal-handle"></div><div class="modal-title">Log Paycheck</div>
@@ -3507,7 +3518,7 @@ function renderWeekly(){
   const totalsBar=`<div class="card" style="margin-bottom:14px;">
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
       <div onclick="showConfirmedIncomeModal()" style="cursor:pointer;"><div class="stat-label">Confirmed</div>${confirmedSub}<div style="font-size:18px;font-weight:800;color:var(--success);">${fmt(confirmedTotal)}</div></div>
-      <div><div class="stat-label">Expected</div>${pendingSub}<div style="font-size:18px;font-weight:800;color:var(--warning);">${fmt(expectedTotal)}</div></div>
+      <div onclick="openExpectedIncomeModal()" style="cursor:pointer;"><div class="stat-label">Expected</div>${pendingSub}<div style="font-size:18px;font-weight:800;color:var(--warning);">${fmt(expectedTotal)}</div></div>
       <div><div class="stat-label">Pending</div>${pendingSub}<div style="font-size:18px;font-weight:800;color:var(--muted);">${pendingPeriods.length} period${pendingPeriods.length!==1?'s':''}</div></div>
     </div>
   </div>`;
@@ -5247,6 +5258,40 @@ async function confirmBudgetEdit(cat){
 // INCOME FILTER (#6)
 let incomeFilter='all';
 function setIncomeFilter(f){incomeFilter=f;renderWeekly();}
+
+function openExpectedIncomeModal(){
+  const now=new Date();
+  const lastDay=new Date(now.getFullYear(),now.getMonth()+1,0).getDate();
+  const toDate=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')+'-'+String(lastDay).padStart(2,'0');
+  document.getElementById('exp-income-from').value=today();
+  document.getElementById('exp-income-to').value=toDate;
+  calcExpectedIncome();
+  openModal('expected-income-modal');
+}
+function calcExpectedIncome(){
+  const from=document.getElementById('exp-income-from').value;
+  const to=document.getElementById('exp-income-to').value;
+  const el=document.getElementById('exp-income-result');
+  if(!from||!to||from>to){el.innerHTML='<div style="color:var(--muted);font-size:13px;text-align:center;padding:12px 0;">Select a valid date range.</div>';return;}
+  const matched=weeks.filter(w=>{
+    if(w.pay_date<from||w.pay_date>to)return false;
+    if(parseFloat(w.expected_amount||0)<=0)return false;
+    if(paychecks.some(p=>p.pay_week_id===w.id))return false;
+    if(incomeFilter!=='all'&&w.source_name!==incomeFilter)return false;
+    return true;
+  }).sort((a,b)=>a.pay_date<b.pay_date?-1:1);
+  const total=matched.reduce((s,w)=>s+parseFloat(w.expected_amount||0),0);
+  const sourceLabel=incomeFilter!=='all'?' ('+esc(incomeFilter)+')':'';
+  const summary='<div style="background:rgba(247,201,72,0.08);border:1px solid rgba(247,201,72,0.25);border-radius:var(--radius-sm);padding:14px;margin-bottom:12px;text-align:center;">'
+    +'<div style="font-size:12px;color:var(--muted);margin-bottom:4px;">Expected'+sourceLabel+'</div>'
+    +'<div style="font-size:28px;font-weight:800;color:var(--warning);">'+fmt(total)+'</div>'
+    +'<div style="font-size:11px;color:var(--muted);margin-top:4px;">'+fmtDate(from)+' – '+fmtDate(to)+'</div>'
+    +'</div>';
+  const rows=matched.length===0
+    ?'<div style="font-size:13px;color:var(--muted);text-align:center;padding:8px 0;">No pending paychecks in this range.</div>'
+    :'<div class="card" style="padding:0 18px;">'+matched.map(w=>'<div class="account-row"><div style="flex:1;min-width:0;"><div class="account-name">'+(w.source_name?esc(w.source_name):'Income')+'</div><div class="account-detail">'+fmtDate(w.pay_date)+'</div></div><div style="font-size:17px;font-weight:800;color:var(--warning);">'+fmt(parseFloat(w.expected_amount||0))+'</div></div>').join('')+'</div>';
+  el.innerHTML=summary+rows;
+}
 
 // INSTRUCTIONS
 // PAYCHECK CALCULATOR
