@@ -769,6 +769,7 @@ select option{background:var(--surface);color:var(--text);}
   <div class="field"><label>Description</label><input type="text" id="edit-exp-desc" placeholder="e.g. Walmart run"/></div>
   <div class="field"><label>Amount ($)</label><input type="number" id="edit-exp-amount" placeholder="0.00" step="0.01" min="0"/></div>
   <div class="field"><label>Notes</label><input type="text" id="edit-exp-notes" placeholder="Optional notes…"/></div>
+  <div style="margin:0 0 16px;display:flex;align-items:center;gap:10px;"><input type="checkbox" id="edit-exp-one-off" style="width:18px;height:18px;flex-shrink:0;cursor:pointer;accent-color:var(--accent);"><label for="edit-exp-one-off" style="font-size:14px;font-weight:600;cursor:pointer;margin:0;">One-Off Expense <span style="color:var(--muted);font-weight:400;font-size:12px;">— kept in totals, left out of spending pace &amp; forecast</span></label></div>
   <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal('edit-expense-modal')">Cancel</button><button class="btn btn-primary" onclick="saveEditExpense()">Save</button></div>
 </div></div>
 
@@ -781,6 +782,7 @@ select option{background:var(--surface);color:var(--text);}
   <div class="field"><label>Amount ($)</label><input type="number" id="quick-exp-amount" placeholder="0.00" step="0.01" min="0"/></div>
   <div class="field"><label>Date</label><input type="date" id="quick-exp-date"/></div>
   <div class="field"><label>Notes (optional)</label><input type="text" id="quick-exp-notes" placeholder="Optional…"/></div>
+  <div style="margin:0 0 16px;display:flex;align-items:center;gap:10px;"><input type="checkbox" id="quick-exp-one-off" style="width:18px;height:18px;flex-shrink:0;cursor:pointer;accent-color:var(--accent);"><label for="quick-exp-one-off" style="font-size:14px;font-weight:600;cursor:pointer;margin:0;">One-Off Expense <span style="color:var(--muted);font-weight:400;font-size:12px;">— kept in totals, left out of spending pace &amp; forecast</span></label></div>
   <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal('quick-expense-modal')">Cancel</button><button class="btn btn-primary" onclick="saveQuickExpense()">Log It</button></div>
 </div></div>
 
@@ -792,6 +794,7 @@ select option{background:var(--surface);color:var(--text);}
   <div class="field"><label>Description</label><input type="text" id="exp-desc" placeholder="e.g. Walmart run"/></div>
   <div class="field"><label>Amount ($)</label><input type="number" id="exp-amount" placeholder="0.00" step="0.01" min="0"/></div>
   <div class="field"><label>Notes</label><textarea id="exp-notes" placeholder="Optional notes…"></textarea></div>
+  <div style="margin:0 0 16px;display:flex;align-items:center;gap:10px;"><input type="checkbox" id="exp-one-off" style="width:18px;height:18px;flex-shrink:0;cursor:pointer;accent-color:var(--accent);"><label for="exp-one-off" style="font-size:14px;font-weight:600;cursor:pointer;margin:0;">One-Off Expense <span style="color:var(--muted);font-weight:400;font-size:12px;">— kept in totals, left out of spending pace &amp; forecast</span></label></div>
   <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal('expense-modal')">Cancel</button><button class="btn btn-primary" onclick="saveExpense()">Save</button></div>
 </div></div>
 
@@ -1621,7 +1624,7 @@ function recentAvgSpendingPerDay(){
   // Average daily variable spending over the last 60 days
   const cutoff=new Date();cutoff.setDate(cutoff.getDate()-60);
   const cutoffStr=cutoff.toISOString().slice(0,10);
-  const recent=expenses.filter(e=>(e.exp_date||'')>=cutoffStr);
+  const recent=expenses.filter(e=>(e.exp_date||'')>=cutoffStr&&!e.is_one_off);
   if(recent.length===0)return 0;
   const total=recent.reduce((s,e)=>s+parseFloat(e.amount||0),0);
   // Span in days (min 1)
@@ -2500,16 +2503,17 @@ function renderDashboard(){
           +'</div>';
       }
       const tMo=new Date().toISOString().slice(0,7);
-      const byCatDash={};
-      expenses.filter(e=>(e.exp_date||'').startsWith(tMo)).forEach(e=>{if(!byCatDash[e.category])byCatDash[e.category]=0;byCatDash[e.category]+=parseFloat(e.amount||0);});
+      const byCatDash={};const byCatDashPace={};
+      expenses.filter(e=>(e.exp_date||'').startsWith(tMo)).forEach(e=>{if(!byCatDash[e.category])byCatDash[e.category]=0;byCatDash[e.category]+=parseFloat(e.amount||0);if(!e.is_one_off){if(!byCatDashPace[e.category])byCatDashPace[e.category]=0;byCatDashPace[e.category]+=parseFloat(e.amount||0);}});
       const tTotal=tCats.reduce((s,c)=>s+budgetTargets[c],0);
       const tSpent=tCats.reduce((s,c)=>s+(byCatDash[c]||0),0);
+      const tSpentPace=tCats.reduce((s,c)=>s+(byCatDashPace[c]||0),0); // one-off excluded — drives pace/color only
       const tRem=tTotal-tSpent;
       const tPct=Math.min((tSpent/tTotal)*100,100);
       const _tNow=new Date();
       const _tDays=new Date(_tNow.getFullYear(),_tNow.getMonth()+1,0).getDate();
       const _tExp=(tTotal/_tDays)*_tNow.getDate();
-      const _tSt=tSpent>tTotal?'over':tSpent>_tExp*1.1?'close':'on';
+      const _tSt=tSpentPace>tTotal?'over':tSpentPace>_tExp*1.1?'close':'on';
       const tSpentCol=_tSt==='over'?'var(--danger)':_tSt==='close'?'var(--warning)':'var(--success)';
       const tRemCol=tRem<0?'var(--danger)':_tSt==='over'?'var(--danger)':_tSt==='close'?'var(--warning)':'var(--success)';
       const tBarCol=_tSt==='over'?'var(--danger)':_tSt==='close'?'var(--warning)':'var(--success)';
@@ -3839,7 +3843,7 @@ async function saveEditPaycheck(){
   if(document.getElementById('dash-detail-modal').classList.contains('open'))showConfirmedIncomeModal();
 }
 function openPaymentModalForWeek(weekId){document.getElementById('pay-date').value=today();document.getElementById('pay-amount').value='';document.getElementById('pay-notes').value='';const sel=document.getElementById('pay-account');sel.innerHTML='<option value="">— Select account —</option>'+debts.map(d=>`<option value="${d.id}">${esc(d.name)}</option>`).join('');document.getElementById('payment-modal').dataset.weekId=weekId;openModal('payment-modal');}
-function openExpenseModalForWeek(weekId){document.getElementById('exp-date').value=today();document.getElementById('exp-amount').value='';document.getElementById('exp-desc').value='';document.getElementById('exp-notes').value='';document.getElementById('expense-modal').dataset.weekId=weekId;openModal('expense-modal');}
+function openExpenseModalForWeek(weekId){document.getElementById('exp-date').value=today();document.getElementById('exp-amount').value='';document.getElementById('exp-desc').value='';document.getElementById('exp-notes').value='';document.getElementById('exp-one-off').checked=false;document.getElementById('expense-modal').dataset.weekId=weekId;openModal('expense-modal');}
 
 // DEBTS
 const debtCollapsed=new Set();
@@ -4135,11 +4139,13 @@ function renderBudgetInsights(){
   const targetedCats=Object.keys(budgetTargets);
   const thisMonth=new Date().toISOString().slice(0,7);
 
-  // Spending this month by category
-  const byCat={};
+  // Spending this month by category. byCat = all spend (shown in Spent/Remaining);
+  // byCatPace = excludes one-off and drives the on-track/close/over pace colors only.
+  const byCat={};const byCatPace={};
   expenses.filter(e=>(e.exp_date||'').startsWith(thisMonth)).forEach(e=>{
     if(!byCat[e.category])byCat[e.category]=0;
     byCat[e.category]+=parseFloat(e.amount||0);
+    if(!e.is_one_off){if(!byCatPace[e.category])byCatPace[e.category]=0;byCatPace[e.category]+=parseFloat(e.amount||0);}
   });
 
   if(targetedCats.length===0&&Object.keys(byCat).length===0){
@@ -4154,6 +4160,7 @@ function renderBudgetInsights(){
   // Summary figures
   const totalTarget=targetedCats.reduce((s,c)=>s+budgetTargets[c],0);
   const totalTargetedSpent=targetedCats.reduce((s,c)=>s+(byCat[c]||0),0);
+  const totalTargetedSpentPace=targetedCats.reduce((s,c)=>s+(byCatPace[c]||0),0); // one-off excluded — pace/color only
   const totalAllSpent=Object.values(byCat).reduce((s,v)=>s+v,0);
   const totalRemaining=totalTarget-totalTargetedSpent;
   const overallPct=Math.min((totalTargetedSpent/totalTarget)*100,100);
@@ -4161,7 +4168,7 @@ function renderBudgetInsights(){
   const _daysInMoB=new Date(_nowB.getFullYear(),_nowB.getMonth()+1,0).getDate();
   const _elapsedB=_nowB.getDate();
   const _totalExpected=(totalTarget/_daysInMoB)*_elapsedB;
-  const _overallStatus=totalTargetedSpent>totalTarget?'over':totalTargetedSpent>_totalExpected*1.1?'close':'on';
+  const _overallStatus=totalTargetedSpentPace>totalTarget?'over':totalTargetedSpentPace>_totalExpected*1.1?'close':'on';
   const spentColor=_overallStatus==='over'?'var(--danger)':_overallStatus==='close'?'var(--warning)':'var(--success)';
   const remColor=totalRemaining<0?'var(--danger)':_overallStatus==='over'?'var(--danger)':_overallStatus==='close'?'var(--warning)':'var(--success)';
   const barColor=_overallStatus==='over'?'var(--danger)':_overallStatus==='close'?'var(--warning)':'var(--success)';
@@ -4234,7 +4241,7 @@ function renderBudgetInsights(){
     const spent=byCat[cat]||0;
     const rem=tgt-spent;
     const pct=Math.min((spent/tgt)*100,100);
-    const status=paceStatus(spent,tgt);
+    const status=paceStatus(byCatPace[cat]||0,tgt); // pace from non-one-off spend; displayed spent/rem stay inclusive
     const bc=status==='over'?'var(--danger)':status==='reached'?'var(--danger)':status==='close'?'var(--warning)':'var(--success)';
     const rc=rem<0?'var(--danger)':(status==='over'||status==='reached')?'var(--danger)':status==='close'?'var(--warning)':'var(--success)';
     const badge=status==='over'
@@ -4382,16 +4389,16 @@ function renderTrendsInsights(){
     });
     svgWidth=trendsWindow==='6mo'?250:100;ptSpacing=50;
   }
-  const getVal=(cat,p)=>p.start
-    ?expenses.filter(e=>e.category===cat&&(e.exp_date||'')>=p.start&&(e.exp_date||'')<=p.end).reduce((s,e)=>s+parseFloat(e.amount||0),0)
-    :expenses.filter(e=>e.category===cat&&(e.exp_date||'').startsWith(p.month)).reduce((s,e)=>s+parseFloat(e.amount||0),0);
+  const getVal=(cat,p,exclOneOff)=>p.start
+    ?expenses.filter(e=>e.category===cat&&(e.exp_date||'')>=p.start&&(e.exp_date||'')<=p.end&&(!exclOneOff||!e.is_one_off)).reduce((s,e)=>s+parseFloat(e.amount||0),0)
+    :expenses.filter(e=>e.category===cat&&(e.exp_date||'').startsWith(p.month)&&(!exclOneOff||!e.is_one_off)).reduce((s,e)=>s+parseFloat(e.amount||0),0);
   let projCard='';
   if(trendsWindow==='3mo'||trendsWindow==='6mo'){
     const dayOfMonth=now.getDate();
     const daysInMonth=new Date(now.getFullYear(),now.getMonth()+1,0).getDate();
-    const thisMonthSpend=expenses.filter(e=>(e.exp_date||'').startsWith(periods[periods.length-1].month)).reduce((s,e)=>s+parseFloat(e.amount||0),0);
+    const thisMonthSpend=expenses.filter(e=>(e.exp_date||'').startsWith(periods[periods.length-1].month)&&!e.is_one_off).reduce((s,e)=>s+parseFloat(e.amount||0),0);
     const projected=(thisMonthSpend/dayOfMonth)*daysInMonth;
-    const lastMonthSpend=expenses.filter(e=>(e.exp_date||'').startsWith(periods[periods.length-2].month)).reduce((s,e)=>s+parseFloat(e.amount||0),0);
+    const lastMonthSpend=expenses.filter(e=>(e.exp_date||'').startsWith(periods[periods.length-2].month)&&!e.is_one_off).reduce((s,e)=>s+parseFloat(e.amount||0),0);
     const pctChange=lastMonthSpend>0?((projected-lastMonthSpend)/lastMonthSpend)*100:0;
     const paceColor=pctChange>10?'var(--danger)':pctChange<-10?'var(--success)':'var(--warning)';
     const paceLabel=pctChange>10?'Over pace':pctChange<-10?'Under pace':'On pace';
@@ -4402,7 +4409,8 @@ function renderTrendsInsights(){
     </div>`;
   }
   const catRows=cats.map((cat,ci)=>{
-    const vals=periods.map(p=>getVal(cat,p));
+    const vals=periods.map(p=>getVal(cat,p,true)); // sparkline line/dots/trend exclude one-off
+    const valsIncl=periods.map(p=>getVal(cat,p,false)); // subtitle spend vs target stays inclusive
     const monthlyTarget=budgetTargets[cat]||0;
     const periodTarget=trendsWindow==='weekly'?monthlyTarget/4:monthlyTarget;
     const maxV=Math.max(...vals,periodTarget,1);
@@ -4412,7 +4420,7 @@ function renderTrendsInsights(){
     const trendIcon=trend>5?'↑':trend<-5?'↓':'→';
     const trendColor=trend>5?'var(--danger)':trend<-5?'var(--success)':'var(--muted)';
     const col=CAT_COLORS[ci%CAT_COLORS.length];
-    const latestVal=trendsWindow==='yearly'?vals.reduce((s,v)=>s+v,0):vals[vals.length-1];
+    const latestVal=trendsWindow==='yearly'?valsIncl.reduce((s,v)=>s+v,0):valsIncl[valsIncl.length-1];
     const latestLabel=trendsWindow==='weekly'?'this wk':trendsWindow==='yearly'?'this yr':(trendsWindow==='3mo'||trendsWindow==='6mo')?'this period':'this mo';
     const lineWidth=(periods.length-1)*ptSpacing;
     const targetY=periodTarget>0?(30-(periodTarget/maxV)*28):null;
@@ -4510,20 +4518,21 @@ function openQuickExpense(category,desc,label,emoji){
   document.getElementById('quick-exp-amount').value='';
   document.getElementById('quick-exp-date').value=today();
   document.getElementById('quick-exp-notes').value='';
+  document.getElementById('quick-exp-one-off').checked=false;
   openModal('quick-expense-modal');
   setTimeout(()=>document.getElementById('quick-exp-amount').focus(),300);
 }
 async function saveQuickExpense(){
   const amount=parseFloat(document.getElementById('quick-exp-amount').value);
   if(!amount||amount<=0){toast('Enter a valid amount');return;}
-  const{error}=await sb.from('expenses').insert({user_id:currentUser.id,exp_date:document.getElementById('quick-exp-date').value,category:document.getElementById('quick-exp-category').value,description:document.getElementById('quick-exp-desc').value||null,amount,notes:document.getElementById('quick-exp-notes').value.trim()||null});
+  const{error}=await sb.from('expenses').insert({user_id:currentUser.id,exp_date:document.getElementById('quick-exp-date').value,category:document.getElementById('quick-exp-category').value,description:document.getElementById('quick-exp-desc').value||null,amount,notes:document.getElementById('quick-exp-notes').value.trim()||null,is_one_off:document.getElementById('quick-exp-one-off').checked});
   if(error){toast('Error: '+error.message);return;}
   closeModal('quick-expense-modal');await loadExpenses();renderExpenses();renderDashboard();toast('Logged ✓');
 }
 async function repeatExpense(id){
   const e=expenses.find(x=>x.id===id);
   if(!e)return;
-  const{error}=await sb.from('expenses').insert({user_id:currentUser.id,exp_date:today(),category:e.category,description:e.description,amount:e.amount,notes:e.notes,pay_week_id:null});
+  const{error}=await sb.from('expenses').insert({user_id:currentUser.id,exp_date:today(),category:e.category,description:e.description,amount:e.amount,notes:e.notes,is_one_off:e.is_one_off||false,pay_week_id:null});
   if(error){toast('Error: '+error.message);return;}
   await loadExpenses();renderExpenses();renderDashboard();toast('Expense repeated ✓');
 }
@@ -4694,12 +4703,12 @@ async function bulkDeleteExpenses(){
   renderExpenseHeaderControls();renderExpenseSelectBar();renderExpenses();renderDashboard();
   toast(ids.length+' expense'+(ids.length!==1?'s':'')+' deleted');
 }
-function openExpenseModal(){document.getElementById('exp-date').value=today();document.getElementById('exp-amount').value='';document.getElementById('exp-desc').value='';document.getElementById('exp-notes').value='';delete document.getElementById('expense-modal').dataset.weekId;openModal('expense-modal');}
+function openExpenseModal(){document.getElementById('exp-date').value=today();document.getElementById('exp-amount').value='';document.getElementById('exp-desc').value='';document.getElementById('exp-notes').value='';document.getElementById('exp-one-off').checked=false;delete document.getElementById('expense-modal').dataset.weekId;openModal('expense-modal');}
 async function saveExpense(){
   const amount=parseFloat(document.getElementById('exp-amount').value);
   if(!amount||amount<=0){toast('Enter a valid amount');return;}
   const weekId=document.getElementById('expense-modal').dataset.weekId||null;
-  const{error}=await sb.from('expenses').insert({user_id:currentUser.id,exp_date:document.getElementById('exp-date').value,category:document.getElementById('exp-category').value,description:document.getElementById('exp-desc').value.trim()||null,amount,notes:document.getElementById('exp-notes').value.trim()||null,pay_week_id:weekId||null});
+  const{error}=await sb.from('expenses').insert({user_id:currentUser.id,exp_date:document.getElementById('exp-date').value,category:document.getElementById('exp-category').value,description:document.getElementById('exp-desc').value.trim()||null,amount,notes:document.getElementById('exp-notes').value.trim()||null,is_one_off:document.getElementById('exp-one-off').checked,pay_week_id:weekId||null});
   if(error){toast('Error: '+error.message);return;}
   closeModal('expense-modal');await loadExpenses();renderExpenses();if(weekId)renderWeekly();toast('Expense logged ✓');
 }
@@ -4712,13 +4721,14 @@ function editExpense(id){
   document.getElementById('edit-exp-desc').value=e.description||'';
   document.getElementById('edit-exp-amount').value=e.amount||'';
   document.getElementById('edit-exp-notes').value=e.notes||'';
+  document.getElementById('edit-exp-one-off').checked=!!e.is_one_off;
   openModal('edit-expense-modal');
 }
 async function saveEditExpense(){
   const id=document.getElementById('edit-exp-id').value;
   const amount=parseFloat(document.getElementById('edit-exp-amount').value);
   if(!amount||amount<=0){toast('Enter a valid amount');return;}
-  const{error}=await sb.from('expenses').update({exp_date:document.getElementById('edit-exp-date').value,category:document.getElementById('edit-exp-category').value,description:document.getElementById('edit-exp-desc').value.trim()||null,amount,notes:document.getElementById('edit-exp-notes').value.trim()||null}).eq('id',id);
+  const{error}=await sb.from('expenses').update({exp_date:document.getElementById('edit-exp-date').value,category:document.getElementById('edit-exp-category').value,description:document.getElementById('edit-exp-desc').value.trim()||null,amount,notes:document.getElementById('edit-exp-notes').value.trim()||null,is_one_off:document.getElementById('edit-exp-one-off').checked}).eq('id',id);
   if(error){toast('Error: '+error.message);return;}
   closeModal('edit-expense-modal');await loadExpenses();renderExpenses();renderDashboard();toast('Expense updated ✓');
 }
