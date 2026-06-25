@@ -1547,7 +1547,7 @@ function forecastDebtTimeline(sim){
 // Runs a fixed 120-month simulation independent of the selected forecast window.
 function forecastStrategySection(){
   const open=forecastStrategyOpen;
-  let html='<div class="card" style="margin:0 0 14px;background:rgba(168,85,247,0.06);border:1px solid rgba(168,85,247,0.25);border-left:3px solid #a855f7;border-radius:0;cursor:pointer;" onclick="toggleForecastStrategy()">'
+  let html='<div class="card" style="margin:0 0 14px;background:rgba(168,85,247,0.06);border:1px solid rgba(168,85,247,0.25);border-left:3px solid #a855f7;cursor:pointer;" onclick="toggleForecastStrategy()">'
     +'<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">'
     +'<div><div style="font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:#c084fc;">Debt Payoff Strategy</div><div style="font-size:12px;color:var(--muted);margin-top:3px;">See how different payment strategies affect your payoff timeline</div></div>'
     +'<span style="font-size:14px;color:var(--muted);flex-shrink:0;">'+(open?'▲':'▼')+'</span></div></div>';
