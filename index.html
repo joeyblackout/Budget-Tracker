@@ -1504,8 +1504,11 @@ function forecastUtil30Timeline(sim){
       label='Not reached within 10 years';
     }
     const overAmt=Math.max(0,d.balEnd-target30);
+    const paydownAmt=Math.max(0,origBal-target30);
     return '<div class="account-row"><div style="flex:1;min-width:0;"><div class="account-name">'+esc(d.name)+'</div>'
-      +'<div class="account-detail" style="color:'+(hit?'var(--success)':'var(--danger)')+';font-weight:700;">'+label+'</div></div>'
+      +'<div class="account-detail" style="color:'+(hit?'var(--success)':'var(--danger)')+';font-weight:700;">'+label+'</div>'
+      +(!startedAtTarget&&paydownAmt>0.005?'<div class="account-detail" style="color:var(--success);font-weight:700;">'+fmt(paydownAmt)+' to pay down</div>':'')
+      +'</div>'
       +'<div style="text-align:right;"><div style="font-size:11px;color:var(--muted);">'+(hit?'at goal':'above 30%')+'</div>'
       +'<div style="font-weight:700;color:'+(hit?'var(--success)':'var(--danger)')+';">'+(hit?'≤30%':fmt(overAmt)+' over')+'</div></div></div>';
   }).join('');
