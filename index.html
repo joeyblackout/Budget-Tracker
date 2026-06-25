@@ -1274,7 +1274,7 @@ function runUtil30Sim(extraOfDisc,maxMonths){
   const active=debts.filter(d=>parseFloat(d.balance||0)>0).map(d=>({
     id:d.id,name:d.name,type:d.type,bal:parseFloat(d.balance||0),apr:parseFloat(d.apr||0),
     minPay:parseFloat(d.min_payment||0),creditLimit:parseFloat(d.credit_limit||0),
-    interestPaid:0,targetMonth:null,targetDate:null,targetDateEst:false,balEnd:0
+    interestPaid:0,totalPaid:0,targetMonth:null,targetDate:null,targetDateEst:false,balEnd:0
   }));
   const ccDebts=active.filter(d=>d.type==='Credit Card');
   const target30=d=>d.creditLimit>0?d.creditLimit*0.30:0;
@@ -1301,6 +1301,16 @@ function runUtil30Sim(extraOfDisc,maxMonths){
         minimum=Math.min(Math.max(0,minimum),d.bal);
         d.bal=Math.max(0,d.bal-minimum);
         monthTotal+=minimum;
+        if(d.type==='Credit Card'&&d.targetMonth===null)d.totalPaid+=minimum;
+      }
+      // Edge case: minimum alone dropped a CC to ≤30% — set targetMonth so the extra loop skips it
+      for(const d of ccDebts){
+        if(d.bal<=target30(d)+0.005&&d.targetMonth===null){
+          d.targetMonth=m;
+          const sched=getForecastSchedule().map[m];
+          if(sched&&sched.paychecks>0&&sched.lastPayDate){d.targetDate=sched.lastPayDate;d.targetDateEst=false;}
+          else{d.targetDate=d0.getFullYear()+'-'+String(d0.getMonth()+1).padStart(2,'0')+'-15';d.targetDateEst=true;}
+        }
       }
       let extraLeft=extraAllocation;
       const ccOrder=ccDebts.filter(d=>d.bal>target30(d)+0.005).sort(
@@ -1313,6 +1323,7 @@ function runUtil30Sim(extraOfDisc,maxMonths){
         d.bal=Math.max(target30(d),d.bal-extra);
         monthTotal+=extra;
         extraLeft-=extra;
+        d.totalPaid+=extra;
         if(d.bal<=target30(d)+0.005&&d.targetMonth===null){
           d.targetMonth=m;
           const sched=getForecastSchedule().map[m];
@@ -1507,6 +1518,7 @@ function forecastUtil30Timeline(sim){
     return '<div class="account-row"><div style="flex:1;min-width:0;"><div class="account-name">'+esc(d.name)+'</div>'
       +'<div class="account-detail" style="color:'+(hit?'var(--success)':'var(--danger)')+';font-weight:700;">'+label+'</div>'
       +(target30>0.005?'<div class="account-detail" style="color:var(--success);font-weight:700;">'+fmt(target30)+' target balance</div>':'')
+      +(d.totalPaid>0.005?'<div class="account-detail" style="color:var(--success);font-weight:700;">'+fmt(d.totalPaid)+' total paid</div>':'')
       +'</div>'
       +'<div style="text-align:right;"><div style="font-size:11px;color:var(--muted);">'+(hit?'at goal':'above 30%')+'</div>'
       +'<div style="font-weight:700;color:'+(hit?'var(--success)':'var(--danger)')+';">'+(hit?'≤30%':fmt(overAmt)+' over')+'</div></div></div>';
