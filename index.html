@@ -4920,13 +4920,18 @@ function openModal(id){document.getElementById(id).classList.add('open');}
 function closeModal(id){document.getElementById(id).classList.remove('open');}
 function openPaycalcModal(){openModal('paycalc-modal');renderPaycalc();}
 function checkWhatsNew(previousLogin){
-  if(!previousLogin)return; // skip for first-ever login (no prior session stamp)
+  console.log('[WhatsNew] checkWhatsNew called. previousLogin =',previousLogin,'->',previousLogin?new Date(previousLogin).toISOString():'(falsy)');
+  console.log('[WhatsNew] localStorage bt-last-login-ts =',localStorage.getItem('bt-last-login-ts'));
+  console.log('[WhatsNew] localStorage bt-whatsnew-seen-ts =',localStorage.getItem('bt-whatsnew-seen-ts'));
+  if(!previousLogin){console.log('[WhatsNew] EXIT EARLY: no previousLogin (treated as first-ever login)');return;} // skip for first-ever login (no prior session stamp)
   // If the Payday Routine is open, defer until it finishes so the modal isn't hidden behind it
   const routineEl=document.getElementById('routine-overlay');
   if(routineEl&&routineEl.style.display!=='none'){
+    console.log('[WhatsNew] DEFERRED: payday routine overlay is open; will show after it closes');
     routinePendingWhatsNew=true;
     return;
   }
+  console.log('[WhatsNew] proceeding -> showWhatsNew in 1200ms');
   setTimeout(()=>showWhatsNew(previousLogin),1200);
 }
 function showWhatsNew(previousLogin){
@@ -4945,8 +4950,16 @@ function showWhatsNew(previousLogin){
   // so a frozen-stamp session doesn't re-show the same items on every refresh.
   const seenTs=parseInt(localStorage.getItem('bt-whatsnew-seen-ts')||'0');
   const cutoff=Math.max(previousLogin,seenTs);
+  const newestChangelog=Math.max(...CHANGELOG.map(e=>e.date));
+  console.log('[WhatsNew] showWhatsNew. previousLogin =',new Date(previousLogin).toISOString());
+  console.log('[WhatsNew] seenTs =',seenTs,seenTs?new Date(seenTs).toISOString():'(none)');
+  console.log('[WhatsNew] cutoff =',new Date(cutoff).toISOString());
+  console.log('[WhatsNew] newest CHANGELOG entry =',new Date(newestChangelog).toISOString());
+  console.log('[WhatsNew] cutoff is',cutoff>=newestChangelog?'AT/AFTER newest entry -> nothing will show':'BEFORE newest entry -> items expected');
   const newItems=CHANGELOG.filter(e=>e.date>cutoff);
-  if(newItems.length===0){localStorage.setItem('bt-version-seen',APP_VERSION);return;}
+  console.log('[WhatsNew] newItems count =',newItems.length,newItems.map(i=>i.title));
+  if(newItems.length===0){console.log('[WhatsNew] EXIT: no new items since cutoff. Modal NOT shown.');localStorage.setItem('bt-version-seen',APP_VERSION);return;}
+  console.log('[WhatsNew] modal element present =',!!document.getElementById('whats-new-modal'),'-> opening modal');
   localStorage.setItem('bt-version-seen',APP_VERSION);
   localStorage.setItem('bt-whatsnew-seen-ts',Math.max(...newItems.map(e=>e.date)).toString());
   const html=newItems.map((it,i)=>'<div style="display:flex;gap:12px;align-items:flex-start;padding:12px 0;'+(i<newItems.length-1?'border-bottom:1px solid var(--border);':'')+'">'
