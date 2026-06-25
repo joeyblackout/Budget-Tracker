@@ -4911,7 +4911,7 @@ function openModal(id){document.getElementById(id).classList.add('open');}
 function closeModal(id){document.getElementById(id).classList.remove('open');}
 function openPaycalcModal(){openModal('paycalc-modal');renderPaycalc();}
 function checkWhatsNew(previousLogin){
-  if(!localStorage.getItem('bt-onboarded'))return; // skip for brand-new users seeing the onboarding tour
+  if(!previousLogin)return; // skip for first-ever login (no prior session stamp)
   // If the Payday Routine is open, defer until it finishes so the modal isn't hidden behind it
   const routineEl=document.getElementById('routine-overlay');
   if(routineEl&&routineEl.style.display!=='none'){
