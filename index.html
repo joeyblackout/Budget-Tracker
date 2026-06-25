@@ -3165,11 +3165,13 @@ function renderBills(){
     ${groupToggle}
     ${(()=>{
       if(billsGroupBy!=='category')return'';
-      const allCats=[...new Set(dueThisMonth.map(b=>b.category||'Uncategorized'))].sort();
-      const grandTotal=dueThisMonth.reduce((s,b)=>s+parseFloat(b.amount||0),0);
+      const _piePaidIds=new Set(billPayments.filter(p=>(p.paid_date||'').startsWith(thisMonth)).map(p=>p.bill_id));
+      const _pieB=visibleBills.filter(b=>isBillDueThisMonth(b)||_piePaidIds.has(b.id));
+      const allCats=[...new Set(_pieB.map(b=>b.category||'Uncategorized'))].sort();
+      const grandTotal=_pieB.reduce((s,b)=>s+parseFloat(b.amount||0),0);
       if(grandTotal===0)return'';
       const slices=allCats.map((cat,i)=>{
-        const amt=dueThisMonth.filter(b=>(b.category||'Uncategorized')===cat).reduce((s,b)=>s+parseFloat(b.amount||0),0);
+        const amt=_pieB.filter(b=>(b.category||'Uncategorized')===cat).reduce((s,b)=>s+parseFloat(b.amount||0),0);
         return{cat,amt,pct:amt/grandTotal,col:CAT_COLORS[i%CAT_COLORS.length]};
       });
       // SVG donut: cx=90,cy=90,r=70
