@@ -844,6 +844,7 @@ let debts=[],payments=[],expenses=[],weeks=[],paychecks=[],bills=[],billPayments
 let billsGroupBy='type';
 let billsCatOpen={};
 let billsPiePeriod='month';
+let _billPieCats=[];
 let dashBalancePeriod='month';
 let posts=[],reactions=[],profiles=[],myProfile=null;
 let sharedPots=[],sharedMembers=[],sharedTxns=[],sharedInvites=[];
@@ -3246,7 +3247,8 @@ function renderBills(){
         angle+=sweep;
         return`<path d="${d}" fill="${s.col}" stroke="var(--bg)" stroke-width="2"/>`;
       }).join('');
-      const legend=slices.map(s=>`<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+      _billPieCats=slices.map(s=>s.cat);
+      const legend=slices.map((s,i)=>`<div onclick="showBillCatDetail(${i})" style="display:flex;align-items:center;gap:6px;margin-bottom:4px;cursor:pointer;">
         <div style="width:10px;height:10px;border-radius:2px;background:${s.col};flex-shrink:0;"></div>
         <div style="font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:110px;">${esc(s.cat)}</div>
         <div style="font-size:12px;font-weight:700;color:var(--muted);white-space:nowrap;">${(s.pct*100).toFixed(1)}%</div>
@@ -3264,6 +3266,58 @@ function renderBills(){
       </div>`;
     })()}
     ${groupedHTML}`;
+}
+function showBillCatDetail(idx){
+  const cat=_billPieCats[idx];
+  if(!cat)return;
+  const _vBills=bills.filter(b=>!isBillExpired(b));
+  const thisMonth=new Date().toISOString().slice(0,7);
+  const curYear=new Date().getFullYear();
+  const yearStr=curYear.toString();
+  let entries;
+  if(billsPiePeriod==='year'){
+    const yearBillMap={};
+    for(let mo=0;mo<12;mo++){
+      _vBills.forEach(b=>{
+        if((b.category||'Uncategorized')!==cat)return;
+        if(isBillDueInMonth(b,curYear,mo)){
+          if(!yearBillMap[b.id]){yearBillMap[b.id]={b,amt:0,occurrences:0};}
+          yearBillMap[b.id].amt+=parseFloat(b.amount||0);
+          yearBillMap[b.id].occurrences++;
+        }
+      });
+    }
+    const sched=new Set(Object.keys(yearBillMap));
+    billPayments.filter(p=>(p.paid_date||'').startsWith(yearStr)).forEach(p=>{
+      if(sched.has(p.bill_id))return;
+      const b=_vBills.find(x=>x.id===p.bill_id);
+      if(b&&(b.category||'Uncategorized')===cat){yearBillMap[b.id]={b,amt:parseFloat(b.amount||0),occurrences:1};}
+    });
+    entries=Object.values(yearBillMap).sort((a,b)=>b.amt-a.amt);
+  }else{
+    const paidIds=new Set(billPayments.filter(p=>(p.paid_date||'').startsWith(thisMonth)).map(p=>p.bill_id));
+    entries=_vBills.filter(b=>(b.category||'Uncategorized')===cat&&(isBillDueThisMonth(b)||paidIds.has(b.id)))
+      .map(b=>({b,amt:parseFloat(b.amount||0),occurrences:1}))
+      .sort((a,b)=>b.amt-a.amt);
+  }
+  if(entries.length===0){openDashModal(cat,'<div class="empty"><p>No bills found in this category.</p></div>',null);return;}
+  const total=entries.reduce((s,e)=>s+e.amt,0);
+  const period=billsPiePeriod==='year'?'This Year':'This Month';
+  const header='<div style="background:var(--surface2);border-radius:var(--radius-sm);padding:12px 14px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;">'
+    +'<div style="font-size:12px;color:var(--muted);">'+esc(cat)+' · '+period+'</div>'
+    +'<div style="font-size:18px;font-weight:800;">'+fmt(total)+'</div>'
+    +'</div>';
+  const freqNames={'monthly':'Monthly','weekly':'Weekly','biweekly':'Biweekly','quarterly':'Quarterly','semi-annual':'Semi-Annual','annually':'Annual','once':'One-Time'};
+  const rows=entries.map(function(e){
+    const b=e.b,amt=e.amt,occ=e.occurrences;
+    const isPaid=billsPiePeriod!=='year'&&billPayments.some(p=>p.bill_id===b.id&&(p.paid_date||'').startsWith(thisMonth));
+    const paidBadge=isPaid?'<span style="font-size:10px;color:var(--success);font-weight:700;margin-left:6px;">✓ Paid</span>':'';
+    const detail=billsPiePeriod==='year'
+      ?(freqNames[b.recurring||'monthly']||capFirst(b.recurring||'monthly'))+(occ>1?' × '+occ+' · '+fmt(parseFloat(b.amount||0))+'/ea':'')
+      :(b.due_day?'Due day '+b.due_day+' · ':'')+(freqNames[b.recurring||'monthly']||capFirst(b.recurring||'monthly'));
+    return'<div class="account-row"><div style="flex:1;min-width:0;"><div class="account-name">'+esc(b.name)+paidBadge+'</div><div class="account-detail">'+detail+'</div></div><div style="font-size:15px;font-weight:800;">'+fmt(amt)+'</div></div>';
+  }).join('');
+  openDashModal(cat,header+rows,null);
 }
 function updateBillDueMonthVisibility(){
   const rec=document.getElementById('bill-recurring').value;
