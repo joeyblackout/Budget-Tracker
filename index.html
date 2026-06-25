@@ -2644,9 +2644,9 @@ function renderSavings(){
     ${inviteBanners}
     <div class="card" style="margin-bottom:14px;">
       <div style="display:flex;justify-content:space-between;align-items:center;">
-        <div><div class="stat-label">Savings</div><div style="font-size:22px;font-weight:800;color:var(--success);">${fmt(totalAcrossPots)}</div></div>
-        <div><div class="stat-label">Shared</div><div style="font-size:22px;font-weight:800;color:var(--accent);">${fmt(totalShared)}</div></div>
-        <div style="text-align:right;"><div class="stat-label">Assets</div><div style="font-size:22px;font-weight:800;color:var(--warning);">${fmt(assets.reduce((s,a)=>s+parseFloat(a.value||0),0))}</div></div>
+        <div onclick="showSavingsHistoryAll()" style="cursor:pointer;"><div class="stat-label">Savings</div><div style="font-size:22px;font-weight:800;color:var(--success);">${fmt(totalAcrossPots)}</div></div>
+        <div onclick="showSharedHistoryAll()" style="cursor:pointer;"><div class="stat-label">Shared</div><div style="font-size:22px;font-weight:800;color:var(--accent);">${fmt(totalShared)}</div></div>
+        <div onclick="showAssetsBreakdown()" style="cursor:pointer;text-align:right;"><div class="stat-label">Assets</div><div style="font-size:22px;font-weight:800;color:var(--warning);">${fmt(assets.reduce((s,a)=>s+parseFloat(a.value||0),0))}</div></div>
       </div>
     </div>
     <div class="card-title">Personal Pots</div>
@@ -2676,6 +2676,40 @@ function renderSavings(){
         </div>
       </div>
     </div>`).join('')}`;
+}
+function showSavingsHistoryAll(){
+  const txns=savingsTxns.filter(t=>t.notes!=='__starting_balance__').slice().sort((a,b)=>a.txn_date<b.txn_date?1:-1);
+  if(txns.length===0){openDashModal('Savings History','<div class="empty"><p>No transactions yet. Deposit into a pot to see history here.</p></div>','savings');return;}
+  const rows=txns.slice(0,60).map(t=>{
+    const p=pots.find(x=>x.id===t.pot_id);
+    const isIn=t.type==='deposit'||t.type==='transfer_in';
+    const col=isIn?'var(--success)':'var(--danger)';
+    const sign=isIn?'+':'-';
+    const typeLabel={'deposit':'Deposit','withdraw':'Withdrawal','transfer_in':'Transfer In'}[t.type]||t.type;
+    return'<div class="account-row"><div style="flex:1;min-width:0;"><div class="account-name">'+(p?(esc(p.emoji||'💰')+' '+esc(p.name)):'Unknown Pot')+'</div><div class="account-detail">'+typeLabel+' · '+fmtDate(t.txn_date)+(t.notes?' · '+esc(t.notes):'')+'</div></div><div style="font-size:17px;font-weight:800;color:'+col+';">'+sign+fmt(t.amount)+'</div></div>';
+  }).join('');
+  openDashModal('Savings History',rows,'savings');
+}
+function showSharedHistoryAll(){
+  const myPotIds=new Set(sharedPots.map(p=>p.id));
+  const txns=sharedTxns.filter(t=>myPotIds.has(t.pot_id)).slice().sort((a,b)=>a.txn_date<b.txn_date?1:-1);
+  if(txns.length===0){openDashModal('Shared Pots — History','<div class="empty"><p>No shared pot transactions yet.</p></div>','savings');return;}
+  const rows=txns.slice(0,60).map(t=>{
+    const p=sharedPots.find(x=>x.id===t.pot_id);
+    const isIn=t.type==='deposit';
+    const col=isIn?'var(--success)':'var(--danger)';
+    const sign=isIn?'+':'-';
+    const who=t.user_id===currentUser.id?'You':esc(displayName(t.user_id));
+    return'<div class="account-row"><div style="flex:1;min-width:0;"><div class="account-name">'+(p?(esc(p.emoji||'🤝')+' '+esc(p.name)):'Unknown Pot')+'</div><div class="account-detail">'+(isIn?'Deposit':'Withdrawal')+' by '+who+' · '+fmtDate(t.txn_date)+(t.notes?' · '+esc(t.notes):'')+'</div></div><div style="font-size:17px;font-weight:800;color:'+col+';">'+sign+fmt(t.amount)+'</div></div>';
+  }).join('');
+  openDashModal('Shared Pots — History',rows,'savings');
+}
+function showAssetsBreakdown(){
+  if(assets.length===0){openDashModal('Assets','<div class="empty"><p>No assets yet. Tap <strong>Asset</strong> to add one.</p></div>','savings');return;}
+  const total=assets.reduce((s,a)=>s+parseFloat(a.value||0),0);
+  const header='<div class="account-row" style="border-bottom:1px solid var(--border);padding-bottom:10px;margin-bottom:4px;"><div style="flex:1;font-weight:700;color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:0.06em;">Total</div><div style="font-size:18px;font-weight:800;color:var(--warning);">'+fmt(total)+'</div></div>';
+  const rows=header+assets.slice().sort((a,b)=>parseFloat(b.value||0)-parseFloat(a.value||0)).map(a=>'<div class="account-row"><div style="flex:1;min-width:0;"><div class="account-name">'+(ASSET_EMOJIS[a.category]||'📦')+' '+esc(a.name)+'</div><div class="account-detail">'+esc(a.category)+(a.notes?' · '+esc(a.notes):'')+'</div></div><div style="font-size:17px;font-weight:800;color:var(--warning);">'+fmt(a.value)+'</div></div>').join('');
+  openDashModal('Assets',rows,'savings');
 }
 
 function openPotModal(id=null){
