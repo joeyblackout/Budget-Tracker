@@ -4468,7 +4468,8 @@ function filterExpenses(){
   const groups={};filtered.forEach(e=>{const mo=(e.exp_date||'').slice(0,7);if(!groups[mo])groups[mo]=[];groups[mo].push(e);});
   const groupEntries=Object.entries(groups).sort((a,b)=>a[0]<b[0]?1:-1);
   groupEntries.forEach(([mo],i)=>{if(i>0&&!collapsedMonths.has('_opened_'+mo)){collapsedMonths.add(mo);collapsedMonths.add('_opened_'+mo);}});
-  el.innerHTML=(Object.keys(groups).length===0?`<div style="text-align:center;padding:20px;color:var(--muted);">${q?`No results for "<strong>${esc(expenseSearch)}</strong>".`:'No expenses in this category.'} <button onclick="expenseSearch='';document.getElementById('expense-search-input').value='';renderExpenseXBtn();filterExpenses();setExpenseFilter(null);" style="background:none;border:none;color:var(--accent);cursor:pointer;font-weight:700;">Clear</button></div>`:groupEntries.map(([mo,list])=>{
+  const _selBtn=!expenseSelectMode?'<div style="display:flex;justify-content:flex-end;margin-bottom:8px;"><span class="bulk-tip-wrap"><button onclick="onSelectBtnClick()" ontouchstart="bulkTipTouch(event)" style="display:flex;align-items:center;gap:5px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;color:var(--text);padding:7px 12px;font-size:13px;font-weight:600;cursor:pointer;line-height:1;"><i class=\'ti ti-checkbox\'></i> Select</button><span class="bulk-tip">Bulk delete expenses</span></span></div>':'';
+  el.innerHTML=_selBtn+(Object.keys(groups).length===0?`<div style="text-align:center;padding:20px;color:var(--muted);">${q?`No results for "<strong>${esc(expenseSearch)}</strong>".`:'No expenses in this category.'} <button onclick="expenseSearch='';document.getElementById('expense-search-input').value='';renderExpenseXBtn();filterExpenses();setExpenseFilter(null);" style="background:none;border:none;color:var(--accent);cursor:pointer;font-weight:700;">Clear</button></div>`:groupEntries.map(([mo,list])=>{
     const moTotal=list.reduce((s,e)=>s+parseFloat(e.amount||0),0);
     const isCollapsed=collapsedMonths.has(mo);
     return`<div onclick="toggleMonth('${mo}')" style="display:flex;justify-content:space-between;align-items:center;padding:10px 4px;cursor:pointer;user-select:none;">
@@ -4491,11 +4492,7 @@ function renderExpenseHeaderControls(){
   if(expenseSelectMode){
     el.innerHTML='<button onclick="exitExpenseSelectMode()" style="display:flex;align-items:center;gap:5px;background:var(--accent);border:1px solid var(--accent);border-radius:10px;color:#fff;padding:7px 12px;font-size:13px;font-weight:700;cursor:pointer;line-height:1;"><i class="ti ti-checkbox"></i> Selecting…</button>';
   }else{
-    el.innerHTML='<span class="bulk-tip-wrap">'
-      +'<button onclick="onSelectBtnClick()" ontouchstart="bulkTipTouch(event)" style="display:flex;align-items:center;gap:5px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;color:var(--text);padding:7px 12px;font-size:13px;font-weight:600;cursor:pointer;line-height:1;"><i class="ti ti-checkbox"></i> Select</button>'
-      +'<span class="bulk-tip">Bulk delete expenses</span>'
-      +'</span>'
-      +'<button class="add-btn" onclick="openExpenseModal()">+</button>';
+    el.innerHTML='<button class="add-btn" onclick="openExpenseModal()">+</button>';
   }
 }
 let bulkTipTimer=null,bulkTipLongPressed=false;
