@@ -929,8 +929,22 @@ async function showApp(){
   document.getElementById('reset-password-screen').style.display='none';
   document.getElementById('app-screen').classList.add('visible');
   document.getElementById('sidebar-email').textContent=currentUser.email;
+  await syncLoginTimestamp();
   await loadAll();
   hideLoadingScreen();
+}
+async function syncLoginTimestamp(){
+  // DB-backed last-login reference so What's New works across browsers/devices, not just the
+  // one holding the localStorage stamp. myProfile is already loaded by showApp at this point.
+  const now=Date.now();
+  const sessionGap=1000*60*30; // 30 min — only advance the stamp on a genuinely new session
+  const dbTs=myProfile&&myProfile.last_login_ts?new Date(myProfile.last_login_ts).getTime():0;
+  // DB value is authoritative across devices; otherwise keep the localStorage fallback in whatsNewPrevLogin.
+  if(dbTs>0)whatsNewPrevLogin=dbTs;
+  if(now-dbTs>sessionGap){
+    const iso=new Date(now).toISOString();
+    try{await sb.from('profiles').update({last_login_ts:iso}).eq('user_id',currentUser.id);if(myProfile)myProfile.last_login_ts=iso;}catch(e){}
+  }
 }
 async function saveWelcomeName(){
   const name=document.getElementById('welcome-name').value.trim();
