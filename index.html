@@ -5286,6 +5286,10 @@ function netWorthSparklineHtml(){
   // Current net worth shown as plain HTML in the header row (not inside the SVG)
   const lastVal=vals[vals.length-1];
   const lastLabel=(lastVal>=0?'+':'-')+fmt(Math.abs(lastVal));
+  // Scale endpoints as HTML labels (the SVG uses preserveAspectRatio="none", so <text>
+  // inside it would stretch — keep value labels in HTML instead).
+  const firstVal=vals[0];
+  const startLabel=(firstVal>=0?'+':'-')+fmt(Math.abs(firstVal));
   return '<div class="card" style="margin-bottom:14px;">'
     +'<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;">'
       +'<div style="font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);">Net Worth Progress Since Joining</div>'
@@ -5295,7 +5299,8 @@ function netWorthSparklineHtml(){
     +zones
     +'<polyline points="'+pts.join(' ')+'" fill="none" stroke="'+col+'" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>'
     +'</svg>'
-    +'<div style="font-size:11px;color:var(--muted);margin-top:6px;">'+fmtDate(snaps[0].snapshot_date)+' – '+fmtDate(snaps[snaps.length-1].snapshot_date)+'</div></div>';
+    +'<div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-top:6px;"><span>Start '+startLabel+'</span><span>Now '+lastLabel+'</span></div>'
+    +'<div style="font-size:11px;color:var(--muted);margin-top:2px;">'+fmtDate(snaps[0].snapshot_date)+' – '+fmtDate(snaps[snaps.length-1].snapshot_date)+'</div></div>';
 }
 function renderNetWorth(){
   const potTotals={};
