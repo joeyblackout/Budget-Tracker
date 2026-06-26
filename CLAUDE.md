@@ -40,7 +40,8 @@ A mobile-first personal finance web app. Single `index.html` file, no build step
 - user_id, debt_id, amount, pay_date, pay_week_id, notes
 
 ### `expenses`
-- user_id, exp_date, category, description, amount, notes, pay_week_id
+- user_id, exp_date, category, description, amount, notes, pay_week_id, is_one_off BOOL default false
+- `is_one_off=true` excludes the expense from the forecast daily-average, Trends sparklines, and budget-card pacing — but it still counts in all "Spent"/budget totals and the running balance
 
 ### `pay_weeks`
 - user_id, pay_date, bills_amount, notes, expected_amount, source_name

@@ -2503,17 +2503,16 @@ function renderDashboard(){
           +'</div>';
       }
       const tMo=new Date().toISOString().slice(0,7);
-      const byCatDash={};const byCatDashPace={};
-      expenses.filter(e=>(e.exp_date||'').startsWith(tMo)).forEach(e=>{if(!byCatDash[e.category])byCatDash[e.category]=0;byCatDash[e.category]+=parseFloat(e.amount||0);if(!e.is_one_off){if(!byCatDashPace[e.category])byCatDashPace[e.category]=0;byCatDashPace[e.category]+=parseFloat(e.amount||0);}});
+      const byCatDash={}; // one-off expenses excluded from all budget math
+      expenses.filter(e=>(e.exp_date||'').startsWith(tMo)&&!e.is_one_off).forEach(e=>{if(!byCatDash[e.category])byCatDash[e.category]=0;byCatDash[e.category]+=parseFloat(e.amount||0);});
       const tTotal=tCats.reduce((s,c)=>s+budgetTargets[c],0);
       const tSpent=tCats.reduce((s,c)=>s+(byCatDash[c]||0),0);
-      const tSpentPace=tCats.reduce((s,c)=>s+(byCatDashPace[c]||0),0); // one-off excluded — drives pace/color only
       const tRem=tTotal-tSpent;
       const tPct=Math.min((tSpent/tTotal)*100,100);
       const _tNow=new Date();
       const _tDays=new Date(_tNow.getFullYear(),_tNow.getMonth()+1,0).getDate();
       const _tExp=(tTotal/_tDays)*_tNow.getDate();
-      const _tSt=tSpentPace>tTotal?'over':tSpentPace>_tExp*1.1?'close':'on';
+      const _tSt=tSpent>tTotal?'over':tSpent>_tExp*1.1?'close':'on';
       const tSpentCol=_tSt==='over'?'var(--danger)':_tSt==='close'?'var(--warning)':'var(--success)';
       const tRemCol=tRem<0?'var(--danger)':_tSt==='over'?'var(--danger)':_tSt==='close'?'var(--warning)':'var(--success)';
       const tBarCol=_tSt==='over'?'var(--danger)':_tSt==='close'?'var(--warning)':'var(--success)';
@@ -4139,13 +4138,12 @@ function renderBudgetInsights(){
   const targetedCats=Object.keys(budgetTargets);
   const thisMonth=new Date().toISOString().slice(0,7);
 
-  // Spending this month by category. byCat = all spend (shown in Spent/Remaining);
-  // byCatPace = excludes one-off and drives the on-track/close/over pace colors only.
-  const byCat={};const byCatPace={};
-  expenses.filter(e=>(e.exp_date||'').startsWith(thisMonth)).forEach(e=>{
+  // Spending this month by category. One-off expenses are excluded from all budget math —
+  // they remain visible in expense history, monthly groupings, and category drill-downs.
+  const byCat={};
+  expenses.filter(e=>(e.exp_date||'').startsWith(thisMonth)&&!e.is_one_off).forEach(e=>{
     if(!byCat[e.category])byCat[e.category]=0;
     byCat[e.category]+=parseFloat(e.amount||0);
-    if(!e.is_one_off){if(!byCatPace[e.category])byCatPace[e.category]=0;byCatPace[e.category]+=parseFloat(e.amount||0);}
   });
 
   if(targetedCats.length===0&&Object.keys(byCat).length===0){
@@ -4160,7 +4158,6 @@ function renderBudgetInsights(){
   // Summary figures
   const totalTarget=targetedCats.reduce((s,c)=>s+budgetTargets[c],0);
   const totalTargetedSpent=targetedCats.reduce((s,c)=>s+(byCat[c]||0),0);
-  const totalTargetedSpentPace=targetedCats.reduce((s,c)=>s+(byCatPace[c]||0),0); // one-off excluded — pace/color only
   const totalAllSpent=Object.values(byCat).reduce((s,v)=>s+v,0);
   const totalRemaining=totalTarget-totalTargetedSpent;
   const overallPct=Math.min((totalTargetedSpent/totalTarget)*100,100);
@@ -4168,7 +4165,7 @@ function renderBudgetInsights(){
   const _daysInMoB=new Date(_nowB.getFullYear(),_nowB.getMonth()+1,0).getDate();
   const _elapsedB=_nowB.getDate();
   const _totalExpected=(totalTarget/_daysInMoB)*_elapsedB;
-  const _overallStatus=totalTargetedSpentPace>totalTarget?'over':totalTargetedSpentPace>_totalExpected*1.1?'close':'on';
+  const _overallStatus=totalTargetedSpent>totalTarget?'over':totalTargetedSpent>_totalExpected*1.1?'close':'on';
   const spentColor=_overallStatus==='over'?'var(--danger)':_overallStatus==='close'?'var(--warning)':'var(--success)';
   const remColor=totalRemaining<0?'var(--danger)':_overallStatus==='over'?'var(--danger)':_overallStatus==='close'?'var(--warning)':'var(--success)';
   const barColor=_overallStatus==='over'?'var(--danger)':_overallStatus==='close'?'var(--warning)':'var(--success)';
@@ -4241,7 +4238,7 @@ function renderBudgetInsights(){
     const spent=byCat[cat]||0;
     const rem=tgt-spent;
     const pct=Math.min((spent/tgt)*100,100);
-    const status=paceStatus(byCatPace[cat]||0,tgt); // pace from non-one-off spend; displayed spent/rem stay inclusive
+    const status=paceStatus(spent,tgt);
     const bc=status==='over'?'var(--danger)':status==='reached'?'var(--danger)':status==='close'?'var(--warning)':'var(--success)';
     const rc=rem<0?'var(--danger)':(status==='over'||status==='reached')?'var(--danger)':status==='close'?'var(--warning)':'var(--success)';
     const badge=status==='over'
@@ -4409,8 +4406,7 @@ function renderTrendsInsights(){
     </div>`;
   }
   const catRows=cats.map((cat,ci)=>{
-    const vals=periods.map(p=>getVal(cat,p,true)); // sparkline line/dots/trend exclude one-off
-    const valsIncl=periods.map(p=>getVal(cat,p,false)); // subtitle spend vs target stays inclusive
+    const vals=periods.map(p=>getVal(cat,p,true)); // one-off excluded from all Trends math
     const monthlyTarget=budgetTargets[cat]||0;
     const periodTarget=trendsWindow==='weekly'?monthlyTarget/4:monthlyTarget;
     const maxV=Math.max(...vals,periodTarget,1);
@@ -4420,7 +4416,7 @@ function renderTrendsInsights(){
     const trendIcon=trend>5?'↑':trend<-5?'↓':'→';
     const trendColor=trend>5?'var(--danger)':trend<-5?'var(--success)':'var(--muted)';
     const col=CAT_COLORS[ci%CAT_COLORS.length];
-    const latestVal=trendsWindow==='yearly'?valsIncl.reduce((s,v)=>s+v,0):valsIncl[valsIncl.length-1];
+    const latestVal=trendsWindow==='yearly'?vals.reduce((s,v)=>s+v,0):vals[vals.length-1];
     const latestLabel=trendsWindow==='weekly'?'this wk':trendsWindow==='yearly'?'this yr':(trendsWindow==='3mo'||trendsWindow==='6mo')?'this period':'this mo';
     const lineWidth=(periods.length-1)*ptSpacing;
     const targetY=periodTarget>0?(30-(periodTarget/maxV)*28):null;
@@ -4466,8 +4462,8 @@ function renderTrendsInsights(){
   const totalMonthlyBudget=Object.values(budgetTargets).reduce((s,v)=>s+v,0);
   const totalWindowBudget=totalMonthlyBudget*(trendsWindow==='weekly'?0.25:trendsWindow==='3mo'?3:trendsWindow==='6mo'?6:12);
   const totalSpent=(()=>{
-    if(trendsWindow==='weekly'){const p=periods[periods.length-1];return expenses.filter(e=>(e.exp_date||'')>=p.start&&(e.exp_date||'')<=p.end).reduce((s,e)=>s+parseFloat(e.amount||0),0);}
-    return periods.reduce((sum,p)=>sum+expenses.filter(e=>(e.exp_date||'').startsWith(p.month)).reduce((s,e)=>s+parseFloat(e.amount||0),0),0);
+    if(trendsWindow==='weekly'){const p=periods[periods.length-1];return expenses.filter(e=>(e.exp_date||'')>=p.start&&(e.exp_date||'')<=p.end&&!e.is_one_off).reduce((s,e)=>s+parseFloat(e.amount||0),0);}
+    return periods.reduce((sum,p)=>sum+expenses.filter(e=>(e.exp_date||'').startsWith(p.month)&&!e.is_one_off).reduce((s,e)=>s+parseFloat(e.amount||0),0),0);
   })();
   const remaining=totalWindowBudget-totalSpent;
   const remainingColor=remaining>=0?'var(--success)':'var(--danger)';
