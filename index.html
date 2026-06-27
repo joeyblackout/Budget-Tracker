@@ -263,6 +263,8 @@ select option{background:var(--surface);color:var(--text);}
 .receipt-lightbox img{max-width:100%;max-height:88vh;object-fit:contain;border-radius:8px;}
 .receipt-lightbox iframe{width:100%;height:88vh;border:none;border-radius:8px;background:#fff;}
 .receipt-lightbox .lb-close{position:absolute;top:calc(14px + env(safe-area-inset-top));right:16px;width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,0.15);color:#fff;border:none;font-size:22px;cursor:pointer;z-index:2;}
+.receipt-choice{display:flex;align-items:center;gap:12px;width:100%;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:var(--radius-sm);padding:16px;font-size:15px;font-weight:700;cursor:pointer;margin-bottom:10px;}
+.receipt-choice i{font-size:22px;color:var(--accent);}
 </style>
 </head>
 <body>
@@ -792,8 +794,7 @@ select option{background:var(--surface);color:var(--text);}
   <div class="field"><label>Notes</label><input type="text" id="edit-exp-notes" placeholder="Optional notes…"/></div>
   <div style="margin:0 0 16px;display:flex;align-items:center;gap:10px;"><input type="checkbox" id="edit-exp-one-off" style="width:18px;height:18px;flex-shrink:0;cursor:pointer;accent-color:var(--accent);"><label for="edit-exp-one-off" style="font-size:14px;font-weight:600;cursor:pointer;margin:0;">One-Off Expense <span style="color:var(--muted);font-weight:400;font-size:12px;">— kept in totals, left out of spending pace &amp; forecast</span></label></div>
   <div class="field"><label>Receipts</label>
-    <input type="file" id="edit-exp-receipt-input" accept="image/jpeg,image/png,application/pdf" multiple style="display:none;" onchange="onReceiptInputChange('edit')"/>
-    <button type="button" class="receipt-add-btn" onclick="document.getElementById('edit-exp-receipt-input').click()"><i class="ti ti-paperclip"></i> Add Receipt</button>
+    <button type="button" class="receipt-add-btn" onclick="openReceiptChooser('edit')"><i class="ti ti-paperclip"></i> Add Receipt</button>
     <div class="receipt-strip" id="edit-exp-receipt-strip"></div>
     <div class="receipt-uploading" id="edit-exp-receipt-uploading" style="display:none;"><span class="receipt-spin"></span> Uploading…</div>
     <div style="font-size:11px;color:var(--muted);margin-top:6px;">JPG, PNG, or PDF · up to 5 MB each</div>
@@ -812,8 +813,7 @@ select option{background:var(--surface);color:var(--text);}
   <div class="field"><label>Notes (optional)</label><input type="text" id="quick-exp-notes" placeholder="Optional…"/></div>
   <div style="margin:0 0 16px;display:flex;align-items:center;gap:10px;"><input type="checkbox" id="quick-exp-one-off" style="width:18px;height:18px;flex-shrink:0;cursor:pointer;accent-color:var(--accent);"><label for="quick-exp-one-off" style="font-size:14px;font-weight:600;cursor:pointer;margin:0;">One-Off Expense <span style="color:var(--muted);font-weight:400;font-size:12px;">— kept in totals, left out of spending pace &amp; forecast</span></label></div>
   <div class="field"><label>Receipts</label>
-    <input type="file" id="quick-exp-receipt-input" accept="image/jpeg,image/png,application/pdf" multiple style="display:none;" onchange="onReceiptInputChange('quick')"/>
-    <button type="button" class="receipt-add-btn" onclick="document.getElementById('quick-exp-receipt-input').click()"><i class="ti ti-paperclip"></i> Add Receipt</button>
+    <button type="button" class="receipt-add-btn" onclick="openReceiptChooser('quick')"><i class="ti ti-paperclip"></i> Add Receipt</button>
     <div class="receipt-strip" id="quick-exp-receipt-strip"></div>
     <div class="receipt-uploading" id="quick-exp-receipt-uploading" style="display:none;"><span class="receipt-spin"></span> Uploading…</div>
     <div style="font-size:11px;color:var(--muted);margin-top:6px;">JPG, PNG, or PDF · up to 5 MB each</div>
@@ -831,13 +831,28 @@ select option{background:var(--surface);color:var(--text);}
   <div class="field"><label>Notes</label><textarea id="exp-notes" placeholder="Optional notes…"></textarea></div>
   <div style="margin:0 0 16px;display:flex;align-items:center;gap:10px;"><input type="checkbox" id="exp-one-off" style="width:18px;height:18px;flex-shrink:0;cursor:pointer;accent-color:var(--accent);"><label for="exp-one-off" style="font-size:14px;font-weight:600;cursor:pointer;margin:0;">One-Off Expense <span style="color:var(--muted);font-weight:400;font-size:12px;">— kept in totals, left out of spending pace &amp; forecast</span></label></div>
   <div class="field"><label>Receipts</label>
-    <input type="file" id="exp-receipt-input" accept="image/jpeg,image/png,application/pdf" multiple style="display:none;" onchange="onReceiptInputChange('full')"/>
-    <button type="button" class="receipt-add-btn" onclick="document.getElementById('exp-receipt-input').click()"><i class="ti ti-paperclip"></i> Add Receipt</button>
+    <button type="button" class="receipt-add-btn" onclick="openReceiptChooser('full')"><i class="ti ti-paperclip"></i> Add Receipt</button>
     <div class="receipt-strip" id="exp-receipt-strip"></div>
     <div class="receipt-uploading" id="exp-receipt-uploading" style="display:none;"><span class="receipt-spin"></span> Uploading…</div>
     <div style="font-size:11px;color:var(--muted);margin-top:6px;">JPG, PNG, or PDF · up to 5 MB each</div>
   </div>
   <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal('expense-modal')">Cancel</button><button class="btn btn-primary" onclick="saveExpense()">Save</button></div>
+</div></div>
+
+<!-- RECEIPT CHOOSER + PREVIEW -->
+<input type="file" id="receipt-cam-input" accept="image/*" capture="environment" style="display:none;" onchange="onReceiptPicked(this.files);this.value='';"/>
+<input type="file" id="receipt-gallery-input" accept="image/*,application/pdf" multiple style="display:none;" onchange="onReceiptPicked(this.files);this.value='';"/>
+<div class="modal-overlay" id="receipt-chooser-modal"><div class="modal">
+  <div class="modal-handle"></div><div class="modal-title">Add Receipt</div>
+  <button type="button" class="receipt-choice" onclick="chooseCamera()"><i class="ti ti-camera"></i> <span>Take Photo</span></button>
+  <button type="button" class="receipt-choice" onclick="chooseGallery()"><i class="ti ti-photo"></i> <span>Choose from Gallery</span></button>
+  <div style="font-size:11px;color:var(--muted);margin:4px 2px 0;">If the camera does not open, use Choose from Gallery. Photos are compressed automatically.</div>
+  <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal('receipt-chooser-modal')">Cancel</button></div>
+</div></div>
+<div class="modal-overlay" id="receipt-preview-modal"><div class="modal">
+  <div class="modal-handle"></div><div class="modal-title">Preview Receipt</div>
+  <div class="receipt-strip" id="receipt-preview-strip" style="margin-bottom:14px;"></div>
+  <div class="modal-actions"><button class="btn btn-ghost" onclick="cancelReceiptPreview()">Cancel</button><button class="btn btn-primary" onclick="confirmReceiptPreview()">Confirm</button></div>
 </div></div>
 
 <!-- RECEIPT LIGHTBOX -->
@@ -4965,26 +4980,69 @@ async function uploadReceiptFiles(expenseId,files){
   }
   return n;
 }
-async function onReceiptInputChange(mode){
-  const cfg=RECEIPT_UI[mode];
-  const input=document.getElementById(cfg.input);
-  const files=[...(input.files||[])];
-  input.value='';
+let receiptChooserMode='edit';
+let receiptPreviewFiles=[];
+function openReceiptChooser(mode){receiptChooserMode=mode;openModal('receipt-chooser-modal');}
+function chooseCamera(){closeModal('receipt-chooser-modal');document.getElementById('receipt-cam-input').click();}
+function chooseGallery(){closeModal('receipt-chooser-modal');document.getElementById('receipt-gallery-input').click();}
+function canvasToBlob(canvas,q){return new Promise(res=>canvas.toBlob(res,'image/jpeg',q));}
+async function compressImage(file){
+  if(!file.type||!file.type.startsWith('image/'))return file; // PDFs etc. pass through untouched
+  try{
+    const bitmap=await createImageBitmap(file,{imageOrientation:'from-image'}); // auto-rotate per EXIF
+    const maxDim=1600;const scale=Math.min(1,maxDim/Math.max(bitmap.width,bitmap.height));
+    const w=Math.round(bitmap.width*scale),h=Math.round(bitmap.height*scale);
+    const canvas=document.createElement('canvas');canvas.width=w;canvas.height=h;
+    canvas.getContext('2d').drawImage(bitmap,0,0,w,h);
+    let q=0.85,blob=await canvasToBlob(canvas,q);
+    while(blob&&blob.size>1024*1024&&q>0.4){q-=0.15;blob=await canvasToBlob(canvas,q);}
+    if(!blob)return file;
+    const name=(file.name||'photo').replace(/\.[^.]+$/,'')+'.jpg';
+    return new File([blob],name,{type:'image/jpeg'});
+  }catch(e){return file;}
+}
+async function onReceiptPicked(fileList){
+  const files=[...(fileList||[])];
   if(files.length===0)return;
+  receiptPreviewFiles=[];
+  for(const f of files){receiptPreviewFiles.push(await compressImage(f));}
+  renderReceiptPreview();
+  openModal('receipt-preview-modal');
+}
+function renderReceiptPreview(){
+  const strip=document.getElementById('receipt-preview-strip');
+  if(!strip)return;
+  strip.innerHTML=receiptPreviewFiles.map((f,i)=>{
+    const isPdf=f.type==='application/pdf';
+    const inner=isPdf?'<div class="pdf-tile"><i class="ti ti-file-type-pdf"></i>PDF</div>':'<img src="'+URL.createObjectURL(f)+'" alt="receipt"/>';
+    return '<div class="receipt-thumb">'+inner+'<button class="receipt-del" onclick="removePreviewReceipt('+i+')"><i class="ti ti-trash"></i></button></div>';
+  }).join('')||'<div style="font-size:12px;color:var(--muted);">No file selected.</div>';
+}
+function removePreviewReceipt(i){receiptPreviewFiles.splice(i,1);renderReceiptPreview();}
+function cancelReceiptPreview(){receiptPreviewFiles=[];closeModal('receipt-preview-modal');}
+async function confirmReceiptPreview(){
+  const files=receiptPreviewFiles.slice();
+  receiptPreviewFiles=[];
+  closeModal('receipt-preview-modal');
+  if(files.length===0)return;
+  const mode=receiptChooserMode;
   if(mode==='edit'){
     const id=document.getElementById('edit-exp-id').value;
     if(!id)return;
-    const up=document.getElementById(cfg.uploading);if(up)up.style.display='flex';
-    await uploadReceiptFiles(id,files);
+    const up=document.getElementById('edit-exp-receipt-uploading');if(up)up.style.display='flex';
+    const n=await uploadReceiptFiles(id,files);
     await loadReceipts();
     if(up)up.style.display='none';
     renderReceiptStrip('edit',id);
     renderExpenses();
+    if(n>0)toast(n+' receipt'+(n!==1?'s':'')+' attached ✓');
   }else{
     const arr=pendingReceiptFiles[mode];
     const existing=arr.reduce((s,f)=>s+f.size,0);
-    arr.push(...validateReceiptFiles(files,existing));
+    const ok=validateReceiptFiles(files,existing);
+    arr.push(...ok);
     renderPendingStrip(mode);
+    if(ok.length>0)toast(ok.length+' receipt'+(ok.length!==1?'s':'')+' ready ✓');
   }
 }
 async function renderReceiptStrip(mode,expenseId){
