@@ -247,6 +247,22 @@ select option{background:var(--surface);color:var(--text);}
 .reaction-count:active{transform:scale(0.9);}
 .reaction-btn.reacted .reaction-count{color:var(--accent);}
 .onboarding-highlight{outline:2px solid var(--accent);outline-offset:3px;border-radius:8px;}
+.receipt-strip{display:grid;grid-template-columns:repeat(auto-fill,minmax(72px,1fr));gap:8px;margin-top:8px;}
+.receipt-thumb{position:relative;aspect-ratio:1;border-radius:10px;overflow:hidden;background:var(--surface2);border:1px solid var(--border);cursor:pointer;display:flex;align-items:center;justify-content:center;}
+.receipt-thumb img{width:100%;height:100%;object-fit:cover;display:block;}
+.receipt-thumb .pdf-tile{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;color:var(--muted);font-size:10px;text-align:center;padding:4px;}
+.receipt-thumb .pdf-tile i{font-size:24px;color:var(--danger);}
+.receipt-del{position:absolute;top:3px;right:3px;width:22px;height:22px;border-radius:50%;background:rgba(0,0,0,0.6);color:#fff;border:none;display:flex;align-items:center;justify-content:center;font-size:12px;cursor:pointer;}
+.receipt-add-btn{display:inline-flex;align-items:center;gap:6px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:99px;padding:9px 16px;font-size:13px;font-weight:700;cursor:pointer;}
+.receipt-uploading{font-size:12px;color:var(--muted);margin-top:8px;display:flex;align-items:center;gap:6px;}
+.receipt-spin{width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:rcptspin 0.7s linear infinite;display:inline-block;}
+@keyframes rcptspin{to{transform:rotate(360deg);}}
+.expense-meta .rcpt-badge{color:var(--accent);margin-left:8px;}
+.receipt-lightbox{position:fixed;inset:0;z-index:700;background:rgba(0,0,0,0.92);display:none;align-items:center;justify-content:center;flex-direction:column;padding:16px;}
+.receipt-lightbox.open{display:flex;}
+.receipt-lightbox img{max-width:100%;max-height:88vh;object-fit:contain;border-radius:8px;}
+.receipt-lightbox iframe{width:100%;height:88vh;border:none;border-radius:8px;background:#fff;}
+.receipt-lightbox .lb-close{position:absolute;top:calc(14px + env(safe-area-inset-top));right:16px;width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,0.15);color:#fff;border:none;font-size:22px;cursor:pointer;z-index:2;}
 </style>
 </head>
 <body>
@@ -775,6 +791,13 @@ select option{background:var(--surface);color:var(--text);}
   <div class="field"><label>Amount ($)</label><input type="number" id="edit-exp-amount" placeholder="0.00" step="0.01" min="0"/></div>
   <div class="field"><label>Notes</label><input type="text" id="edit-exp-notes" placeholder="Optional notes…"/></div>
   <div style="margin:0 0 16px;display:flex;align-items:center;gap:10px;"><input type="checkbox" id="edit-exp-one-off" style="width:18px;height:18px;flex-shrink:0;cursor:pointer;accent-color:var(--accent);"><label for="edit-exp-one-off" style="font-size:14px;font-weight:600;cursor:pointer;margin:0;">One-Off Expense <span style="color:var(--muted);font-weight:400;font-size:12px;">— kept in totals, left out of spending pace &amp; forecast</span></label></div>
+  <div class="field"><label>Receipts</label>
+    <input type="file" id="edit-exp-receipt-input" accept="image/jpeg,image/png,application/pdf" multiple style="display:none;" onchange="onReceiptInputChange('edit')"/>
+    <button type="button" class="receipt-add-btn" onclick="document.getElementById('edit-exp-receipt-input').click()"><i class="ti ti-paperclip"></i> Add Receipt</button>
+    <div class="receipt-strip" id="edit-exp-receipt-strip"></div>
+    <div class="receipt-uploading" id="edit-exp-receipt-uploading" style="display:none;"><span class="receipt-spin"></span> Uploading…</div>
+    <div style="font-size:11px;color:var(--muted);margin-top:6px;">JPG, PNG, or PDF · up to 5 MB each</div>
+  </div>
   <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal('edit-expense-modal')">Cancel</button><button class="btn btn-primary" onclick="saveEditExpense()">Save</button></div>
 </div></div>
 
@@ -788,6 +811,13 @@ select option{background:var(--surface);color:var(--text);}
   <div class="field"><label>Date</label><input type="date" id="quick-exp-date"/></div>
   <div class="field"><label>Notes (optional)</label><input type="text" id="quick-exp-notes" placeholder="Optional…"/></div>
   <div style="margin:0 0 16px;display:flex;align-items:center;gap:10px;"><input type="checkbox" id="quick-exp-one-off" style="width:18px;height:18px;flex-shrink:0;cursor:pointer;accent-color:var(--accent);"><label for="quick-exp-one-off" style="font-size:14px;font-weight:600;cursor:pointer;margin:0;">One-Off Expense <span style="color:var(--muted);font-weight:400;font-size:12px;">— kept in totals, left out of spending pace &amp; forecast</span></label></div>
+  <div class="field"><label>Receipts</label>
+    <input type="file" id="quick-exp-receipt-input" accept="image/jpeg,image/png,application/pdf" multiple style="display:none;" onchange="onReceiptInputChange('quick')"/>
+    <button type="button" class="receipt-add-btn" onclick="document.getElementById('quick-exp-receipt-input').click()"><i class="ti ti-paperclip"></i> Add Receipt</button>
+    <div class="receipt-strip" id="quick-exp-receipt-strip"></div>
+    <div class="receipt-uploading" id="quick-exp-receipt-uploading" style="display:none;"><span class="receipt-spin"></span> Uploading…</div>
+    <div style="font-size:11px;color:var(--muted);margin-top:6px;">JPG, PNG, or PDF · up to 5 MB each</div>
+  </div>
   <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal('quick-expense-modal')">Cancel</button><button class="btn btn-primary" onclick="saveQuickExpense()">Log It</button></div>
 </div></div>
 
@@ -800,8 +830,21 @@ select option{background:var(--surface);color:var(--text);}
   <div class="field"><label>Amount ($)</label><input type="number" id="exp-amount" placeholder="0.00" step="0.01" min="0"/></div>
   <div class="field"><label>Notes</label><textarea id="exp-notes" placeholder="Optional notes…"></textarea></div>
   <div style="margin:0 0 16px;display:flex;align-items:center;gap:10px;"><input type="checkbox" id="exp-one-off" style="width:18px;height:18px;flex-shrink:0;cursor:pointer;accent-color:var(--accent);"><label for="exp-one-off" style="font-size:14px;font-weight:600;cursor:pointer;margin:0;">One-Off Expense <span style="color:var(--muted);font-weight:400;font-size:12px;">— kept in totals, left out of spending pace &amp; forecast</span></label></div>
+  <div class="field"><label>Receipts</label>
+    <input type="file" id="exp-receipt-input" accept="image/jpeg,image/png,application/pdf" multiple style="display:none;" onchange="onReceiptInputChange('full')"/>
+    <button type="button" class="receipt-add-btn" onclick="document.getElementById('exp-receipt-input').click()"><i class="ti ti-paperclip"></i> Add Receipt</button>
+    <div class="receipt-strip" id="exp-receipt-strip"></div>
+    <div class="receipt-uploading" id="exp-receipt-uploading" style="display:none;"><span class="receipt-spin"></span> Uploading…</div>
+    <div style="font-size:11px;color:var(--muted);margin-top:6px;">JPG, PNG, or PDF · up to 5 MB each</div>
+  </div>
   <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal('expense-modal')">Cancel</button><button class="btn btn-primary" onclick="saveExpense()">Save</button></div>
 </div></div>
+
+<!-- RECEIPT LIGHTBOX -->
+<div class="receipt-lightbox" id="receipt-lightbox" onclick="if(event.target===this)closeReceiptLightbox()">
+  <button class="lb-close" onclick="closeReceiptLightbox()">&times;</button>
+  <div id="receipt-lightbox-body" style="width:100%;display:flex;align-items:center;justify-content:center;"></div>
+</div>
 
 <!-- PAYCHECK CALCULATOR MODAL -->
 <div class="modal-overlay" id="paycalc-modal"><div class="modal" style="max-height:92dvh;overflow-y:auto;padding-bottom:24px;">
@@ -1046,7 +1089,7 @@ async function cleanupPaidOffDebtBills(){
   await loadBills();
   return true;
 }
-async function loadAll(){await Promise.all([loadDebts(),loadPayments(),loadExpenses(),loadWeeks(),loadPaychecks(),loadBills(),loadBillPayments(),loadPots(),loadSavingsTxns(),loadProfiles(),loadPosts(),loadReactions(),loadShared(),loadRecurring(),loadAssets(),loadBudgetTargets(),loadNetWorthHistory()]);await topUpPeriods();await migrateDiningCategory();await cleanupPaidOffDebtBills();await snapshotNetWorth();switchView('dashboard',null);updateBillBadge();updateNotifBadge();startPolling();await openPaydayRoutine();checkWhatsNew(whatsNewPrevLogin);}
+async function loadAll(){await Promise.all([loadDebts(),loadPayments(),loadExpenses(),loadWeeks(),loadPaychecks(),loadBills(),loadBillPayments(),loadPots(),loadSavingsTxns(),loadProfiles(),loadPosts(),loadReactions(),loadShared(),loadRecurring(),loadAssets(),loadBudgetTargets(),loadNetWorthHistory(),loadReceipts()]);await topUpPeriods();await migrateDiningCategory();await cleanupPaidOffDebtBills();await snapshotNetWorth();switchView('dashboard',null);updateBillBadge();updateNotifBadge();startPolling();await openPaydayRoutine();checkWhatsNew(whatsNewPrevLogin);}
 async function topUpPeriods(){
   // Only extend recurring sources if the furthest period is within 10 months out
   if(recurringSources.length===0)return;
@@ -3926,7 +3969,7 @@ async function saveEditPaycheck(){
   if(document.getElementById('dash-detail-modal').classList.contains('open'))showConfirmedIncomeModal();
 }
 function openPaymentModalForWeek(weekId){document.getElementById('pay-date').value=today();document.getElementById('pay-amount').value='';document.getElementById('pay-notes').value='';const sel=document.getElementById('pay-account');sel.innerHTML='<option value="">— Select account —</option>'+debts.map(d=>`<option value="${d.id}">${esc(d.name)}</option>`).join('');document.getElementById('payment-modal').dataset.weekId=weekId;openModal('payment-modal');}
-function openExpenseModalForWeek(weekId){document.getElementById('exp-date').value=today();document.getElementById('exp-amount').value='';document.getElementById('exp-desc').value='';document.getElementById('exp-notes').value='';document.getElementById('exp-one-off').checked=false;document.getElementById('expense-modal').dataset.weekId=weekId;openModal('expense-modal');}
+function openExpenseModalForWeek(weekId){document.getElementById('exp-date').value=today();document.getElementById('exp-amount').value='';document.getElementById('exp-desc').value='';document.getElementById('exp-notes').value='';document.getElementById('exp-one-off').checked=false;document.getElementById('expense-modal').dataset.weekId=weekId;pendingReceiptFiles.full=[];renderPendingStrip('full');openModal('expense-modal');}
 
 // DEBTS
 const debtCollapsed=new Set();
@@ -4640,15 +4683,18 @@ function openQuickExpense(category,desc,label,emoji){
   document.getElementById('quick-exp-date').value=today();
   document.getElementById('quick-exp-notes').value='';
   document.getElementById('quick-exp-one-off').checked=false;
+  pendingReceiptFiles.quick=[];renderPendingStrip('quick');
   openModal('quick-expense-modal');
   setTimeout(()=>document.getElementById('quick-exp-amount').focus(),300);
 }
 async function saveQuickExpense(){
   const amount=parseFloat(document.getElementById('quick-exp-amount').value);
   if(!amount||amount<=0){toast('Enter a valid amount');return;}
-  const{error}=await sb.from('expenses').insert({user_id:currentUser.id,exp_date:document.getElementById('quick-exp-date').value,category:document.getElementById('quick-exp-category').value,description:document.getElementById('quick-exp-desc').value||null,amount,notes:document.getElementById('quick-exp-notes').value.trim()||null,is_one_off:document.getElementById('quick-exp-one-off').checked});
+  const{data,error}=await sb.from('expenses').insert({user_id:currentUser.id,exp_date:document.getElementById('quick-exp-date').value,category:document.getElementById('quick-exp-category').value,description:document.getElementById('quick-exp-desc').value||null,amount,notes:document.getElementById('quick-exp-notes').value.trim()||null,is_one_off:document.getElementById('quick-exp-one-off').checked}).select().single();
   if(error){toast('Error: '+error.message);return;}
-  closeModal('quick-expense-modal');await loadExpenses();renderExpenses();renderDashboard();toast('Logged ✓');
+  if(pendingReceiptFiles.quick.length&&data)await uploadReceiptFiles(data.id,pendingReceiptFiles.quick);
+  pendingReceiptFiles.quick=[];
+  closeModal('quick-expense-modal');await Promise.all([loadExpenses(),loadReceipts()]);renderExpenses();renderDashboard();toast('Logged ✓');
 }
 async function repeatExpense(id){
   const e=expenses.find(x=>x.id===id);
@@ -4732,7 +4778,9 @@ function expenseRowHtml(e){
   const descStyle=oneOff?' style="color:var(--muted);"':'';
   const amtStyle=oneOff?' style="color:var(--muted);"':'';
   const memo=e.notes&&e.notes.trim()?'<div style="font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+esc(e.notes.length>60?e.notes.slice(0,60)+'…':e.notes)+'</div>':'';
-  const info='<div style="flex:1;min-width:0;"><div class="expense-cat"'+catStyle+'>'+esc(e.category)+'</div><div class="expense-desc"'+descStyle+'>'+esc(e.description||'')+'</div>'+memo+'<div class="expense-meta">'+fmtDate(e.exp_date)+'</div></div>';
+  const _rc=receiptsForExpense(e.id).length;
+  const rcptBadge=_rc?'<span class="rcpt-badge"><i class="ti ti-paperclip"></i> '+_rc+'</span>':'';
+  const info='<div style="flex:1;min-width:0;"><div class="expense-cat"'+catStyle+'>'+esc(e.category)+'</div><div class="expense-desc"'+descStyle+'>'+esc(e.description||'')+'</div>'+memo+'<div class="expense-meta">'+fmtDate(e.exp_date)+rcptBadge+'</div></div>';
   if(expenseSelectMode){
     const sel=selectedExpenseIds.has(e.id);
     return '<div class="expense-item'+(oneOff?' one-off':'')+'" onclick="toggleExpenseSelect(\''+e.id+'\')" style="cursor:pointer;">'
@@ -4829,23 +4877,27 @@ async function bulkDeleteExpenses(){
   const ids=[...selectedExpenseIds];
   if(ids.length===0)return;
   if(!confirm('Delete '+ids.length+' expense'+(ids.length!==1?'s':'')+'?'))return;
+  const _bp=ids.flatMap(id=>receiptsForExpense(id).map(r=>r.storage_path));
+  if(_bp.length)await sb.storage.from('receipts').remove(_bp);
   const{error}=await sb.from('expenses').delete().in('id',ids);
   if(error){toast('Error: '+error.message);return;}
-  await loadExpenses();
+  await Promise.all([loadExpenses(),loadReceipts()]);
   expenseSelectMode=false;selectedExpenseIds=new Set();
   renderExpenseHeaderControls();renderExpenseSelectBar();renderExpenses();renderDashboard();
   toast(ids.length+' expense'+(ids.length!==1?'s':'')+' deleted');
 }
-function openExpenseModal(){document.getElementById('exp-date').value=today();document.getElementById('exp-amount').value='';document.getElementById('exp-desc').value='';document.getElementById('exp-notes').value='';document.getElementById('exp-one-off').checked=false;delete document.getElementById('expense-modal').dataset.weekId;openModal('expense-modal');}
+function openExpenseModal(){document.getElementById('exp-date').value=today();document.getElementById('exp-amount').value='';document.getElementById('exp-desc').value='';document.getElementById('exp-notes').value='';document.getElementById('exp-one-off').checked=false;delete document.getElementById('expense-modal').dataset.weekId;pendingReceiptFiles.full=[];renderPendingStrip('full');openModal('expense-modal');}
 async function saveExpense(){
   const amount=parseFloat(document.getElementById('exp-amount').value);
   if(!amount||amount<=0){toast('Enter a valid amount');return;}
   const weekId=document.getElementById('expense-modal').dataset.weekId||null;
-  const{error}=await sb.from('expenses').insert({user_id:currentUser.id,exp_date:document.getElementById('exp-date').value,category:document.getElementById('exp-category').value,description:document.getElementById('exp-desc').value.trim()||null,amount,notes:document.getElementById('exp-notes').value.trim()||null,is_one_off:document.getElementById('exp-one-off').checked,pay_week_id:weekId||null});
+  const{data,error}=await sb.from('expenses').insert({user_id:currentUser.id,exp_date:document.getElementById('exp-date').value,category:document.getElementById('exp-category').value,description:document.getElementById('exp-desc').value.trim()||null,amount,notes:document.getElementById('exp-notes').value.trim()||null,is_one_off:document.getElementById('exp-one-off').checked,pay_week_id:weekId||null}).select().single();
   if(error){toast('Error: '+error.message);return;}
-  closeModal('expense-modal');await loadExpenses();renderExpenses();if(weekId)renderWeekly();toast('Expense logged ✓');
+  if(pendingReceiptFiles.full.length&&data)await uploadReceiptFiles(data.id,pendingReceiptFiles.full);
+  pendingReceiptFiles.full=[];
+  closeModal('expense-modal');await Promise.all([loadExpenses(),loadReceipts()]);renderExpenses();if(weekId)renderWeekly();toast('Expense logged ✓');
 }
-async function deleteExpense(id){if(!confirm('Delete this expense?'))return;await sb.from('expenses').delete().eq('id',id);await loadExpenses();renderExpenses();if(document.getElementById('view-weekly').classList.contains('active'))renderWeekly();renderDashboard();toast('Expense deleted');}
+async function deleteExpense(id){if(!confirm('Delete this expense?'))return;const _p=receiptsForExpense(id).map(r=>r.storage_path);if(_p.length)await sb.storage.from('receipts').remove(_p);await sb.from('expenses').delete().eq('id',id);await Promise.all([loadExpenses(),loadReceipts()]);renderExpenses();if(document.getElementById('view-weekly').classList.contains('active'))renderWeekly();renderDashboard();toast('Expense deleted');}
 function editExpense(id){
   const e=expenses.find(x=>x.id===id);if(!e)return;
   document.getElementById('edit-exp-id').value=id;
@@ -4855,6 +4907,8 @@ function editExpense(id){
   document.getElementById('edit-exp-amount').value=e.amount||'';
   document.getElementById('edit-exp-notes').value=e.notes||'';
   document.getElementById('edit-exp-one-off').checked=!!e.is_one_off;
+  renderReceiptStrip('edit',id);
+  const _eu=document.getElementById('edit-exp-receipt-uploading');if(_eu)_eu.style.display='none';
   openModal('edit-expense-modal');
 }
 async function saveEditExpense(){
@@ -4864,6 +4918,118 @@ async function saveEditExpense(){
   const{error}=await sb.from('expenses').update({exp_date:document.getElementById('edit-exp-date').value,category:document.getElementById('edit-exp-category').value,description:document.getElementById('edit-exp-desc').value.trim()||null,amount,notes:document.getElementById('edit-exp-notes').value.trim()||null,is_one_off:document.getElementById('edit-exp-one-off').checked}).eq('id',id);
   if(error){toast('Error: '+error.message);return;}
   closeModal('edit-expense-modal');await loadExpenses();renderExpenses();renderDashboard();toast('Expense updated ✓');
+}
+// ===== RECEIPTS (Supabase Storage: private 'receipts' bucket + signed URLs) =====
+let receipts=[];
+let pendingReceiptFiles={quick:[],full:[]};
+const _signedUrlCache={};
+const RECEIPT_MAX_FILE=5*1024*1024, RECEIPT_MAX_TOTAL=10*1024*1024;
+const RECEIPT_OK_TYPES=['image/jpeg','image/png','application/pdf'];
+const RECEIPT_UI={
+  edit:{input:'edit-exp-receipt-input',strip:'edit-exp-receipt-strip',uploading:'edit-exp-receipt-uploading'},
+  quick:{input:'quick-exp-receipt-input',strip:'quick-exp-receipt-strip',uploading:'quick-exp-receipt-uploading'},
+  full:{input:'exp-receipt-input',strip:'exp-receipt-strip',uploading:'exp-receipt-uploading'}
+};
+async function loadReceipts(){try{const{data}=await sb.from('receipts').select('*').eq('user_id',currentUser.id);receipts=data||[];}catch(e){receipts=[];}}
+function receiptsForExpense(expenseId){return receipts.filter(r=>r.expense_id===expenseId);}
+async function signedReceiptUrl(path){
+  const c=_signedUrlCache[path];
+  if(c&&c.exp>Date.now())return c.url;
+  const{data,error}=await sb.storage.from('receipts').createSignedUrl(path,3600);
+  if(error||!data)return null;
+  _signedUrlCache[path]={url:data.signedUrl,exp:Date.now()+55*60*1000};
+  return data.signedUrl;
+}
+function validateReceiptFiles(files,existingBytes){
+  let total=existingBytes||0;const ok=[];
+  for(const f of files){
+    if(!RECEIPT_OK_TYPES.includes(f.type)){toast(f.name+': only JPG, PNG, or PDF');continue;}
+    if(f.size>RECEIPT_MAX_FILE){toast(f.name+': over 5 MB');continue;}
+    if(total+f.size>RECEIPT_MAX_TOTAL){toast('Receipts would exceed 10 MB total');break;}
+    total+=f.size;ok.push(f);
+  }
+  return ok;
+}
+async function uploadReceiptFiles(expenseId,files){
+  const existing=receiptsForExpense(expenseId).reduce((s,r)=>s+(parseInt(r.size_bytes)||0),0);
+  const ok=validateReceiptFiles(files,existing);
+  let n=0;
+  for(const f of ok){
+    const ext=(f.name.split('.').pop()||'bin').toLowerCase();
+    const path=currentUser.id+'/'+expenseId+'/'+crypto.randomUUID()+'.'+ext;
+    const up=await sb.storage.from('receipts').upload(path,f,{contentType:f.type,upsert:false});
+    if(up.error){toast('Upload failed: '+up.error.message);continue;}
+    const ins=await sb.from('receipts').insert({expense_id:expenseId,user_id:currentUser.id,storage_path:path,file_name:f.name,mime_type:f.type,size_bytes:f.size});
+    if(ins.error){toast('Save failed: '+ins.error.message);await sb.storage.from('receipts').remove([path]);continue;}
+    n++;
+  }
+  return n;
+}
+async function onReceiptInputChange(mode){
+  const cfg=RECEIPT_UI[mode];
+  const input=document.getElementById(cfg.input);
+  const files=[...(input.files||[])];
+  input.value='';
+  if(files.length===0)return;
+  if(mode==='edit'){
+    const id=document.getElementById('edit-exp-id').value;
+    if(!id)return;
+    const up=document.getElementById(cfg.uploading);if(up)up.style.display='flex';
+    await uploadReceiptFiles(id,files);
+    await loadReceipts();
+    if(up)up.style.display='none';
+    renderReceiptStrip('edit',id);
+    renderExpenses();
+  }else{
+    const arr=pendingReceiptFiles[mode];
+    const existing=arr.reduce((s,f)=>s+f.size,0);
+    arr.push(...validateReceiptFiles(files,existing));
+    renderPendingStrip(mode);
+  }
+}
+async function renderReceiptStrip(mode,expenseId){
+  const cfg=RECEIPT_UI[mode];
+  const strip=document.getElementById(cfg.strip);
+  if(!strip)return;
+  const list=receiptsForExpense(expenseId);
+  strip.innerHTML=list.map(r=>{
+    const isPdf=r.mime_type==='application/pdf';
+    const inner=isPdf?'<div class="pdf-tile"><i class="ti ti-file-type-pdf"></i>PDF</div>':'<img loading="lazy" data-path="'+esc(r.storage_path)+'" alt="receipt"/>';
+    return '<div class="receipt-thumb" onclick="openReceiptLightbox(\''+esc(r.storage_path)+'\',\''+esc(r.mime_type||'')+'\')">'+inner
+      +'<button class="receipt-del" onclick="event.stopPropagation();deleteReceipt(\''+r.id+'\',\''+esc(r.storage_path)+'\',\''+mode+'\',\''+expenseId+'\')"><i class="ti ti-trash"></i></button></div>';
+  }).join('');
+  strip.querySelectorAll('img[data-path]').forEach(async img=>{const u=await signedReceiptUrl(img.dataset.path);if(u)img.src=u;});
+}
+function renderPendingStrip(mode){
+  const cfg=RECEIPT_UI[mode];
+  const strip=document.getElementById(cfg.strip);
+  if(!strip)return;
+  const arr=pendingReceiptFiles[mode]||[];
+  strip.innerHTML=arr.map((f,i)=>{
+    const isPdf=f.type==='application/pdf';
+    const inner=isPdf?'<div class="pdf-tile"><i class="ti ti-file-type-pdf"></i>PDF</div>':'<img src="'+URL.createObjectURL(f)+'" alt="receipt"/>';
+    return '<div class="receipt-thumb">'+inner+'<button class="receipt-del" onclick="event.stopPropagation();removePendingReceipt(\''+mode+'\','+i+')"><i class="ti ti-trash"></i></button></div>';
+  }).join('');
+}
+function removePendingReceipt(mode,i){pendingReceiptFiles[mode].splice(i,1);renderPendingStrip(mode);}
+async function openReceiptLightbox(path,mime){
+  const lb=document.getElementById('receipt-lightbox');
+  const body=document.getElementById('receipt-lightbox-body');
+  body.innerHTML='<span class="receipt-spin"></span>';
+  lb.classList.add('open');
+  const url=await signedReceiptUrl(path);
+  if(!url){body.innerHTML='<div style="color:#fff;font-size:14px;">Could not load receipt.</div>';return;}
+  body.innerHTML=(mime==='application/pdf')?'<iframe src="'+url+'"></iframe>':'<img src="'+url+'" alt="receipt"/>';
+}
+function closeReceiptLightbox(){document.getElementById('receipt-lightbox').classList.remove('open');document.getElementById('receipt-lightbox-body').innerHTML='';}
+async function deleteReceipt(id,path,mode,expenseId){
+  if(!confirm('Remove this receipt?'))return;
+  await sb.storage.from('receipts').remove([path]);
+  await sb.from('receipts').delete().eq('id',id);
+  delete _signedUrlCache[path];
+  await loadReceipts();
+  renderReceiptStrip(mode,expenseId);
+  renderExpenses();
 }
 function updateBillBadge(){
   const todayDay=new Date().getDate();
