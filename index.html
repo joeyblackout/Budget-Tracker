@@ -4429,6 +4429,7 @@ function renderTrendsInsights(){
     </div>`;
   }
   const catRows=cats.map((cat,ci)=>({cat,ci,vals:periods.map(p=>getVal(cat,p,true))})) // one-off excluded from all Trends math
+    .sort((a,b)=>((budgetTargets[b.cat]||0)-(budgetTargets[a.cat]||0))||(b.vals.reduce((s,v)=>s+v,0)-a.vals.reduce((s,v)=>s+v,0))) // budget desc, then window-spend desc
     .filter(o=>o.vals.some(v=>v>0)) // hide categories with no spending in the selected window
     .map(({cat,ci,vals})=>{
     const monthlyTarget=budgetTargets[cat]||0;
