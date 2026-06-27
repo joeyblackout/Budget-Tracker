@@ -32,6 +32,8 @@ A mobile-first personal finance web app. Single `index.html` file, no build step
 
 ### `profiles`
 - user_id UUID (unique), display_name TEXT, auto_post BOOL default true, starting_cash NUMERIC default 0
+- last_login_ts TIMESTAMPTZ — authoritative cross-device prior-login reference; advances only on a genuinely new session (>30 min gap). Drives the "X new updates since your last visit" bell notification
+- updates_dismissed_ts TIMESTAMPTZ — when the user dismissed the Updates notification; changelog items with date > max(last_login_ts, updates_dismissed_ts) are shown as new. Written by `dismissUpdates()`
 
 ### `debts`
 - user_id, name, type, balance, credit_limit, apr, min_payment, due_date
@@ -163,6 +165,7 @@ Running Balance = Starting Cash
 
 ### Notifications (🔔)
 - Shared pot invites, overdue bills, bills due within 5 days, paychecks awaiting confirmation, new community posts
+- **Updates**: "X new updates since your last visit" — surfaces changelog items added since the user's last login (DB `last_login_ts`). Tapping opens the What's New modal; Dismiss writes `updates_dismissed_ts`. Replaced the old auto-popup What's New modal (`checkWhatsNew` is now a no-op)
 - Clears on close; last-visit stored in localStorage
 
 ### Settings
