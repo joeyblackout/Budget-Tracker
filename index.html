@@ -5071,59 +5071,49 @@ async function confirmImport(){
 function openModal(id){document.getElementById(id).classList.add('open');}
 function closeModal(id){document.getElementById(id).classList.remove('open');}
 function openPaycalcModal(){openModal('paycalc-modal');renderPaycalc();}
+const CHANGELOG=[
+  {date:new Date('2026-06-23T20:00:00').getTime(),icon:'ti-chart-line',title:'Net Worth Zones',desc:'The net worth chart now shows green shading above $0 and red shading below, so you can see at a glance when you crossed into positive territory.'},
+  {date:new Date('2026-06-23T20:00:00').getTime(),icon:'ti-flag',title:'Budget Reached alert',desc:'When a spending category has $5 or less remaining, it now shows a red Budget Reached badge — before you actually go over.'},
+  {date:new Date('2026-06-23T19:00:00').getTime(),icon:'ti-edit',title:'Emoji picker for quick-add buttons',desc:'Tap Edit on the quick-add bar to pick a new emoji from a visual picker instead of typing one.'},
+  {date:new Date('2026-06-23T19:00:00').getTime(),icon:'ti-chart-dots',title:'Trends budget scaling',desc:'The spending target in Trends now scales to match the selected window — weekly, 3 months, 6 months, or yearly.'},
+  {date:new Date('2026-06-23T19:00:00').getTime(),icon:'ti-chart-dots',title:'Trends budget subtitle',desc:'Each category in Trends now shows your spend vs. target for the selected window, e.g. $33 / $125 this wk.'},
+  {date:new Date('2026-06-23T18:00:00').getTime(),icon:'ti-calendar-due',title:'Payday Routine',desc:'A guided 4-step flow appears on your Dashboard when a paycheck is pending — confirm income, pay bills, log debt payments, and deposit to savings in one pass.'},
+  {date:new Date('2026-06-23T18:00:00').getTime(),icon:'ti-receipt',title:'Expense Budget card on Dashboard',desc:'Your monthly spending budget summary now appears directly on the Dashboard so you can check your pace without going to Expenses.'},
+  {date:new Date('2026-06-23T18:00:00').getTime(),icon:'ti-chart-dots',title:'Spending Trends',desc:'The Expenses tab now has a Trends view — sparkline charts per category across Weekly, 3 Month, 6 Month, and Yearly windows.'},
+  {date:new Date('2026-06-23T17:00:00').getTime(),icon:'ti-file-upload',title:'Import Data',desc:'New users can bulk-import debts, bills, savings, income, expenses, and assets from an Excel template in Settings.'}
+];
 function checkWhatsNew(previousLogin){
-  console.log('[WhatsNew] checkWhatsNew called. previousLogin =',previousLogin,'->',previousLogin?new Date(previousLogin).toISOString():'(falsy)');
-  console.log('[WhatsNew] localStorage bt-last-login-ts =',localStorage.getItem('bt-last-login-ts'));
-  console.log('[WhatsNew] localStorage bt-whatsnew-seen-ts =',localStorage.getItem('bt-whatsnew-seen-ts'));
-  if(!previousLogin){console.log('[WhatsNew] EXIT EARLY: no previousLogin (treated as first-ever login)');return;} // skip for first-ever login (no prior session stamp)
-  // If the Payday Routine is open, defer until it finishes so the modal isn't hidden behind it
-  const routineEl=document.getElementById('routine-overlay');
-  if(routineEl&&routineEl.style.display!=='none'){
-    console.log('[WhatsNew] DEFERRED: payday routine overlay is open; will show after it closes');
-    routinePendingWhatsNew=true;
-    return;
-  }
-  console.log('[WhatsNew] proceeding -> showWhatsNew in 1200ms');
-  setTimeout(()=>showWhatsNew(previousLogin),1200);
+  // Pivoted to bell-notification delivery: updates now surface via the 🔔 'updates' notification
+  // (see getNotifications). Auto-popup suppressed; the modal opens on demand via showUpdatesModal().
 }
-function showWhatsNew(previousLogin){
-  const CHANGELOG=[
-    {date:new Date('2026-06-23T20:00:00').getTime(),icon:'ti-chart-line',title:'Net Worth Zones',desc:'The net worth chart now shows green shading above $0 and red shading below, so you can see at a glance when you crossed into positive territory.'},
-    {date:new Date('2026-06-23T20:00:00').getTime(),icon:'ti-flag',title:'Budget Reached alert',desc:'When a spending category has $5 or less remaining, it now shows a red Budget Reached badge — before you actually go over.'},
-    {date:new Date('2026-06-23T19:00:00').getTime(),icon:'ti-edit',title:'Emoji picker for quick-add buttons',desc:'Tap Edit on the quick-add bar to pick a new emoji from a visual picker instead of typing one.'},
-    {date:new Date('2026-06-23T19:00:00').getTime(),icon:'ti-chart-dots',title:'Trends budget scaling',desc:'The spending target in Trends now scales to match the selected window — weekly, 3 months, 6 months, or yearly.'},
-    {date:new Date('2026-06-23T19:00:00').getTime(),icon:'ti-chart-dots',title:'Trends budget subtitle',desc:'Each category in Trends now shows your spend vs. target for the selected window, e.g. $33 / $125 this wk.'},
-    {date:new Date('2026-06-23T18:00:00').getTime(),icon:'ti-calendar-due',title:'Payday Routine',desc:'A guided 4-step flow appears on your Dashboard when a paycheck is pending — confirm income, pay bills, log debt payments, and deposit to savings in one pass.'},
-    {date:new Date('2026-06-23T18:00:00').getTime(),icon:'ti-receipt',title:'Expense Budget card on Dashboard',desc:'Your monthly spending budget summary now appears directly on the Dashboard so you can check your pace without going to Expenses.'},
-    {date:new Date('2026-06-23T18:00:00').getTime(),icon:'ti-chart-dots',title:'Spending Trends',desc:'The Expenses tab now has a Trends view — sparkline charts per category across Weekly, 3 Month, 6 Month, and Yearly windows.'},
-    {date:new Date('2026-06-23T17:00:00').getTime(),icon:'ti-file-upload',title:'Import Data',desc:'New users can bulk-import debts, bills, savings, income, expenses, and assets from an Excel template in Settings.'}
-  ];
-  // Cutoff is the later of the prior login OR the newest item already dismissed,
-  // so a frozen-stamp session doesn't re-show the same items on every refresh.
-  const seenTs=parseInt(localStorage.getItem('bt-whatsnew-seen-ts')||'0');
-  const cutoff=Math.max(previousLogin,seenTs);
-  const newestChangelog=Math.max(...CHANGELOG.map(e=>e.date));
-  console.log('[WhatsNew] showWhatsNew. previousLogin =',new Date(previousLogin).toISOString());
-  console.log('[WhatsNew] seenTs =',seenTs,seenTs?new Date(seenTs).toISOString():'(none)');
-  console.log('[WhatsNew] cutoff =',new Date(cutoff).toISOString());
-  console.log('[WhatsNew] newest CHANGELOG entry =',new Date(newestChangelog).toISOString());
-  console.log('[WhatsNew] cutoff is',cutoff>=newestChangelog?'AT/AFTER newest entry -> nothing will show':'BEFORE newest entry -> items expected');
-  const newItems=CHANGELOG.filter(e=>e.date>cutoff);
-  console.log('[WhatsNew] newItems count =',newItems.length,newItems.map(i=>i.title));
-  if(newItems.length===0){console.log('[WhatsNew] EXIT: no new items since cutoff. Modal NOT shown.');localStorage.setItem('bt-version-seen',APP_VERSION);return;}
-  console.log('[WhatsNew] modal element present =',!!document.getElementById('whats-new-modal'),'-> opening modal');
-  localStorage.setItem('bt-version-seen',APP_VERSION);
-  localStorage.setItem('bt-whatsnew-seen-ts',Math.max(...newItems.map(e=>e.date)).toString());
-  const html=newItems.map((it,i)=>'<div style="display:flex;gap:12px;align-items:flex-start;padding:12px 0;'+(i<newItems.length-1?'border-bottom:1px solid var(--border);':'')+'">'
+function getUpdatesCutoff(){
+  const dism=myProfile&&myProfile.updates_dismissed_ts?new Date(myProfile.updates_dismissed_ts).getTime():0;
+  return Math.max(whatsNewPrevLogin||0,dism);
+}
+function getNewUpdates(){
+  const cutoff=getUpdatesCutoff();
+  return CHANGELOG.filter(e=>e.date>cutoff).sort((a,b)=>b.date-a.date);
+}
+function openWhatsNewModal(items){
+  if(!items||!items.length)return;
+  const html=items.map((it,i)=>'<div style="display:flex;gap:12px;align-items:flex-start;padding:12px 0;'+(i<items.length-1?'border-bottom:1px solid var(--border);':'')+'">'
     +'<span style="font-size:20px;width:28px;text-align:center;color:var(--accent);flex-shrink:0;"><i class="ti '+it.icon+'"></i></span>'
     +'<div><div style="font-size:14px;font-weight:700;margin-bottom:2px;">'+it.title+'</div>'
     +'<div style="font-size:12px;color:var(--muted);line-height:1.5;">'+it.desc+'</div></div>'
     +'</div>').join('');
   document.getElementById('whats-new-content').innerHTML=html;
   const sub=document.getElementById('whats-new-subtitle');
-  if(sub)sub.textContent=newItems.length+' update'+(newItems.length!==1?'s':'')+' since your last visit';
+  if(sub)sub.textContent=items.length+' update'+(items.length!==1?'s':'')+' since your last visit';
   openModal('whats-new-modal');
 }
+function showUpdatesModal(){openWhatsNewModal(getNewUpdates());}
+async function dismissUpdates(){
+  const iso=new Date().toISOString();
+  if(myProfile)myProfile.updates_dismissed_ts=iso;
+  try{await sb.from('profiles').update({updates_dismissed_ts:iso}).eq('user_id',currentUser.id);}catch(e){}
+  renderNotifications();updateNotifBadge();
+}
+function showWhatsNew(){showUpdatesModal();} // legacy entry retained for any deferred callers
 document.querySelectorAll('.modal-overlay').forEach(o=>{o.addEventListener('click',e=>{if(e.target===o)o.classList.remove('open');});});
 
 // SWIPE TO DELETE
@@ -5201,6 +5191,14 @@ function getNotifications(){
   const todayStr=today();
   const thisMonth=new Date().toISOString().slice(0,7);
   const notifs=[];
+  // 0. New feature updates since last login (DB-backed dismissal; skip first-ever login)
+  if(whatsNewPrevLogin>0){
+    const newUpdates=getNewUpdates();
+    if(newUpdates.length>0){
+      const list=newUpdates.slice(0,4).map(u=>`<div style="margin-top:4px;"><span style="font-weight:700;color:var(--accent);">${u.title}</span> — ${u.desc}</div>`).join('')+(newUpdates.length>4?`<div style="margin-top:4px;font-style:italic;">+${newUpdates.length-4} more</div>`:'');
+      notifs.push({type:'updates',priority:0,icon:'<i class="ti ti-sparkles" style="color:var(--accent);"></i>',title:`${newUpdates.length} new update${newUpdates.length!==1?'s':''} since your last visit`,body:list,action:()=>{closeNotifications();showUpdatesModal();}});
+    }
+  }
   // 1. Shared pot invites
   sharedInvites.forEach(inv=>{
     notifs.push({type:'invite',priority:1,icon:'<i class="ti ti-users"></i>',title:`${displayName(inv.inviter_id)} invited you`,body:`Join "${esc(inv.pot_name)}" shared savings pot`,action:()=>{closeNotifications();switchView('savings',null);},accept:()=>acceptInvite(inv.id,inv.pot_id),decline:()=>declineInvite(inv.id)});
@@ -5248,6 +5246,9 @@ function renderNotifications(){
         </div>`:''}
         ${n.type==='paycheck'&&n.expected>0?`<div style="display:flex;gap:8px;margin-top:8px;">
           <button onclick="event.stopPropagation();confirmExpected('${n.weekId}',${n.expected},'${n.payDate}');closeNotifications();" style="background:rgba(45,212,160,0.15);color:var(--success);border:1px solid rgba(45,212,160,0.3);border-radius:6px;padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer;">✓ Confirm $${parseFloat(n.expected).toFixed(2)}</button>
+        </div>`:''}
+        ${n.type==='updates'?`<div style="display:flex;gap:8px;margin-top:8px;">
+          <button onclick="event.stopPropagation();dismissUpdates()" style="background:var(--surface2);color:var(--muted);border:1px solid var(--border);border-radius:6px;padding:6px 14px;font-size:12px;cursor:pointer;">Dismiss</button>
         </div>`:''}
       </div>
       <div style="font-size:18px;color:var(--muted);flex-shrink:0;">›</div>
