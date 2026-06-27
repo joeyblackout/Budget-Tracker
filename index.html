@@ -2022,6 +2022,54 @@ function showCatHistory(cat,col){
   document.getElementById('dash-detail-nav-btn').style.display='none';
   openModal('dash-detail-modal');
 }
+function oneOffPeriodRange(){
+  const now=new Date();
+  if(trendsWindow==='daily'||trendsWindow==='weekly'){
+    const monday=new Date(now);monday.setDate(now.getDate()-((now.getDay()+6)%7));
+    const sunday=new Date(monday);sunday.setDate(monday.getDate()+6);
+    return{start:monday.toISOString().slice(0,10),end:sunday.toISOString().slice(0,10),label:'This Week'};
+  }
+  if(trendsWindow==='yearly'){
+    const a=new Date(now.getFullYear(),now.getMonth()-11,1);
+    const b=new Date(now.getFullYear(),now.getMonth()+1,0);
+    return{start:a.toISOString().slice(0,10),end:b.toISOString().slice(0,10),label:'This Year'};
+  }
+  const a=new Date(now.getFullYear(),now.getMonth(),1);
+  const b=new Date(now.getFullYear(),now.getMonth()+1,0);
+  return{start:a.toISOString().slice(0,10),end:b.toISOString().slice(0,10),label:'This Month'};
+}
+function showOneOffHistory(){
+  const {start,end,label}=oneOffPeriodRange();
+  const list=expenses.filter(e=>e.is_one_off&&(e.exp_date||'')>=start&&(e.exp_date||'')<=end).sort((a,b)=>a.exp_date<b.exp_date?1:-1);
+  const total=list.reduce((s,e)=>s+parseFloat(e.amount||0),0);
+  const dot='<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--warning);margin-right:6px;flex-shrink:0;vertical-align:middle;"></span>';
+  let html;
+  if(list.length===0){
+    html='<div class="empty"><p>No one-off expenses in this period.</p></div>';
+  }else{
+    const groups={};
+    list.forEach(e=>{const dk=e.exp_date||'';if(!groups[dk])groups[dk]=[];groups[dk].push(e);});
+    html='<div style="font-size:13px;color:var(--warning);font-weight:700;margin-bottom:14px;">'+fmt(total)+' total · '+list.length+' expense'+(list.length===1?'':'s')+'</div>';
+    Object.keys(groups).sort((a,b)=>a<b?1:-1).forEach(dk=>{
+      const d=new Date(dk+'T12:00:00');
+      const dayLabel=d.toLocaleString('default',{weekday:'short',month:'short',day:'numeric',year:'numeric'});
+      const dayTotal=groups[dk].reduce((s,e)=>s+parseFloat(e.amount||0),0);
+      html+='<div style="font-size:11px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:var(--muted);padding:10px 0 6px;border-top:1px solid var(--border);">'+dayLabel+' &nbsp;·&nbsp; '+fmt(dayTotal)+'</div>';
+      groups[dk].forEach(e=>{
+        const hasDesc=e.description&&e.description.trim();
+        const name=hasDesc?esc(e.description):esc(e.category);
+        const parts=[];if(hasDesc)parts.push(esc(e.category));if(e.notes&&e.notes.trim())parts.push(esc(e.notes));
+        const detail=parts.join(' · ');
+        html+='<div class="account-row"><div><div class="account-name">'+name+'</div>'+(detail?'<div class="account-detail">'+detail+'</div>':'')+'</div><div class="account-balance text-danger">-'+fmt(e.amount)+'</div></div>';
+      });
+    });
+  }
+  document.getElementById('dash-detail-title').innerHTML=dot+'One-Off Expenses · '+label;
+  document.getElementById('dash-detail-content').innerHTML=html;
+  dashDetailNavTarget='expenses';
+  document.getElementById('dash-detail-nav-btn').style.display='none';
+  openModal('dash-detail-modal');
+}
 function showExpensesBreakdown(){
   const rows=expenses.slice(0,30).map(e=>`<div class="account-row"><div><div class="account-name">${esc(e.category)}</div><div class="account-detail">${esc(e.description||'')}${e.description?' · ':''}${fmtDate(e.exp_date)}</div></div><div class="account-balance text-danger">-${fmt(e.amount)}</div></div>`).join('');
   openDashModal('Recent Expenses',rows||'<div class="empty"><p>No expenses logged yet.</p></div>','expenses');
@@ -4505,7 +4553,7 @@ function renderTrendsInsights(){
     const ooTrendIcon=ooTrend>5?'↑':ooTrend<-5?'↓':'→';
     const ooTrendColor=ooTrend>5?'var(--danger)':ooTrend<-5?'var(--success)':'var(--muted)';
     const ooCol='var(--warning)';
-    oneOffRow=`<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-top:2px solid var(--border);margin-top:6px;">
+    oneOffRow=`<div onclick="showOneOffHistory()" style="display:flex;align-items:center;gap:10px;padding:10px 0;border-top:2px solid var(--border);margin-top:6px;cursor:pointer;" onmousedown="this.style.background='var(--surface2)'" onmouseup="this.style.background=''" onmouseleave="this.style.background=''" ontouchstart="this.style.background='var(--surface2)'" ontouchend="this.style.background=''">
       <div style="width:8px;height:8px;border-radius:50%;background:${ooCol};flex-shrink:0;"></div>
       <div style="flex:1;min-width:0;"><div style="font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">One-Off Expenses</div><div style="font-size:11px;color:var(--muted);font-weight:400;">${fmt(ooLatest)} ${ooLabel}</div></div>
       <svg width="${svgWidth}" height="32" style="flex-shrink:0;overflow:visible;">
