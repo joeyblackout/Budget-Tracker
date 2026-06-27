@@ -4379,8 +4379,9 @@ function renderTrendsInsights(){
   const now=new Date();
   const cats=[...new Set(expenses.map(e=>e.category))];
   if(cats.length===0)return`<div class="empty" style="padding:20px 0;"><p>No expenses yet.</p></div>`;
-  const windowBtnLabels={weekly:'Weekly','3mo':'3 Months',yearly:'Yearly'};
-  const windowBtns=['weekly','3mo','yearly'].map(w=>`<button onclick="setTrendsWindow('${w}')" style="padding:4px 10px;border-radius:99px;border:1px solid var(--border);background:${trendsWindow===w?'var(--accent)':'transparent'};color:${trendsWindow===w?'#fff':'var(--muted)'};font-size:11px;font-weight:700;cursor:pointer;">${windowBtnLabels[w]}</button>`).join('');
+  const windowBtnLabels={daily:'Daily',weekly:'Weekly','3mo':'3 Months',yearly:'Yearly'};
+  const windowBtns=['daily','weekly','3mo','yearly'].map(w=>`<button onclick="setTrendsWindow('${w}')" style="padding:4px 10px;border-radius:99px;border:1px solid var(--border);background:${trendsWindow===w?'var(--accent)':'transparent'};color:${trendsWindow===w?'#fff':'var(--muted)'};font-size:11px;font-weight:700;cursor:pointer;">${windowBtnLabels[w]}</button>`).join('');
+  if(trendsWindow==='daily')return renderDailyTrends(windowBtns);
   let periods,labels,svgWidth,ptSpacing;
   if(trendsWindow==='weekly'){
     periods=[];labels=[];
@@ -4528,6 +4529,62 @@ function renderTrendsInsights(){
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;">${windowBtns}</div>
     <div style="margin-bottom:8px;"><div style="font-size:11px;font-weight:700;letter-spacing:0.08em;color:var(--muted);text-transform:uppercase;">Category Trends — ${titleMap[trendsWindow]}</div>${budgetBadge}</div>
     ${trendsBody}`;
+}
+function renderDailyTrends(windowBtns){
+  const now=new Date();
+  const todayStr=now.toISOString().slice(0,10);
+  const monday=new Date(now);monday.setDate(now.getDate()-((now.getDay()+6)%7));
+  const catOrder=[...new Set(expenses.map(e=>e.category))];
+  const catColorMap={};catOrder.forEach((c,i)=>{catColorMap[c]=CAT_COLORS[i%CAT_COLORS.length];});
+  const days=[];
+  for(let i=0;i<7;i++){
+    const d=new Date(monday);d.setDate(monday.getDate()+i);
+    const ds=d.toISOString().slice(0,10);
+    days.push({date:ds,label:d.toLocaleDateString('default',{weekday:'short',month:'short',day:'numeric'}),isToday:ds===todayStr,isFuture:ds>todayStr});
+  }
+  const weekStart=days[0].date,weekEnd=days[6].date;
+  const weekTotal=expenses.filter(e=>{const x=e.exp_date||'';return x>=weekStart&&x<=weekEnd;}).reduce((s,e)=>s+parseFloat(e.amount||0),0);
+  const dailyTarget=Object.values(budgetTargets).reduce((s,v)=>s+v,0)/30;
+  const todaySpend=expenses.filter(e=>(e.exp_date||'')===todayStr).reduce((s,e)=>s+parseFloat(e.amount||0),0);
+  let paceCard='';
+  if(dailyTarget>0){
+    const over=todaySpend>dailyTarget;
+    const paceColor=over?'var(--danger)':'var(--success)';
+    paceCard=`<div style="background:rgba(79,142,247,0.08);border:1px solid rgba(79,142,247,0.2);border-radius:var(--radius-sm);padding:14px;margin-bottom:14px;">
+      <div style="font-size:12px;color:var(--muted);margin-bottom:4px;">Today's spending vs daily target</div>
+      <div style="font-size:22px;font-weight:800;">${fmt(todaySpend)} <span style="font-size:14px;color:var(--muted);font-weight:600;">/ ${fmt(dailyTarget)}</span></div>
+      <div style="font-size:12px;font-weight:700;color:${paceColor};margin-top:4px;">${over?'Over':'Under'} daily pace</div>
+    </div>`;
+  }
+  const dayRows=days.map(day=>{
+    const dayExps=expenses.filter(e=>(e.exp_date||'')===day.date);
+    const dayTotal=dayExps.reduce((s,e)=>s+parseFloat(e.amount||0),0);
+    const byCat={};dayExps.forEach(e=>{byCat[e.category]=(byCat[e.category]||0)+parseFloat(e.amount||0);});
+    const catLines=Object.entries(byCat).sort((a,b)=>b[1]-a[1]).map(([cat,amt])=>{
+      const col=catColorMap[cat]||'var(--muted)';
+      return `<div style="display:flex;align-items:center;gap:8px;padding:3px 0 0 6px;">
+        <div style="width:6px;height:6px;border-radius:50%;background:${col};flex-shrink:0;"></div>
+        <div style="flex:1;min-width:0;font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(cat)}</div>
+        <div style="font-size:12px;font-weight:600;">${fmt(amt)}</div>
+      </div>`;
+    }).join('');
+    const body=day.isFuture?'':(catLines||`<div style="font-size:11px;color:var(--muted);padding:3px 0 0 6px;">No spending</div>`);
+    return `<div style="padding:10px 0;border-bottom:1px solid var(--border);${day.isFuture?'opacity:0.45;':''}">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+        <div style="font-size:13px;font-weight:700;${day.isToday?'color:var(--accent);':''}">${day.label}${day.isToday?' · Today':''}</div>
+        <div style="font-size:13px;font-weight:800;color:${dayTotal>0?'inherit':'var(--muted)'};">${fmt(dayTotal)}</div>
+      </div>
+      ${body}
+    </div>`;
+  }).join('');
+  return `
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;">${windowBtns}</div>
+    ${paceCard}
+    <div style="margin-bottom:8px;display:flex;justify-content:space-between;align-items:baseline;">
+      <div style="font-size:11px;font-weight:700;letter-spacing:0.08em;color:var(--muted);text-transform:uppercase;">Daily — This Week</div>
+      <div style="font-size:12px;font-weight:700;color:var(--muted);">${fmt(weekTotal)} this wk</div>
+    </div>
+    ${dayRows}`;
 }
 
 const DEFAULT_QUICK_ADDS=[
