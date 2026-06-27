@@ -5853,6 +5853,7 @@ function renderInstructions(){
       ['What is a pay period?','Each upcoming payday is its own "pay period." The app lists them by month so you can see what is coming and plan ahead.'],
       ['What does it mean to confirm a paycheck?','When payday arrives and the money actually lands in your account, tap ✓ Received on that pay period. That tells the app the money is real, so it gets added to your available balance. If the amount was different than expected, tap "Different amount" and type the real number.'],
       ['What if I get paid early?','Confirm the paycheck whenever the money arrives — even before the scheduled date. It counts toward your balance right away.'],
+      ['Can I see income for a specific date range?','Yes. On the Income tab, tap the expected-income total to open a date-range picker. Choose a start and end date to see how much income is projected to land in that window — handy when you are planning around a big upcoming expense.'],
     ])}
     ${section('2️⃣','Step 2 — Add Your Debts',[
       ['What counts as a debt?','Anything you owe — credit cards, car loans, student loans, medical bills, personal loans. Add each one separately so you can track paying it off.'],
@@ -5863,9 +5864,10 @@ function renderInstructions(){
     ])}
     ${section('3️⃣','Step 3 — Set Up Your Bills',[
       ['How do I add a bill?','Go to the Bills tab and tap +. Enter the name, amount, the day of the month it is due, a category, and how often it repeats.'],
-      ['What do the frequencies mean?','Monthly = every month. Quarterly = every 3 months. Semi-Annual = twice a year. Annual = once a year. For bills that are not monthly, you also pick which month(s) they actually come due.'],
+      ['What do the frequencies mean?','Monthly = every month. Quarterly = every 3 months. Semi-Annual = twice a year. Annual = once a year. One Time = a single bill due in just one month, not repeating — you pick the exact month it is due (for example, a registration fee that only hits in August). For any non-monthly bill you also choose which month(s) it actually comes due.'],
       ['What is Sync Debts?','Tap ⚡ Sync Debts to automatically create a bill for each of your debts\' minimum payments. That way your minimums show up alongside your other bills so nothing slips through the cracks.'],
       ['How do I mark a bill paid?','Tap Mark Paid on the bill. If that bill is linked to a debt, it also records the debt payment and lowers your debt balance automatically. Made a mistake? Tap Undo.'],
+      ['Can I pay a bill early or more than once?','Yes. You can mark a bill paid before its due date, and you can log more than one payment toward the same bill in a month if you split it up. Each payment is recorded and the month\'s progress bar updates as you go.'],
       ['What does the progress bar show?','At the top of the Bills tab, a bar shows how many of this month\'s bills you have paid, how much you have paid, and how much is still left.'],
       ['How do I know what is due soon?','Bills turn yellow when due within 5 days and red when overdue. You can also tap Pay All Due to clear several at once.'],
     ])}
@@ -5878,14 +5880,18 @@ function renderInstructions(){
     ])}
     ${section('5️⃣','Step 5 — Log Your Expenses',[
       ['How do I log spending?','Go to the Expenses tab. Tap one of the quick-add buttons (like Groceries or Gas), type the amount, and tap Log It. That is it — two taps.'],
+      ['What is a One-Off expense?','When you log spending you can mark it as a One-Off — a rare, irregular purchase like a car repair or a flight. A One-Off still lowers your Available Balance and counts in your spending totals, but it is left out of the everyday-spending average in the Forecast, the Trends sparklines, and your budget pacing — so a single big purchase does not make your normal spending look higher than it really is. One-Off expenses also get their own row in Trends so you can still see them.'],
+      ['Can I edit, repeat, or delete an expense?','Yes. Each expense has Edit, Repeat, and Delete. Repeat re-logs the same expense in one tap — handy for things you buy often. On a phone you can also swipe a row left to delete it quickly.'],
       ['Can I change the quick buttons?','Yes. Tap Edit on the quick-add bar to change the emoji, label, and category for each shortcut so they match what you actually spend on.'],
       ['What categories are there?','Common ones like Groceries, Dining, Gas Station, Entertainment, Medical, Subscriptions, and more. You pick a category for each expense so you can see where your money goes.'],
-      ['What is a budget target?','A monthly spending limit you set for a category. Open the Budget tab inside Expenses, tap the TARGET column for any category, and enter an amount. The app then shows green (on track), yellow (getting close), or red (over budget) as the month goes on.'],
-      ['What is the Trends tab?','Little charts showing how your spending in each category changes over weeks and months, so you can spot patterns.'],
+      ['What is a budget target?','A monthly spending limit you set for a category. Open the Budget tab inside Expenses, tap the TARGET column for any category, and enter an amount. The app then shows green (on track), yellow (getting close), and red (over budget) as the month goes on. When a category has $5 or less left, a red Budget Reached badge warns you before you actually go over.'],
+      ['What is the Trends tab?','Sparkline charts showing how your spending changes over time. Use the buttons at the top to switch the time frame — Daily (each day of the current week), Weekly, 3 Months, or Yearly. Categories are listed biggest-budget first, empty ones are hidden, and a dashed line marks your target for that period. The header shows your total budget and how much is left, and One-Off purchases appear in their own row at the bottom.'],
+      ['What do the Categories and Over Time views show?','Inside Spending Insights, the Categories view breaks your spending into a pie chart — tap any slice to drill into that category and see the individual expenses. Over Time shows a bar chart of your spending across recent periods so you can spot months that ran high.'],
     ])}
     ${section('6️⃣','Step 6 — Explore Your Dashboard',[
-      ['What is the Available Balance?','The real money you have to spend right now. It starts from your Starting Cash, adds the paychecks you have confirmed, and subtracts everything you have paid out — debts, bills, expenses, and money moved to savings.'],
-      ['What do the cards show?','Each card is tappable for more detail. You will see your debt total and payoff progress, your net worth (what you own minus what you owe), how many bills you have paid this month, and your savings totals.'],
+      ['What is the Available Balance?','The real money you have to spend right now. It starts from your Starting Cash, adds the paychecks you have confirmed, and subtracts everything you have paid out — debts, bills, expenses, and money moved to savings. Tap it to see the full breakdown of what went in and out.'],
+      ['What do the cards show?','Each card is tappable for more detail. You will see your debt total and payoff progress, your net worth (what you own minus what you owe) with green shading once it crosses above $0, how many bills you have paid this month, and your savings totals. Tap the savings total to split it across your personal pots, shared pots, and physical assets.'],
+      ['What is the Debt Payoff Calculator?','A tool on the Dashboard that compares two payoff strategies — Avalanche (highest interest first) and Snowball (smallest balance first) — so you can see which clears your debt sooner and saves the most interest.'],
       ['What is the Payday Routine?','When you have a paycheck waiting to be confirmed, a guided helper appears on the Dashboard. It walks you through it in a few steps: confirm your paycheck, pay your bills, make debt payments, and move money to savings — all in one sitting. You can skip any step or exit anytime.'],
       ['How do I get back here?','Tap the Budget Tracker logo at the top from anywhere to return to the Dashboard.'],
     ])}
@@ -5893,6 +5899,8 @@ function renderInstructions(){
       ['What is the Forecast?','A look at your financial future. It starts with the cash you have now, adds income you expect, subtracts upcoming bills and debt minimums, and estimates your everyday spending — then shows where your balance is headed.'],
       ['How do I change the time range?','At the top of the Forecast tab, tap Biweekly, Monthly, 3 Months, 6 Months, Annual, or Custom. Custom lets you choose your own start and end dates.'],
       ['What does the red warning mean?','It means your projected cash is expected to dip below $0 at some point. The warning tells you when and how low, so you can adjust before it happens.'],
+      ['What is the Debt Payoff Strategy section?','Open it inside the Forecast to see when your debts will be paid off based on your income and bills. Pick a method — Avalanche (highest interest first) or Snowball (smallest balance first) — and a goal: Debt-Free pays everything down to zero, while 30% Utilization stops once your credit cards drop under 30% of their limit (the level that is healthiest for your credit score). Each card shows its payoff date and the total you will have paid.'],
+      ['How do extra payments change it?','Tell the Strategy how much extra you can put toward debt each month and it re-runs the timeline, showing how much sooner you reach your goal and how much interest you save.'],
     ])}
     ${section('🎉','Community',[
       ['What is the Community feed?','A shared feed where family members can celebrate wins together and cheer each other on. Tap + to post your own update.'],
@@ -5902,8 +5910,9 @@ function renderInstructions(){
       ['How do I turn off auto-posts?','Go to Settings and switch Auto-Posts off if you would rather share only when you choose to.'],
     ])}
     ${section('🔔','Notifications',[
-      ['What is the bell for?','The 🔔 bell at the top shows a red number when something needs you: an overdue bill, a bill due soon, a paycheck to confirm, a shared pot invite, or new community posts.'],
+      ['What is the bell for?','The 🔔 bell at the top shows a red number when something needs you: an overdue bill, a bill due soon, a paycheck to confirm, a shared pot invite, new community posts, or new app updates since your last visit.'],
       ['How do I act on them?','Tap the bell to open the list. Shared pot invites have Accept/Decline buttons right there. A pending paycheck has a one-tap Confirm button. Tap anything else to jump straight to the right screen.'],
+      ['What is the Updates notification?','When new features are added, an Updates notice appears in the bell listing what is new since you last logged in. Tap it to read the details, or tap Dismiss to clear it.'],
     ])}
     ${section('🧮','Paycheck Calculator',[
       ['What does it do?','It estimates your take-home pay. Enter your hours, wage, and pay frequency, and it works out your taxes (federal, Social Security, Medicare, and state) to show what you would actually bring home. It is an estimate, not an official figure.'],
@@ -5931,12 +5940,12 @@ function timeAgo(ts){if(!ts)return'';const d=new Date(ts);const secs=Math.floor(
 // ONBOARDING
 const ONBOARDING_STEPS=[
   {view:'dashboard',navBtn:null,title:'Dashboard',desc:'Your home base. See your available balance, net worth, debt progress, and everything at a glance. When a paycheck is pending, a Payday Routine banner walks you through confirming income, paying bills, and logging payments in one pass.'},
-  {view:'forecast',navBtn:'forecast',title:'Forecast',desc:'See your financial future. Projects your balance weeks or months ahead based on income, bills, and spending. Open the Debt Payoff Strategy section to compare Avalanche vs Snowball and see how extra payments change your payoff date.'},
+  {view:'forecast',navBtn:'forecast',title:'Forecast',desc:'See your financial future. Projects your balance weeks or months ahead based on income, bills, and spending. Open the Debt Payoff Strategy section to compare Avalanche vs Snowball, choose a goal (Debt-Free or 30% card utilization), and see how extra payments change your payoff date.'},
   {view:'weekly',navBtn:'weekly',title:'Income',desc:'Track your paychecks. Set up recurring income and confirm checks as you receive them.'},
   {view:'debts',navBtn:'debts',title:'Debts',desc:'Manage what you owe. Log payments, track balances, and see your payoff progress.'},
   {view:'bills',navBtn:'bills',title:'Bills',desc:'Never miss a bill. Track due dates, mark them paid, and sync minimums from your debts automatically.'},
   {view:'savings',navBtn:'savings',title:'Savings',desc:'Build your future. Create personal savings pots with goals, share pots with family members for joint goals, and log physical assets like your car or investments to track your true net worth.'},
-  {view:'expenses',navBtn:'expenses',title:'Expenses',desc:'Log your spending. Quick-add buttons make it fast. Set monthly budget targets per category and track your pace — Spending Insights shows a Budget tab and a Trends tab so you can see exactly where your money goes.'},
+  {view:'expenses',navBtn:'expenses',title:'Expenses',desc:'Log your spending — quick-add buttons make it fast, and you can mark rare purchases as One-Off so they do not skew your averages. Set monthly budget targets per category and track your pace; Spending Insights adds a Budget tab and a Trends tab (Daily, Weekly, 3 Months, Yearly) so you can see exactly where your money goes.'},
   {view:'setup',navBtn:null,title:'Settings',desc:'Set your starting cash balance here first — it\'s the foundation your available balance builds on. You can also change your display name and toggle auto-posting.'},
 ];
 let onboardingIdx=0;
