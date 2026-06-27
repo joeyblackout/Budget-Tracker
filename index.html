@@ -595,7 +595,7 @@ select option{background:var(--surface);color:var(--text);}
   <div class="field"><label>Category</label><select id="bill-category"><option>Housing</option><option>Utilities</option><option>Insurance</option><option>Subscriptions</option><option>Phone</option><option>Internet</option><option>Transportation</option><option>Debt</option><option>Other</option></select></div>
   <div class="field"><label>Recurring</label><select id="bill-recurring" onchange="updateBillDueMonthVisibility()"><option value="monthly">Monthly</option><option value="quarterly">Quarterly</option><option value="semi-annual">Semi-Annual</option><option value="annually">Annually</option><option value="once">One Time</option></select></div>
   <div class="field" id="bill-due-month-field" style="display:none;"><label id="bill-due-month-label">First Due Month</label><select id="bill-due-month"><option value="1">January</option><option value="2">February</option><option value="3">March</option><option value="4">April</option><option value="5">May</option><option value="6">June</option><option value="7">July</option><option value="8">August</option><option value="9">September</option><option value="10">October</option><option value="11">November</option><option value="12">December</option></select></div>
-  <div class="field"><label>End Date (optional)</label><input type="date" id="bill-end-date"/><div style="font-size:11px;color:var(--muted);margin-top:4px;">Bill stops after this date</div></div>
+  <div class="field" id="bill-end-date-field"><label>End Date (optional)</label><input type="date" id="bill-end-date"/><div style="font-size:11px;color:var(--muted);margin-top:4px;">Bill stops after this date</div></div>
   <div class="field"><label>Notes (optional)</label><input type="text" id="bill-notes" placeholder="Optional notes…"/></div>
   <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal('bill-modal')">Cancel</button><button class="btn btn-primary" onclick="saveBill()">Save</button></div>
 </div></div>
@@ -1718,7 +1718,7 @@ function renderForecast(){
     }
   });
   // Recurring bills by due day each month in the window (debt-linked bills are handled by the debt simulation)
-  const recurringBills=bills.filter(b=>b.due_day&&b.recurring!=='once'&&!b.debt_id);
+  const recurringBills=bills.filter(b=>b.due_day&&!b.debt_id);
   let cursor=new Date(todayDate);
   while(cursor<=endDate){
     const y=cursor.getFullYear(),m=cursor.getMonth();
@@ -3200,7 +3200,7 @@ function isBillDueInMonth(b,year,month){
   if(b.end_date){const monthStart=new Date(year,month,1).toISOString().slice(0,10);if(b.end_date<monthStart)return false;}
   const rec=b.recurring||'monthly';
   if(rec==='monthly'||rec==='weekly'||rec==='biweekly')return true;
-  if(rec==='once')return false;
+  if(rec==='once')return month===refMonth;
   // refMonth is 0-indexed; default to current month if due_month not set
   const refMonth=(b.due_month!=null?parseInt(b.due_month):new Date().getMonth()+1)-1;
   if(rec==='annually')return month===refMonth;
@@ -3419,9 +3419,11 @@ function updateBillDueMonthVisibility(){
   const rec=document.getElementById('bill-recurring').value;
   const field=document.getElementById('bill-due-month-field');
   const label=document.getElementById('bill-due-month-label');
-  const show=['quarterly','semi-annual','annually'].includes(rec);
+  const show=['quarterly','semi-annual','annually','once'].includes(rec);
   field.style.display=show?'':'none';
-  label.textContent=rec==='annually'?'Due Month':'First Due Month';
+  label.textContent=(rec==='annually'||rec==='once')?'Due Month':'First Due Month';
+  const endField=document.getElementById('bill-end-date-field');
+  if(endField)endField.style.display=rec==='once'?'none':'';
 }
 function openBillModal(id=null){
   document.getElementById('bill-modal-title').textContent=id?'Edit Bill':'Add Bill';
@@ -3437,8 +3439,17 @@ async function saveBill(){
   const name=document.getElementById('bill-name').value.trim();
   if(!name){toast('Enter a bill name');return;}
   const _rec=document.getElementById('bill-recurring').value;
-  const _needsMonth=['quarterly','semi-annual','annually'].includes(_rec);
-  const payload={user_id:currentUser.id,name,amount:parseFloat(document.getElementById('bill-amount').value)||0,due_day:parseInt(document.getElementById('bill-due-day').value)||null,category:document.getElementById('bill-category').value,recurring:_rec,due_month:_needsMonth?parseInt(document.getElementById('bill-due-month').value):null,end_date:document.getElementById('bill-end-date').value||null,notes:document.getElementById('bill-notes').value.trim()||null};
+  const _needsMonth=['quarterly','semi-annual','annually','once'].includes(_rec);
+  const _dueMonth=_needsMonth?parseInt(document.getElementById('bill-due-month').value):null;
+  let _endDate=document.getElementById('bill-end-date').value||null;
+  if(_rec==='once'&&_dueMonth){
+    // One-time: anchor to the next occurrence of the chosen month and auto-expire at month end
+    const _now=new Date();
+    const _yr=(_dueMonth-1>=_now.getMonth())?_now.getFullYear():_now.getFullYear()+1;
+    const _lastDay=new Date(_yr,_dueMonth,0).getDate();
+    _endDate=_yr+'-'+String(_dueMonth).padStart(2,'0')+'-'+String(_lastDay).padStart(2,'0');
+  }
+  const payload={user_id:currentUser.id,name,amount:parseFloat(document.getElementById('bill-amount').value)||0,due_day:parseInt(document.getElementById('bill-due-day').value)||null,category:document.getElementById('bill-category').value,recurring:_rec,due_month:_dueMonth,end_date:_endDate,notes:document.getElementById('bill-notes').value.trim()||null};
   const res=id?await sb.from('bills').update(payload).eq('id',id):await sb.from('bills').insert(payload);
   if(res.error){toast('Error: '+res.error.message);return;}
   closeModal('bill-modal');await loadBills();renderBills();renderDashboard();toast(id?'Bill updated ✓':'Bill added ✓');
