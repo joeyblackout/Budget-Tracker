@@ -930,7 +930,12 @@ async function showApp(){
   document.getElementById('app-screen').classList.add('visible');
   document.getElementById('sidebar-email').textContent=currentUser.email;
   await syncLoginTimestamp();
-  await loadAll();
+  try{
+    await loadAll();
+  }catch(e){
+    // Never strand the user on the loading screen if a render/load step throws — surface it instead.
+    console.error('[showApp] loadAll failed — releasing the loading screen so the app stays usable:',e);
+  }
   hideLoadingScreen();
 }
 async function syncLoginTimestamp(){
@@ -3200,9 +3205,9 @@ function isBillDueInMonth(b,year,month){
   if(b.end_date){const monthStart=new Date(year,month,1).toISOString().slice(0,10);if(b.end_date<monthStart)return false;}
   const rec=b.recurring||'monthly';
   if(rec==='monthly'||rec==='weekly'||rec==='biweekly')return true;
-  if(rec==='once')return month===refMonth;
   // refMonth is 0-indexed; default to current month if due_month not set
   const refMonth=(b.due_month!=null?parseInt(b.due_month):new Date().getMonth()+1)-1;
+  if(rec==='once')return month===refMonth;
   if(rec==='annually')return month===refMonth;
   // Quarterly/semi-annual: anchor to the bill's own refMonth via modular month matching (no year baseline)
   if(rec==='semi-annual')return month===refMonth||month===(refMonth+6)%12;
