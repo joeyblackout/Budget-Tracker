@@ -4409,6 +4409,9 @@ function renderTrendsInsights(){
   const getVal=(cat,p,exclOneOff)=>p.start
     ?expenses.filter(e=>e.category===cat&&(e.exp_date||'')>=p.start&&(e.exp_date||'')<=p.end&&(!exclOneOff||!e.is_one_off)).reduce((s,e)=>s+parseFloat(e.amount||0),0)
     :expenses.filter(e=>e.category===cat&&(e.exp_date||'').startsWith(p.month)&&(!exclOneOff||!e.is_one_off)).reduce((s,e)=>s+parseFloat(e.amount||0),0);
+  const oneOffVal=(p)=>p.start
+    ?expenses.filter(e=>e.is_one_off&&(e.exp_date||'')>=p.start&&(e.exp_date||'')<=p.end).reduce((s,e)=>s+parseFloat(e.amount||0),0)
+    :expenses.filter(e=>e.is_one_off&&(e.exp_date||'').startsWith(p.month)).reduce((s,e)=>s+parseFloat(e.amount||0),0);
   let projCard='';
   if(trendsWindow==='3mo'||trendsWindow==='6mo'){
     const dayOfMonth=now.getDate();
@@ -4478,6 +4481,28 @@ function renderTrendsInsights(){
       <span style="font-size:16px;font-weight:800;color:${trendColor};width:16px;text-align:center;">${trendIcon}</span>
     </div>`;
   }).join('');
+  let oneOffRow='';
+  if(expenses.some(e=>e.is_one_off)){
+    const ooVals=periods.map(p=>oneOffVal(p));
+    const ooMax=Math.max(...ooVals,1);
+    const ooPts=ooVals.map((v,i)=>`${i*ptSpacing},${30-(v/ooMax)*28}`).join(' ');
+    const ooLatest=trendsWindow==='yearly'?ooVals.reduce((s,v)=>s+v,0):ooVals[ooVals.length-1];
+    const ooLabel=trendsWindow==='weekly'?'this wk':trendsWindow==='yearly'?'this yr':(trendsWindow==='3mo'||trendsWindow==='6mo')?'this period':'this mo';
+    const ooLastTwo=ooVals.slice(-2);
+    const ooTrend=ooLastTwo[1]-ooLastTwo[0];
+    const ooTrendIcon=ooTrend>5?'↑':ooTrend<-5?'↓':'→';
+    const ooTrendColor=ooTrend>5?'var(--danger)':ooTrend<-5?'var(--success)':'var(--muted)';
+    const ooCol='var(--warning)';
+    oneOffRow=`<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-top:2px solid var(--border);margin-top:6px;">
+      <div style="width:8px;height:8px;border-radius:50%;background:${ooCol};flex-shrink:0;"></div>
+      <div style="flex:1;min-width:0;"><div style="font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">One-Off Expenses</div><div style="font-size:11px;color:var(--muted);font-weight:400;">${fmt(ooLatest)} ${ooLabel}</div></div>
+      <svg width="${svgWidth}" height="32" style="flex-shrink:0;overflow:visible;">
+        <polyline points="${ooPts}" class="sparkline" stroke="${ooCol}" fill="none"/>
+        ${ooVals.map((v,i)=>`<circle cx="${i*ptSpacing}" cy="${30-(v/ooMax)*28}" r="2.5" fill="${ooCol}"/>`).join('')}
+      </svg>
+      <span style="font-size:16px;font-weight:800;color:${ooTrendColor};width:16px;text-align:center;">${ooTrendIcon}</span>
+    </div>`;
+  }
   const titleMap={weekly:'Weekly','3mo':'3 Months','6mo':'6 Months',yearly:'Yearly'};
   const totalMonthlyBudget=Object.values(budgetTargets).reduce((s,v)=>s+v,0);
   const totalWindowBudget=totalMonthlyBudget*(trendsWindow==='weekly'?0.25:trendsWindow==='3mo'?3:trendsWindow==='6mo'?6:12);
@@ -4498,7 +4523,7 @@ function renderTrendsInsights(){
     <div style="display:flex;justify-content:flex-end;gap:${trendsWindow==='weekly'?'28':'16'}px;font-size:10px;color:var(--muted);margin-bottom:4px;">
       ${labels.map(l=>`<span>${l}</span>`).join('')}
     </div>
-    ${catRows}`;
+    ${catRows}${oneOffRow}`;
 }
 
 const DEFAULT_QUICK_ADDS=[
