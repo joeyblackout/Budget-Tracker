@@ -4381,9 +4381,18 @@ function renderTrendsInsights(){
   if(cats.length===0)return`<div class="empty" style="padding:20px 0;"><p>No expenses yet.</p></div>`;
   const windowBtnLabels={daily:'Daily',weekly:'Weekly','3mo':'3 Months',yearly:'Yearly'};
   const windowBtns=['daily','weekly','3mo','yearly'].map(w=>`<button onclick="setTrendsWindow('${w}')" style="padding:4px 10px;border-radius:99px;border:1px solid var(--border);background:${trendsWindow===w?'var(--accent)':'transparent'};color:${trendsWindow===w?'#fff':'var(--muted)'};font-size:11px;font-weight:700;cursor:pointer;">${windowBtnLabels[w]}</button>`).join('');
-  if(trendsWindow==='daily')return renderDailyTrends(windowBtns);
   let periods,labels,svgWidth,ptSpacing;
-  if(trendsWindow==='weekly'){
+  if(trendsWindow==='daily'){
+    periods=[];labels=[];
+    const monday=new Date(now);monday.setDate(now.getDate()-((now.getDay()+6)%7));
+    for(let i=0;i<7;i++){
+      const d=new Date(monday);d.setDate(monday.getDate()+i);
+      const ds=d.toISOString().slice(0,10);
+      periods.push({start:ds,end:ds});
+      labels.push(d.toLocaleString('default',{weekday:'short'}));
+    }
+    svgWidth=300;ptSpacing=50;
+  } else if(trendsWindow==='weekly'){
     periods=[];labels=[];
     for(let i=7;i>=0;i--){
       const monday=new Date(now);
@@ -4434,7 +4443,7 @@ function renderTrendsInsights(){
     .filter(o=>o.vals.some(v=>v>0)) // hide categories with no spending in the selected window
     .map(({cat,ci,vals})=>{
     const monthlyTarget=budgetTargets[cat]||0;
-    const periodTarget=trendsWindow==='weekly'?monthlyTarget/4:monthlyTarget;
+    const periodTarget=trendsWindow==='daily'?monthlyTarget/30:trendsWindow==='weekly'?monthlyTarget/4:monthlyTarget;
     const maxV=Math.max(...vals,periodTarget,1);
     const pts=vals.map((v,i)=>`${i*ptSpacing},${30-(v/maxV)*28}`).join(' ');
     const lastTwo=vals.slice(-2);
@@ -4442,8 +4451,8 @@ function renderTrendsInsights(){
     const trendIcon=trend>5?'↑':trend<-5?'↓':'→';
     const trendColor=trend>5?'var(--danger)':trend<-5?'var(--success)':'var(--muted)';
     const col=CAT_COLORS[ci%CAT_COLORS.length];
-    const latestVal=trendsWindow==='yearly'?vals.reduce((s,v)=>s+v,0):vals[vals.length-1];
-    const latestLabel=trendsWindow==='weekly'?'this wk':trendsWindow==='yearly'?'this yr':trendsWindow==='3mo'?'this period':'this mo';
+    const latestVal=(trendsWindow==='yearly'||trendsWindow==='daily')?vals.reduce((s,v)=>s+v,0):vals[vals.length-1];
+    const latestLabel=(trendsWindow==='weekly'||trendsWindow==='daily')?'this wk':trendsWindow==='yearly'?'this yr':trendsWindow==='3mo'?'this period':'this mo';
     const lineWidth=(periods.length-1)*ptSpacing;
     const targetY=periodTarget>0?(30-(periodTarget/maxV)*28):null;
     const targetLine=targetY!==null
@@ -4451,8 +4460,9 @@ function renderTrendsInsights(){
       :'';
     const latestLabelColor=(()=>{
       if(!periodTarget)return'var(--muted)';
-      // Over Budget = exceeds full period target
-      if(latestVal>periodTarget)return'var(--danger)';
+      // Over Budget = exceeds the window target (daily compares week-sum to the weekly budget)
+      const overTarget=trendsWindow==='daily'?monthlyTarget/4:periodTarget;
+      if(latestVal>overTarget)return'var(--danger)';
       if(trendsWindow==='weekly'){
         const isCurrentWk=periods[periods.length-1]&&periods[periods.length-1].start<=now.toISOString().slice(0,10)&&periods[periods.length-1].end>=now.toISOString().slice(0,10);
         if(isCurrentWk){
@@ -4464,7 +4474,7 @@ function renderTrendsInsights(){
       // For completed periods: under target = green (no pace to check), already checked >target above
       return'var(--success)';
     })();
-    const windowMultiplier=trendsWindow==='weekly'?0.25
+    const windowMultiplier=(trendsWindow==='weekly'||trendsWindow==='daily')?0.25
       :trendsWindow==='3mo'?3
       :trendsWindow==='yearly'?12
       :1;
@@ -4488,8 +4498,8 @@ function renderTrendsInsights(){
     const ooVals=periods.map(p=>oneOffVal(p));
     const ooMax=Math.max(...ooVals,1);
     const ooPts=ooVals.map((v,i)=>`${i*ptSpacing},${30-(v/ooMax)*28}`).join(' ');
-    const ooLatest=trendsWindow==='yearly'?ooVals.reduce((s,v)=>s+v,0):ooVals[ooVals.length-1];
-    const ooLabel=trendsWindow==='weekly'?'this wk':trendsWindow==='yearly'?'this yr':trendsWindow==='3mo'?'this period':'this mo';
+    const ooLatest=(trendsWindow==='yearly'||trendsWindow==='daily')?ooVals.reduce((s,v)=>s+v,0):ooVals[ooVals.length-1];
+    const ooLabel=(trendsWindow==='weekly'||trendsWindow==='daily')?'this wk':trendsWindow==='yearly'?'this yr':trendsWindow==='3mo'?'this period':'this mo';
     const ooLastTwo=ooVals.slice(-2);
     const ooTrend=ooLastTwo[1]-ooLastTwo[0];
     const ooTrendIcon=ooTrend>5?'↑':ooTrend<-5?'↓':'→';
@@ -4505,11 +4515,12 @@ function renderTrendsInsights(){
       <span style="font-size:16px;font-weight:800;color:${ooTrendColor};width:16px;text-align:center;">${ooTrendIcon}</span>
     </div>`;
   }
-  const titleMap={weekly:'Weekly','3mo':'3 Months',yearly:'Yearly'};
+  const titleMap={daily:'Daily',weekly:'Weekly','3mo':'3 Months',yearly:'Yearly'};
   const totalMonthlyBudget=Object.values(budgetTargets).reduce((s,v)=>s+v,0);
-  const totalWindowBudget=totalMonthlyBudget*(trendsWindow==='weekly'?0.25:trendsWindow==='3mo'?3:12);
+  const totalWindowBudget=totalMonthlyBudget*((trendsWindow==='weekly'||trendsWindow==='daily')?0.25:trendsWindow==='3mo'?3:12);
   const totalSpent=(()=>{
     if(trendsWindow==='weekly'){const p=periods[periods.length-1];return expenses.filter(e=>(e.exp_date||'')>=p.start&&(e.exp_date||'')<=p.end&&!e.is_one_off).reduce((s,e)=>s+parseFloat(e.amount||0),0);}
+    if(trendsWindow==='daily'){const a=periods[0].start,b=periods[periods.length-1].end;return expenses.filter(e=>(e.exp_date||'')>=a&&(e.exp_date||'')<=b&&!e.is_one_off).reduce((s,e)=>s+parseFloat(e.amount||0),0);}
     return periods.reduce((sum,p)=>sum+expenses.filter(e=>(e.exp_date||'').startsWith(p.month)&&!e.is_one_off).reduce((s,e)=>s+parseFloat(e.amount||0),0),0);
   })();
   const remaining=totalWindowBudget-totalSpent;
@@ -4520,7 +4531,7 @@ function renderTrendsInsights(){
     :'';
   const trendsBody=(catRows===''&&oneOffRow==='')
     ?`<div class="empty" style="padding:20px 0;"><p>No spending in this period.</p></div>`
-    :`<div style="display:flex;justify-content:flex-end;gap:${trendsWindow==='weekly'?'28':'16'}px;font-size:10px;color:var(--muted);margin-bottom:4px;">
+    :`<div style="display:flex;justify-content:flex-end;gap:${(trendsWindow==='weekly'||trendsWindow==='daily')?'28':'16'}px;font-size:10px;color:var(--muted);margin-bottom:4px;">
       ${labels.map(l=>`<span>${l}</span>`).join('')}
     </div>
     ${catRows}${oneOffRow}`;
@@ -4529,52 +4540,6 @@ function renderTrendsInsights(){
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;">${windowBtns}</div>
     <div style="margin-bottom:8px;"><div style="font-size:11px;font-weight:700;letter-spacing:0.08em;color:var(--muted);text-transform:uppercase;">Category Trends — ${titleMap[trendsWindow]}</div>${budgetBadge}</div>
     ${trendsBody}`;
-}
-function renderDailyTrends(windowBtns){
-  const now=new Date();
-  const todayStr=now.toISOString().slice(0,10);
-  const monday=new Date(now);monday.setDate(now.getDate()-((now.getDay()+6)%7));
-  const days=[];
-  for(let i=0;i<7;i++){
-    const d=new Date(monday);d.setDate(monday.getDate()+i);
-    const ds=d.toISOString().slice(0,10);
-    days.push({
-      date:ds,
-      name:d.toLocaleDateString('default',{weekday:'long'}),
-      md:d.toLocaleDateString('default',{month:'short',day:'numeric'}),
-      isToday:ds===todayStr,
-      isFuture:ds>todayStr,
-      total:expenses.filter(e=>(e.exp_date||'')===ds).reduce((s,e)=>s+parseFloat(e.amount||0),0)
-    });
-  }
-  const dayTotals=days.map(d=>d.total);
-  const weekTotal=dayTotals.reduce((s,v)=>s+v,0);
-  const maxV=Math.max(...dayTotals,1);
-  const ptSpacing=50,svgWidth=300;
-  const pts=dayTotals.map((v,i)=>`${i*ptSpacing},${30-(v/maxV)*28}`).join(' ');
-  const rows=days.map((day,di)=>{
-    const col=CAT_COLORS[di%CAT_COLORS.length];
-    const trend=di>0?dayTotals[di]-dayTotals[di-1]:0;
-    const trendIcon=trend>5?'↑':trend<-5?'↓':'→';
-    const trendColor=trend>5?'var(--danger)':trend<-5?'var(--success)':'var(--muted)';
-    const sub=`${fmt(day.total)}${day.isToday?' today':''}`;
-    return `<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);${day.isFuture?'opacity:0.45;':''}">
-      <div style="width:8px;height:8px;border-radius:50%;background:${col};flex-shrink:0;"></div>
-      <div style="flex:1;min-width:0;"><div style="font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;${day.isToday?'color:var(--accent);':''}">${day.name} ${day.md}</div><div style="font-size:11px;color:var(--muted);">${sub}</div></div>
-      <svg width="${svgWidth}" height="32" style="flex-shrink:0;overflow:visible;">
-        <polyline points="${pts}" class="sparkline" stroke="${col}" fill="none"/>
-        ${dayTotals.map((v,i)=>`<circle cx="${i*ptSpacing}" cy="${30-(v/maxV)*28}" r="${i===di?4:2}" fill="${col}" ${i===di?'':'opacity="0.4"'}/>`).join('')}
-      </svg>
-      <span style="font-size:16px;font-weight:800;color:${trendColor};width:16px;text-align:center;">${trendIcon}</span>
-    </div>`;
-  }).join('');
-  return `
-    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;">${windowBtns}</div>
-    <div style="margin-bottom:8px;display:flex;justify-content:space-between;align-items:baseline;">
-      <div style="font-size:11px;font-weight:700;letter-spacing:0.08em;color:var(--muted);text-transform:uppercase;">Daily — This Week</div>
-      <div style="font-size:12px;font-weight:700;color:var(--muted);">${fmt(weekTotal)} this wk</div>
-    </div>
-    ${rows}`;
 }
 
 const DEFAULT_QUICK_ADDS=[
