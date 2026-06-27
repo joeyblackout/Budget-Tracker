@@ -4379,8 +4379,8 @@ function renderTrendsInsights(){
   const now=new Date();
   const cats=[...new Set(expenses.map(e=>e.category))];
   if(cats.length===0)return`<div class="empty" style="padding:20px 0;"><p>No expenses yet.</p></div>`;
-  const windowBtnLabels={weekly:'Weekly','3mo':'3 Months','6mo':'6 Months',yearly:'Yearly'};
-  const windowBtns=['weekly','3mo','6mo','yearly'].map(w=>`<button onclick="setTrendsWindow('${w}')" style="padding:4px 10px;border-radius:99px;border:1px solid var(--border);background:${trendsWindow===w?'var(--accent)':'transparent'};color:${trendsWindow===w?'#fff':'var(--muted)'};font-size:11px;font-weight:700;cursor:pointer;">${windowBtnLabels[w]}</button>`).join('');
+  const windowBtnLabels={weekly:'Weekly','3mo':'3 Months',yearly:'Yearly'};
+  const windowBtns=['weekly','3mo','yearly'].map(w=>`<button onclick="setTrendsWindow('${w}')" style="padding:4px 10px;border-radius:99px;border:1px solid var(--border);background:${trendsWindow===w?'var(--accent)':'transparent'};color:${trendsWindow===w?'#fff':'var(--muted)'};font-size:11px;font-weight:700;cursor:pointer;">${windowBtnLabels[w]}</button>`).join('');
   let periods,labels,svgWidth,ptSpacing;
   if(trendsWindow==='weekly'){
     periods=[];labels=[];
@@ -4397,14 +4397,14 @@ function renderTrendsInsights(){
     labels=periods.map(p=>{const d=new Date(p.month+'-01');return d.toLocaleString('default',{month:'short'});});
     svgWidth=330;ptSpacing=30;
   } else {
-    const count=trendsWindow==='6mo'?6:3;
+    const count=3;
     periods=Array.from({length:count},(_,i)=>{const d=new Date(now.getFullYear(),now.getMonth()-(count-1-i),1);return{month:d.toISOString().slice(0,7)};});
     labels=periods.map((p,i)=>{
       if(i===periods.length-1)return'This mo';
       if(i===periods.length-2)return'Last mo';
       const d=new Date(p.month+'-01');return d.toLocaleString('default',{month:'short'});
     });
-    svgWidth=trendsWindow==='6mo'?250:100;ptSpacing=50;
+    svgWidth=100;ptSpacing=50;
   }
   const getVal=(cat,p,exclOneOff)=>p.start
     ?expenses.filter(e=>e.category===cat&&(e.exp_date||'')>=p.start&&(e.exp_date||'')<=p.end&&(!exclOneOff||!e.is_one_off)).reduce((s,e)=>s+parseFloat(e.amount||0),0)
@@ -4413,7 +4413,7 @@ function renderTrendsInsights(){
     ?expenses.filter(e=>e.is_one_off&&(e.exp_date||'')>=p.start&&(e.exp_date||'')<=p.end).reduce((s,e)=>s+parseFloat(e.amount||0),0)
     :expenses.filter(e=>e.is_one_off&&(e.exp_date||'').startsWith(p.month)).reduce((s,e)=>s+parseFloat(e.amount||0),0);
   let projCard='';
-  if(trendsWindow==='3mo'||trendsWindow==='6mo'){
+  if(trendsWindow==='3mo'){
     const dayOfMonth=now.getDate();
     const daysInMonth=new Date(now.getFullYear(),now.getMonth()+1,0).getDate();
     const thisMonthSpend=expenses.filter(e=>(e.exp_date||'').startsWith(periods[periods.length-1].month)&&!e.is_one_off).reduce((s,e)=>s+parseFloat(e.amount||0),0);
@@ -4442,7 +4442,7 @@ function renderTrendsInsights(){
     const trendColor=trend>5?'var(--danger)':trend<-5?'var(--success)':'var(--muted)';
     const col=CAT_COLORS[ci%CAT_COLORS.length];
     const latestVal=trendsWindow==='yearly'?vals.reduce((s,v)=>s+v,0):vals[vals.length-1];
-    const latestLabel=trendsWindow==='weekly'?'this wk':trendsWindow==='yearly'?'this yr':(trendsWindow==='3mo'||trendsWindow==='6mo')?'this period':'this mo';
+    const latestLabel=trendsWindow==='weekly'?'this wk':trendsWindow==='yearly'?'this yr':trendsWindow==='3mo'?'this period':'this mo';
     const lineWidth=(periods.length-1)*ptSpacing;
     const targetY=periodTarget>0?(30-(periodTarget/maxV)*28):null;
     const targetLine=targetY!==null
@@ -4465,7 +4465,6 @@ function renderTrendsInsights(){
     })();
     const windowMultiplier=trendsWindow==='weekly'?0.25
       :trendsWindow==='3mo'?3
-      :trendsWindow==='6mo'?6
       :trendsWindow==='yearly'?12
       :1;
     const displayTarget=monthlyTarget*windowMultiplier;
@@ -4489,7 +4488,7 @@ function renderTrendsInsights(){
     const ooMax=Math.max(...ooVals,1);
     const ooPts=ooVals.map((v,i)=>`${i*ptSpacing},${30-(v/ooMax)*28}`).join(' ');
     const ooLatest=trendsWindow==='yearly'?ooVals.reduce((s,v)=>s+v,0):ooVals[ooVals.length-1];
-    const ooLabel=trendsWindow==='weekly'?'this wk':trendsWindow==='yearly'?'this yr':(trendsWindow==='3mo'||trendsWindow==='6mo')?'this period':'this mo';
+    const ooLabel=trendsWindow==='weekly'?'this wk':trendsWindow==='yearly'?'this yr':trendsWindow==='3mo'?'this period':'this mo';
     const ooLastTwo=ooVals.slice(-2);
     const ooTrend=ooLastTwo[1]-ooLastTwo[0];
     const ooTrendIcon=ooTrend>5?'↑':ooTrend<-5?'↓':'→';
@@ -4505,9 +4504,9 @@ function renderTrendsInsights(){
       <span style="font-size:16px;font-weight:800;color:${ooTrendColor};width:16px;text-align:center;">${ooTrendIcon}</span>
     </div>`;
   }
-  const titleMap={weekly:'Weekly','3mo':'3 Months','6mo':'6 Months',yearly:'Yearly'};
+  const titleMap={weekly:'Weekly','3mo':'3 Months',yearly:'Yearly'};
   const totalMonthlyBudget=Object.values(budgetTargets).reduce((s,v)=>s+v,0);
-  const totalWindowBudget=totalMonthlyBudget*(trendsWindow==='weekly'?0.25:trendsWindow==='3mo'?3:trendsWindow==='6mo'?6:12);
+  const totalWindowBudget=totalMonthlyBudget*(trendsWindow==='weekly'?0.25:trendsWindow==='3mo'?3:12);
   const totalSpent=(()=>{
     if(trendsWindow==='weekly'){const p=periods[periods.length-1];return expenses.filter(e=>(e.exp_date||'')>=p.start&&(e.exp_date||'')<=p.end&&!e.is_one_off).reduce((s,e)=>s+parseFloat(e.amount||0),0);}
     return periods.reduce((sum,p)=>sum+expenses.filter(e=>(e.exp_date||'').startsWith(p.month)&&!e.is_one_off).reduce((s,e)=>s+parseFloat(e.amount||0),0),0);
