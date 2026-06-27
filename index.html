@@ -4428,8 +4428,9 @@ function renderTrendsInsights(){
       <div style="font-size:12px;font-weight:700;color:${paceColor};margin-top:4px;">${paceLabel} vs last month (${pctChange>=0?'+':''}${pctChange.toFixed(0)}%)</div>
     </div>`;
   }
-  const catRows=cats.map((cat,ci)=>{
-    const vals=periods.map(p=>getVal(cat,p,true)); // one-off excluded from all Trends math
+  const catRows=cats.map((cat,ci)=>({cat,ci,vals:periods.map(p=>getVal(cat,p,true))})) // one-off excluded from all Trends math
+    .filter(o=>o.vals.some(v=>v>0)) // hide categories with no spending in the selected window
+    .map(({cat,ci,vals})=>{
     const monthlyTarget=budgetTargets[cat]||0;
     const periodTarget=trendsWindow==='weekly'?monthlyTarget/4:monthlyTarget;
     const maxV=Math.max(...vals,periodTarget,1);
@@ -4482,7 +4483,7 @@ function renderTrendsInsights(){
     </div>`;
   }).join('');
   let oneOffRow='';
-  if(expenses.some(e=>e.is_one_off)){
+  if(periods.some(p=>oneOffVal(p)>0)){
     const ooVals=periods.map(p=>oneOffVal(p));
     const ooMax=Math.max(...ooVals,1);
     const ooPts=ooVals.map((v,i)=>`${i*ptSpacing},${30-(v/ooMax)*28}`).join(' ');
@@ -4516,14 +4517,17 @@ function renderTrendsInsights(){
   const budgetBadge=totalWindowBudget>0
     ?`<div style="font-size:11px;font-weight:700;margin-top:2px;"><span style="color:var(--muted);">${fmt(totalWindowBudget)} budget</span><span style="color:${remainingColor};"> · ${fmt(Math.abs(remaining))} ${remainingLabel}</span></div>`
     :'';
+  const trendsBody=(catRows===''&&oneOffRow==='')
+    ?`<div class="empty" style="padding:20px 0;"><p>No spending in this period.</p></div>`
+    :`<div style="display:flex;justify-content:flex-end;gap:${trendsWindow==='weekly'?'28':'16'}px;font-size:10px;color:var(--muted);margin-bottom:4px;">
+      ${labels.map(l=>`<span>${l}</span>`).join('')}
+    </div>
+    ${catRows}${oneOffRow}`;
   return`
     ${projCard}
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;">${windowBtns}</div>
     <div style="margin-bottom:8px;"><div style="font-size:11px;font-weight:700;letter-spacing:0.08em;color:var(--muted);text-transform:uppercase;">Category Trends — ${titleMap[trendsWindow]}</div>${budgetBadge}</div>
-    <div style="display:flex;justify-content:flex-end;gap:${trendsWindow==='weekly'?'28':'16'}px;font-size:10px;color:var(--muted);margin-bottom:4px;">
-      ${labels.map(l=>`<span>${l}</span>`).join('')}
-    </div>
-    ${catRows}${oneOffRow}`;
+    ${trendsBody}`;
 }
 
 const DEFAULT_QUICK_ADDS=[
