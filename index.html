@@ -4650,8 +4650,11 @@ function renderTrendsInsights(){
   const remaining=totalWindowBudget-totalSpent;
   const remainingColor=remaining>=0?'var(--success)':'var(--danger)';
   const remainingLabel=remaining>=0?'remaining':'over budget';
+  const dailyBudgetBreakdown=trendsWindow==='daily'
+    ?`<span style="color:var(--success);"> (${fmt(totalWindowBudget/7)}/day)</span>`
+    :'';
   const budgetBadge=totalWindowBudget>0
-    ?`<div style="font-size:11px;font-weight:700;margin-top:2px;"><span style="color:var(--muted);">${fmt(totalWindowBudget)} budget</span><span style="color:${remainingColor};"> · ${fmt(Math.abs(remaining))} ${remainingLabel}</span></div>`
+    ?`<div style="font-size:11px;font-weight:700;margin-top:2px;"><span style="color:var(--muted);">${fmt(totalWindowBudget)} budget</span>${dailyBudgetBreakdown}<span style="color:${remainingColor};"> · ${fmt(Math.abs(remaining))} ${remainingLabel}</span></div>`
     :'';
   const trendsBody=(catRows===''&&oneOffRow==='')
     ?`<div class="empty" style="padding:20px 0;"><p>No spending in this period.</p></div>`
