@@ -1782,6 +1782,10 @@ function renderForecast(){
       events.push({date:w.pay_date,amount:expected,label:(w.source_name||'Income')+' (expected)',type:'income'});
     }
   });
+  // A bill/minimum due on a given date counts as already paid if a payment lands within this many days
+  // BEFORE the due date — long enough to catch early payments across a month boundary (e.g. due Jul 1, paid Jun 25),
+  // short enough that last cycle's on-time payment doesn't clear the next occurrence.
+  const CYCLE_LOOKBACK_DAYS=16;
   // Recurring bills by due day each month in the window (debt-linked bills are handled by the debt simulation)
   const recurringBills=bills.filter(b=>b.due_day&&!b.debt_id);
   let cursor=new Date(todayDate);
@@ -1791,9 +1795,14 @@ function renderForecast(){
       if(!isBillDueInMonth(b,y,m))return;
       const dd=Math.min(parseInt(b.due_day),new Date(y,m+1,0).getDate());
       const billDate=new Date(y,m,dd);
-      if(billDate>todayDate&&billDate<=endDate){
-        events.push({date:billDate.toISOString().slice(0,10),amount:-parseFloat(b.amount||0),label:b.name,type:b.debt_id?'debt':'bill'});
-      }
+      if(billDate<=todayDate||billDate>endDate)return;
+      // Skip bills already paid for this cycle (incl. early payments up to ~16 days before the due date)
+      const billDateStr=billDate.toISOString().slice(0,10);
+      const bCycleStart=new Date(billDate);bCycleStart.setDate(bCycleStart.getDate()-CYCLE_LOOKBACK_DAYS);
+      const bCycleStartStr=bCycleStart.toISOString().slice(0,10);
+      const billPaid=billPayments.filter(p=>p.bill_id===b.id&&(p.paid_date||'')>bCycleStartStr&&(p.paid_date||'')<=billDateStr).reduce((s,p)=>s+parseFloat(p.amount||0),0);
+      if(billPaid>=parseFloat(b.amount||0)-0.005)return;
+      events.push({date:billDateStr,amount:-parseFloat(b.amount||0),label:b.name,type:b.debt_id?'debt':'bill'});
     });
     cursor.setMonth(cursor.getMonth()+1);cursor.setDate(1);
   }
@@ -1819,9 +1828,15 @@ function renderForecast(){
       if(minimum<=0.005)return;
       const dueDay=Math.min(parseInt(d.due_date)||15,lastDay);
       const dd=new Date(y,mo,dueDay);
-      if(dd>todayDate&&dd<=endDate){
-        events.push({date:dd.toISOString().slice(0,10),amount:-minimum,label:d.name+' (min)',type:'debt'});
-      }
+      if(dd<=todayDate||dd>endDate)return;
+      // Skip if already covered by a payment in this billing cycle — within ~16 days before the due date.
+      // Catches early payments even across a month boundary: a minimum due Jul 1 paid Jun 25 is covered.
+      const ddStr=dd.toISOString().slice(0,10);
+      const cycleStart=new Date(dd);cycleStart.setDate(cycleStart.getDate()-CYCLE_LOOKBACK_DAYS);
+      const cycleStartStr=cycleStart.toISOString().slice(0,10);
+      const paidForCycle=payments.filter(p=>p.debt_id===d.id&&(p.pay_date||'')>cycleStartStr&&(p.pay_date||'')<=ddStr).reduce((s,p)=>s+parseFloat(p.amount||0),0);
+      if(paidForCycle>=minimum-0.005)return;
+      events.push({date:ddStr,amount:-minimum,label:d.name+' (min)',type:'debt'});
     });
   }
   // Recent average variable spending, applied per day
@@ -5433,6 +5448,7 @@ function openModal(id){document.getElementById(id).classList.add('open');}
 function closeModal(id){document.getElementById(id).classList.remove('open');}
 function openPaycalcModal(){openModal('paycalc-modal');renderPaycalc();}
 const CHANGELOG=[
+  {date:new Date('2026-06-29T15:00:00').getTime(),icon:'ti-credit-card',title:'Forecast hides already-paid bills & debt minimums',desc:'If you pay a bill or debt minimum early, the Forecast no longer lists it as upcoming — even when you pay in the prior month (e.g. due Jul 1, paid Jun 25). It checks payments logged in the ~16 days before each due date and drops anything already covered.'},
   {date:new Date('2026-06-29T14:00:00').getTime(),icon:'ti-credit-card',title:'Forecast counts debt minimums on their real due dates',desc:'The Forecast now schedules each debt\'s minimum payment on its actual due day instead of a fixed mid-month date, so short windows like Biweekly correctly include a minimum due that period (it previously showed $0).'},
   {date:new Date('2026-06-29T10:00:00').getTime(),icon:'ti-calendar-event',title:'One-time bills show the full due date',desc:'One-time bills now display the month and day they are due, e.g. Housing · Due Sep 9, 2026 · One Time, so you know exactly when they hit. Recurring bills are unchanged.'},
   {date:new Date('2026-06-28T12:00:00').getTime(),icon:'ti-filter',title:'Trends drill-down follows the timeframe',desc:'Tapping a category in Trends now shows only that category\'s expenses for the selected window — This Week, Last 3 Months, or Last 12 Months — with the timeframe in the title. One-off expenses stay in their own drill-down.'},
