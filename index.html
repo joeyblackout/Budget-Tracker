@@ -5449,6 +5449,7 @@ function openModal(id){document.getElementById(id).classList.add('open');}
 function closeModal(id){document.getElementById(id).classList.remove('open');}
 function openPaycalcModal(){openModal('paycalc-modal');renderPaycalc();}
 const CHANGELOG=[
+  {date:new Date('2026-06-29T17:00:00').getTime(),icon:'ti-bell',title:'Dismiss button works on the Updates notification',desc:'Tapping Dismiss on the "new updates since your last visit" notification now reliably clears it and updates the bell count, instead of sometimes leaving it on screen.'},
   {date:new Date('2026-06-29T16:00:00').getTime(),icon:'ti-credit-card',title:'Forecast uses your real credit card minimums',desc:'Credit card minimums in the Forecast now use the minimum you entered instead of an estimated 2% of the balance, so a card set to a $94 minimum no longer shows a lower phantom amount. The 2% estimate is now only a fallback for cards with no minimum entered.'},
   {date:new Date('2026-06-29T15:00:00').getTime(),icon:'ti-credit-card',title:'Forecast hides already-paid bills & debt minimums',desc:'If you pay a bill or debt minimum early, the Forecast no longer lists it as upcoming — even when you pay in the prior month (e.g. due Jul 1, paid Jun 25). It checks payments logged in the ~16 days before each due date and drops anything already covered.'},
   {date:new Date('2026-06-29T14:00:00').getTime(),icon:'ti-credit-card',title:'Forecast counts debt minimums on their real due dates',desc:'The Forecast now schedules each debt\'s minimum payment on its actual due day instead of a fixed mid-month date, so short windows like Biweekly correctly include a minimum due that period (it previously showed $0).'},
@@ -5491,7 +5492,10 @@ function openWhatsNewModal(items){
 }
 function showUpdatesModal(){openWhatsNewModal(getNewUpdates());}
 async function dismissUpdates(){
-  const iso=new Date().toISOString();
+  // Cover every currently-listed update: jump the cutoff past the newest changelog entry, not just to "now",
+  // so entries timestamped at/after this instant still clear (otherwise Dismiss appears to do nothing).
+  const newest=CHANGELOG.reduce((mx,e)=>Math.max(mx,e.date),0);
+  const iso=new Date(Math.max(Date.now(),newest)+1000).toISOString();
   if(myProfile)myProfile.updates_dismissed_ts=iso;
   try{await sb.from('profiles').update({updates_dismissed_ts:iso}).eq('user_id',currentUser.id);}catch(e){}
   renderNotifications();updateNotifBadge();
