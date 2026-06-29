@@ -2056,18 +2056,34 @@ function showBillsPaidBreakdown(){
   const rows=billPayments.filter(p=>!linkedIds.has(p.bill_id)).slice(0,30).map(p=>{const b=bills.find(x=>x.id===p.bill_id);return`<div class="account-row"><div><div class="account-name">${b?esc(b.name):esc(p.notes||'Bill')}</div><div class="account-detail">${fmtDate(p.paid_date)}</div></div><div class="account-balance text-danger">-${fmt(p.amount)}</div></div>`;}).join('');
   openDashModal('Bills Paid',rows||'<div class="empty"><p>No bills marked paid yet.</p></div>','bills');
 }
+function catTrendRange(){
+  const now=new Date();
+  if(trendsWindow==='daily'||trendsWindow==='weekly'){
+    const monday=new Date(now);monday.setDate(now.getDate()-((now.getDay()+6)%7));
+    const sunday=new Date(monday);sunday.setDate(monday.getDate()+6);
+    return{start:monday.toISOString().slice(0,10),end:sunday.toISOString().slice(0,10),label:'This Week'};
+  }
+  if(trendsWindow==='yearly'){
+    const a=new Date(now.getFullYear(),now.getMonth()-11,1);
+    const b=new Date(now.getFullYear(),now.getMonth()+1,0);
+    return{start:a.toISOString().slice(0,10),end:b.toISOString().slice(0,10),label:'Last 12 Months'};
+  }
+  const a=new Date(now.getFullYear(),now.getMonth()-2,1);
+  const b=new Date(now.getFullYear(),now.getMonth()+1,0);
+  return{start:a.toISOString().slice(0,10),end:b.toISOString().slice(0,10),label:'Last 3 Months'};
+}
 function showCatHistory(cat,col){
-  const sorted=[...expenses].filter(e=>e.category===cat).sort((a,b)=>a.exp_date<b.exp_date?1:-1);
-  const thisMo=new Date().toISOString().slice(0,7);
-  const moSpent=sorted.filter(e=>(e.exp_date||'').startsWith(thisMo)).reduce((s,e)=>s+parseFloat(e.amount||0),0);
+  const {start,end,label}=catTrendRange();
+  const sorted=[...expenses].filter(e=>e.category===cat&&!e.is_one_off&&(e.exp_date||'')>=start&&(e.exp_date||'')<=end).sort((a,b)=>a.exp_date<b.exp_date?1:-1);
+  const periodSpent=sorted.reduce((s,e)=>s+parseFloat(e.amount||0),0);
   const dot='<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:'+col+';margin-right:6px;flex-shrink:0;vertical-align:middle;"></span>';
   if(sorted.length===0){
-    openDashModal(dot+esc(cat),'<div style="font-size:13px;color:var(--success);font-weight:700;margin-bottom:14px;">'+fmt(moSpent)+' spent this month</div><div class="empty"><p>No expenses in this category yet.</p></div>','expenses');
+    openDashModal(dot+esc(cat)+' · '+label,'<div style="font-size:13px;color:var(--success);font-weight:700;margin-bottom:14px;">'+fmt(periodSpent)+' spent · '+label+'</div><div class="empty"><p>No expenses in this category for this period.</p></div>','expenses');
     return;
   }
   const groups={};
   sorted.forEach(e=>{const mk=(e.exp_date||'').slice(0,7);if(!groups[mk])groups[mk]=[];groups[mk].push(e);});
-  let html='<div style="font-size:13px;color:var(--success);font-weight:700;margin-bottom:14px;">'+fmt(moSpent)+' spent this month</div>';
+  let html='<div style="font-size:13px;color:var(--success);font-weight:700;margin-bottom:14px;">'+fmt(periodSpent)+' spent · '+label+'</div>';
   Object.keys(groups).sort((a,b)=>a<b?1:-1).forEach(mk=>{
     const [yr,mo]=mk.split('-');
     const moName=new Date(parseInt(yr),parseInt(mo)-1,1).toLocaleString('default',{month:'long'});
@@ -2075,12 +2091,12 @@ function showCatHistory(cat,col){
     html+='<div style="font-size:11px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:var(--muted);padding:10px 0 6px;border-top:1px solid var(--border);">'+moName+' '+yr+' &nbsp;·&nbsp; '+fmt(moTotal)+'</div>';
     groups[mk].forEach(e=>{
       const d=new Date((e.exp_date||'')+'T12:00:00');
-      const label=d.toLocaleString('default',{month:'short',day:'numeric'});
+      const label2=d.toLocaleString('default',{month:'short',day:'numeric'});
       const desc=e.description&&e.description.trim()?esc(e.description):esc(cat);
-      html+='<div class="account-row"><div><div class="account-name">'+desc+'</div><div class="account-detail">'+label+(e.notes&&e.notes.trim()?' · '+esc(e.notes):'')+'</div></div><div class="account-balance text-danger">-'+fmt(e.amount)+'</div></div>';
+      html+='<div class="account-row"><div><div class="account-name">'+desc+'</div><div class="account-detail">'+label2+(e.notes&&e.notes.trim()?' · '+esc(e.notes):'')+'</div></div><div class="account-balance text-danger">-'+fmt(e.amount)+'</div></div>';
     });
   });
-  const titleHtml=dot+esc(cat);
+  const titleHtml=dot+esc(cat)+' · '+label;
   document.getElementById('dash-detail-title').innerHTML=titleHtml;
   document.getElementById('dash-detail-content').innerHTML=html;
   dashDetailNavTarget='expenses';
@@ -5403,6 +5419,8 @@ function openModal(id){document.getElementById(id).classList.add('open');}
 function closeModal(id){document.getElementById(id).classList.remove('open');}
 function openPaycalcModal(){openModal('paycalc-modal');renderPaycalc();}
 const CHANGELOG=[
+  {date:new Date('2026-06-28T12:00:00').getTime(),icon:'ti-filter',title:'Trends drill-down follows the timeframe',desc:'Tapping a category in Trends now shows only that category\'s expenses for the selected window — This Week, Last 3 Months, or Last 12 Months — with the timeframe in the title. One-off expenses stay in their own drill-down.'},
+  {date:new Date('2026-06-28T11:00:00').getTime(),icon:'ti-calendar-dollar',title:'Daily budget breakdown',desc:'The Daily tab in Trends now shows your daily spending allowance next to the weekly budget, e.g. $352.50 budget ($50.36/day), so you can see what you can spend per day at a glance.'},
   {date:new Date('2026-06-23T20:00:00').getTime(),icon:'ti-chart-line',title:'Net Worth Zones',desc:'The net worth chart now shows green shading above $0 and red shading below, so you can see at a glance when you crossed into positive territory.'},
   {date:new Date('2026-06-23T20:00:00').getTime(),icon:'ti-flag',title:'Budget Reached alert',desc:'When a spending category has $5 or less remaining, it now shows a red Budget Reached badge — before you actually go over.'},
   {date:new Date('2026-06-23T19:00:00').getTime(),icon:'ti-edit',title:'Emoji picker for quick-add buttons',desc:'Tap Edit on the quick-add bar to pick a new emoji from a visual picker instead of typing one.'},
