@@ -1801,14 +1801,28 @@ function renderForecast(){
   const windowMonths=(endDate.getFullYear()-todayDate.getFullYear())*12+(endDate.getMonth()-todayDate.getMonth())+1;
   // Main forecast always uses minimum debt payments only — strategies are opt-in below and never affect this.
   const mainDebtSim=runDebtSim(()=>0,windowMonths);
-  // Inject one minimum debt-payment event per month within the window (15th of each month)
-  for(let m=0;m<windowMonths&&m<mainDebtSim.monthlyTotals.length;m++){
-    const amt=mainDebtSim.monthlyTotals[m];
-    if(amt<=0.005)continue;
-    const d=new Date(todayDate.getFullYear(),todayDate.getMonth()+m,15);
-    if(d>todayDate&&d<=endDate){
-      events.push({date:d.toISOString().slice(0,10),amount:-amt,label:'Debt payments',type:'debt'});
-    }
+  // Inject a minimum debt-payment event per debt, on that debt's ACTUAL due day each month in the window.
+  // (Previously lumped onto a hardcoded 15th, which dropped minimums whenever the window didn't span the 15th
+  //  — e.g. a biweekly Jun 28–Jul 13 window missed a minimum due Jul 11. Mirrors the recurring-bills loop above.)
+  const forecastDebts=debts.filter(d=>parseFloat(d.balance||0)>0);
+  for(let m=0;m<windowMonths;m++){
+    const my=new Date(todayDate.getFullYear(),todayDate.getMonth()+m,1);
+    const y=my.getFullYear(),mo=my.getMonth();
+    const lastDay=new Date(y,mo+1,0).getDate();
+    forecastDebts.forEach(d=>{
+      // Skip debts the simulation has already paid off by this month
+      const sim=mainDebtSim.debts.find(s=>s.id===d.id);
+      if(sim&&sim.payoffMonth!==null&&m>sim.payoffMonth)return;
+      const bal=parseFloat(d.balance||0);
+      let minimum=(d.type==='Credit Card')?Math.max(25,bal*0.02):parseFloat(d.min_payment||0);
+      if(minimum>bal)minimum=bal;
+      if(minimum<=0.005)return;
+      const dueDay=Math.min(parseInt(d.due_date)||15,lastDay);
+      const dd=new Date(y,mo,dueDay);
+      if(dd>todayDate&&dd<=endDate){
+        events.push({date:dd.toISOString().slice(0,10),amount:-minimum,label:d.name+' (min)',type:'debt'});
+      }
+    });
   }
   // Recent average variable spending, applied per day
   const dailySpend=recentAvgSpendingPerDay();
@@ -5419,6 +5433,7 @@ function openModal(id){document.getElementById(id).classList.add('open');}
 function closeModal(id){document.getElementById(id).classList.remove('open');}
 function openPaycalcModal(){openModal('paycalc-modal');renderPaycalc();}
 const CHANGELOG=[
+  {date:new Date('2026-06-29T14:00:00').getTime(),icon:'ti-credit-card',title:'Forecast counts debt minimums on their real due dates',desc:'The Forecast now schedules each debt\'s minimum payment on its actual due day instead of a fixed mid-month date, so short windows like Biweekly correctly include a minimum due that period (it previously showed $0).'},
   {date:new Date('2026-06-29T10:00:00').getTime(),icon:'ti-calendar-event',title:'One-time bills show the full due date',desc:'One-time bills now display the month and day they are due, e.g. Housing · Due Sep 9, 2026 · One Time, so you know exactly when they hit. Recurring bills are unchanged.'},
   {date:new Date('2026-06-28T12:00:00').getTime(),icon:'ti-filter',title:'Trends drill-down follows the timeframe',desc:'Tapping a category in Trends now shows only that category\'s expenses for the selected window — This Week, Last 3 Months, or Last 12 Months — with the timeframe in the title. One-off expenses stay in their own drill-down.'},
   {date:new Date('2026-06-28T11:00:00').getTime(),icon:'ti-calendar-dollar',title:'Daily budget breakdown',desc:'The Daily tab in Trends now shows your daily spending allowance next to the weekly budget, e.g. $352.50 budget ($50.36/day), so you can see what you can spend per day at a glance.'},
