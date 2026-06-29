@@ -5419,6 +5419,7 @@ function openModal(id){document.getElementById(id).classList.add('open');}
 function closeModal(id){document.getElementById(id).classList.remove('open');}
 function openPaycalcModal(){openModal('paycalc-modal');renderPaycalc();}
 const CHANGELOG=[
+  {date:new Date('2026-06-29T10:00:00').getTime(),icon:'ti-calendar-event',title:'One-time bills show the full due date',desc:'One-time bills now display the month and day they are due, e.g. Housing · Due Sep 9, 2026 · One Time, so you know exactly when they hit. Recurring bills are unchanged.'},
   {date:new Date('2026-06-28T12:00:00').getTime(),icon:'ti-filter',title:'Trends drill-down follows the timeframe',desc:'Tapping a category in Trends now shows only that category\'s expenses for the selected window — This Week, Last 3 Months, or Last 12 Months — with the timeframe in the title. One-off expenses stay in their own drill-down.'},
   {date:new Date('2026-06-28T11:00:00').getTime(),icon:'ti-calendar-dollar',title:'Daily budget breakdown',desc:'The Daily tab in Trends now shows your daily spending allowance next to the weekly budget, e.g. $352.50 budget ($50.36/day), so you can see what you can spend per day at a glance.'},
   {date:new Date('2026-06-23T20:00:00').getTime(),icon:'ti-chart-line',title:'Net Worth Zones',desc:'The net worth chart now shows green shading above $0 and red shading below, so you can see at a glance when you crossed into positive territory.'},
