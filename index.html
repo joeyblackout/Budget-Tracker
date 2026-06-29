@@ -1320,8 +1320,8 @@ function runDebtSim(extraOfDisc,maxMonths){
       // 1) accrue interest
       const interest=d.bal*(d.apr/100/12);
       d.bal+=interest;d.interestPaid+=interest;interestThisMonth+=interest;
-      // 2) this debt's minimum
-      let minimum=(d.type==='Credit Card')?Math.max(25,d.bal*0.02):d.minPay;
+      // 2) this debt's minimum — honor the user-entered minimum; 2%-of-balance is only a fallback when none is set
+      let minimum=d.minPay>0?d.minPay:(d.type==='Credit Card'?Math.max(25,d.bal*0.02):0);
       if(minimum>d.bal)minimum=d.bal;
       if(minimum<0)minimum=0;
       // 3) total payment = minimum + rolled-over; extra goes ONLY to the first debt still carrying a balance
@@ -1397,7 +1397,7 @@ function runUtil30Sim(extraOfDisc,maxMonths){
         if(d.bal<=0.005)continue;
         const interest=d.bal*(d.apr/100/12);
         d.bal+=interest;d.interestPaid+=interest;
-        let minimum=d.type==='Credit Card'?Math.max(25,d.bal*0.02):d.minPay;
+        let minimum=d.minPay>0?d.minPay:(d.type==='Credit Card'?Math.max(25,d.bal*0.02):0);
         minimum=Math.min(Math.max(0,minimum),d.bal);
         d.bal=Math.max(0,d.bal-minimum);
         monthTotal+=minimum;
@@ -1823,7 +1823,8 @@ function renderForecast(){
       const sim=mainDebtSim.debts.find(s=>s.id===d.id);
       if(sim&&sim.payoffMonth!==null&&m>sim.payoffMonth)return;
       const bal=parseFloat(d.balance||0);
-      let minimum=(d.type==='Credit Card')?Math.max(25,bal*0.02):parseFloat(d.min_payment||0);
+      const entered=parseFloat(d.min_payment||0);
+      let minimum=entered>0?entered:(d.type==='Credit Card'?Math.max(25,bal*0.02):0);
       if(minimum>bal)minimum=bal;
       if(minimum<=0.005)return;
       const dueDay=Math.min(parseInt(d.due_date)||15,lastDay);
@@ -5448,6 +5449,7 @@ function openModal(id){document.getElementById(id).classList.add('open');}
 function closeModal(id){document.getElementById(id).classList.remove('open');}
 function openPaycalcModal(){openModal('paycalc-modal');renderPaycalc();}
 const CHANGELOG=[
+  {date:new Date('2026-06-29T16:00:00').getTime(),icon:'ti-credit-card',title:'Forecast uses your real credit card minimums',desc:'Credit card minimums in the Forecast now use the minimum you entered instead of an estimated 2% of the balance, so a card set to a $94 minimum no longer shows a lower phantom amount. The 2% estimate is now only a fallback for cards with no minimum entered.'},
   {date:new Date('2026-06-29T15:00:00').getTime(),icon:'ti-credit-card',title:'Forecast hides already-paid bills & debt minimums',desc:'If you pay a bill or debt minimum early, the Forecast no longer lists it as upcoming — even when you pay in the prior month (e.g. due Jul 1, paid Jun 25). It checks payments logged in the ~16 days before each due date and drops anything already covered.'},
   {date:new Date('2026-06-29T14:00:00').getTime(),icon:'ti-credit-card',title:'Forecast counts debt minimums on their real due dates',desc:'The Forecast now schedules each debt\'s minimum payment on its actual due day instead of a fixed mid-month date, so short windows like Biweekly correctly include a minimum due that period (it previously showed $0).'},
   {date:new Date('2026-06-29T10:00:00').getTime(),icon:'ti-calendar-event',title:'One-time bills show the full due date',desc:'One-time bills now display the month and day they are due, e.g. Housing · Due Sep 9, 2026 · One Time, so you know exactly when they hit. Recurring bills are unchanged.'},
