@@ -2350,7 +2350,7 @@ async function routineStep1Next(){
 }
 
 function getRoutineBillsList(){
-  const thisMonth=new Date().toISOString().slice(0,7);
+  const thisMonth=thisMonthLocal();
   return bills.filter(b=>{
     if(b.debt_id)return false;
     if(isBillExpired(b))return false;
@@ -2630,7 +2630,7 @@ function renderDashboard(){
   savingsTxns.forEach(t=>{if(!potTotals[t.pot_id])potTotals[t.pot_id]=0;potTotals[t.pot_id]+=(t.type==='deposit'||t.type==='transfer_in')?parseFloat(t.amount||0):-(parseFloat(t.amount||0));});
   const totalInPots=Object.values(potTotals).reduce((s,v)=>s+Math.max(0,v),0);
 
-  const thisMonthStr=new Date().toISOString().slice(0,7);
+  const thisMonthStr=thisMonthLocal();
   const thisYearStr=new Date().getFullYear().toString();
   const linkedBillIds=new Set(bills.filter(b=>b.debt_id).map(b=>b.id));
   const dispBillsPaid=dashBalancePeriod==='month'?billPayments.filter(p=>(p.paid_date||'').startsWith(thisMonthStr)&&!linkedBillIds.has(p.bill_id)).reduce((s,p)=>s+parseFloat(p.amount||0),0):dashBalancePeriod==='year'?billPayments.filter(p=>(p.paid_date||'').startsWith(thisYearStr)&&!linkedBillIds.has(p.bill_id)).reduce((s,p)=>s+parseFloat(p.amount||0),0):billPayments.filter(p=>!linkedBillIds.has(p.bill_id)).reduce((s,p)=>s+parseFloat(p.amount||0),0);
@@ -2698,7 +2698,7 @@ function renderDashboard(){
           +'<div style="font-size:13px;color:var(--muted);text-align:center;padding:6px 0;">No budget targets set — tap to add them</div>'
           +'</div>';
       }
-      const tMo=new Date().toISOString().slice(0,7);
+      const tMo=thisMonthLocal();
       const byCatDash={}; // one-off expenses excluded from all budget math
       expenses.filter(e=>(e.exp_date||'').startsWith(tMo)&&!e.is_one_off).forEach(e=>{if(!byCatDash[e.category])byCatDash[e.category]=0;byCatDash[e.category]+=parseFloat(e.amount||0);});
       const tTotal=tCats.reduce((s,c)=>s+budgetTargets[c],0);
@@ -3343,7 +3343,7 @@ function isBillDueInMonth(b,year,month){
 }
 function isBillDueThisMonth(b){const n=new Date();return isBillDueInMonth(b,n.getFullYear(),n.getMonth());}
 // Actual $ applied toward a bill in the current calendar month (sums real payment rows).
-function billPaidThisMonth(billId){const tm=new Date().toISOString().slice(0,7);return billPayments.filter(p=>p.bill_id===billId&&(p.paid_date||'').startsWith(tm)).reduce((s,p)=>s+parseFloat(p.amount||0),0);}
+function billPaidThisMonth(billId){const tm=thisMonthLocal();return billPayments.filter(p=>p.bill_id===billId&&(p.paid_date||'').startsWith(tm)).reduce((s,p)=>s+parseFloat(p.amount||0),0);}
 // Unpaid portion of a bill's amount for the current month (a partial payment leaves a real remainder).
 function billRemainingThisMonth(b){return Math.max(0,parseFloat(b.amount||0)-billPaidThisMonth(b.id));}
 // Fully paid = payments this month cover the full bill amount (partial payments are NOT "paid").
@@ -3354,7 +3354,7 @@ function renderBills(){
   if(payAllBtn)payAllBtn.style.display=getDueBills().length>0?'':'none';
   if(bills.length===0){el.innerHTML=`<div class="empty"><div class="icon"><i class="ti ti-home"></i></div><p>No bills yet. Tap <strong>+</strong> to add one.</p></div>`;return;}
   const todayDay=new Date().getDate();
-  const thisMonth=new Date().toISOString().slice(0,7);
+  const thisMonth=thisMonthLocal();
   const visibleBills=bills.filter(b=>!isBillExpired(b)); // hide bills past their end_date
   const isMonthlyRec=b=>(b.recurring||'monthly').toLowerCase()==='monthly'; // case-insensitive — see isBillDueInMonth note
   const monthly=visibleBills.filter(isMonthlyRec);
@@ -3510,7 +3510,7 @@ function showBillCatDetail(idx){
   const cat=_billPieCats[idx];
   if(!cat)return;
   const _vBills=bills.filter(b=>!isBillExpired(b));
-  const thisMonth=new Date().toISOString().slice(0,7);
+  const thisMonth=thisMonthLocal();
   const curYear=new Date().getFullYear();
   const yearStr=curYear.toString();
   let entries;
@@ -3661,7 +3661,7 @@ async function markBillPaid(billId,billName,amount){
   toast(`${billName} marked as paid ✓`);
 }
 async function undoBillPayment(billId){
-  const thisMonth=new Date().toISOString().slice(0,7);
+  const thisMonth=thisMonthLocal();
   const recent=billPayments.find(p=>p.bill_id===billId&&(p.paid_date||'').startsWith(thisMonth));
   if(!recent)return;
   if(!confirm('Undo this bill payment?'))return;
@@ -4280,7 +4280,7 @@ function renderInsights(){
   if(insightsTab==='trends') content=renderTrendsInsights();
   else content=renderBudgetInsights();
   // Budget targets summary banner
-  const thisMonthKey=new Date().toISOString().slice(0,7);
+  const thisMonthKey=thisMonthLocal();
   const byCatBanner={};
   expenses.filter(e=>(e.exp_date||'').startsWith(thisMonthKey)).forEach(e=>{if(!byCatBanner[e.category])byCatBanner[e.category]=0;byCatBanner[e.category]+=parseFloat(e.amount||0);});
   const targetedCats=Object.keys(budgetTargets);
@@ -4309,7 +4309,7 @@ function renderInsights(){
 }
 
 function renderCategoryInsights(){
-  const thisMonth=new Date().toISOString().slice(0,7);
+  const thisMonth=thisMonthLocal();
   const monthExp=expenses.filter(e=>(e.exp_date||'').startsWith(thisMonth));
   if(monthExp.length===0)return`<div class="empty" style="padding:20px 0;"><p>No expenses this month yet.</p></div>`;
   const bycat={};
@@ -4359,7 +4359,7 @@ function renderOverTimeInsights(){
 
 function renderBudgetInsights(){
   const targetedCats=Object.keys(budgetTargets);
-  const thisMonth=new Date().toISOString().slice(0,7);
+  const thisMonth=thisMonthLocal();
 
   // Spending this month by category. One-off expenses are excluded from all budget math —
   // they remain visible in expense history, monthly groupings, and category drill-downs.
@@ -5261,7 +5261,7 @@ async function deleteReceipt(id,path,mode,expenseId){
 }
 function updateBillBadge(){
   const todayDay=new Date().getDate();
-  const thisMonth=new Date().toISOString().slice(0,7);
+  const thisMonth=thisMonthLocal();
   const urgent=bills.filter(b=>{
     if(isBillExpired(b))return false;
     if(!isBillDueThisMonth(b))return false;
@@ -5615,7 +5615,7 @@ function closeNotifications(){
 function getNotifications(){
   const todayDay=new Date().getDate();
   const todayStr=today();
-  const thisMonth=new Date().toISOString().slice(0,7);
+  const thisMonth=thisMonthLocal();
   const notifs=[];
   // 0. New feature updates since last login (DB-backed dismissal; skip first-ever login)
   if(whatsNewPrevLogin>0){
@@ -6348,6 +6348,12 @@ function fmt(n){return'$'+parseFloat(n||0).toLocaleString('en-US',{minimumFracti
 function fmtDate(str){if(!str)return'—';const[y,m,d]=str.split('-');const months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];return`${months[parseInt(m)-1]} ${parseInt(d)}, ${y}`;}
 function fmtMonth(str){if(!str)return'—';const[y,m]=str.split('-');const months=['January','February','March','April','May','June','July','August','September','October','November','December'];return`${months[parseInt(m)-1]} ${y}`;}
 function today(){const d=new Date();const z=n=>String(n).padStart(2,'0');return d.getFullYear()+'-'+z(d.getMonth()+1)+'-'+z(d.getDate());}
+// Current calendar month in LOCAL time (matches today()'s locality). Every paid_date/exp_date/pay_date is
+// stamped via today() (local), but "this month" filters previously used new Date().toISOString().slice(0,7)
+// (UTC) — in any timezone behind UTC, late evening on the last day of the month is already the next month
+// in UTC while still the current month locally, so a payment made "right now" silently failed every
+// "paid this month" check and the bill it paid kept showing as unpaid/remaining.
+function thisMonthLocal(){return today().slice(0,7);}
 function esc(str){if(!str)return'';return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 function capFirst(str){if(!str)return'';return str.charAt(0).toUpperCase()+str.slice(1);}
 function greeting(){const h=new Date().getHours();if(h<12)return'Good morning';if(h<18)return'Good afternoon';return'Good evening';}
