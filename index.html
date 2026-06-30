@@ -3326,12 +3326,16 @@ function isBillExpired(b,refDateStr){
 function isBillDueInMonth(b,year,month){
   // Past the bill's end_date for this whole month → not due
   if(b.end_date){const monthStart=new Date(year,month,1).toISOString().slice(0,10);if(b.end_date<monthStart)return false;}
-  const rec=b.recurring||'monthly';
+  // Normalize case/wording — the Excel import writes capitalized values ('Annual', 'Quarterly', ...)
+  // while the Add/Edit Bill modal writes lowercase ('annually', 'quarterly', ...). Comparing the raw
+  // value case-sensitively let imported non-monthly bills fall through every branch below and hit the
+  // final `return true`, making them count as due in EVERY month instead of just their due month.
+  const rec=(b.recurring||'monthly').toLowerCase();
   if(rec==='monthly'||rec==='weekly'||rec==='biweekly')return true;
   // refMonth is 0-indexed; default to current month if due_month not set
   const refMonth=(b.due_month!=null?parseInt(b.due_month):new Date().getMonth()+1)-1;
   if(rec==='once')return month===refMonth;
-  if(rec==='annually')return month===refMonth;
+  if(rec==='annually'||rec==='annual')return month===refMonth;
   // Quarterly/semi-annual: anchor to the bill's own refMonth via modular month matching (no year baseline)
   if(rec==='semi-annual')return month===refMonth||month===(refMonth+6)%12;
   if(rec==='quarterly')return month===refMonth||month===(refMonth+3)%12||month===(refMonth+6)%12||month===(refMonth+9)%12;
@@ -3352,8 +3356,9 @@ function renderBills(){
   const todayDay=new Date().getDate();
   const thisMonth=new Date().toISOString().slice(0,7);
   const visibleBills=bills.filter(b=>!isBillExpired(b)); // hide bills past their end_date
-  const monthly=visibleBills.filter(b=>b.recurring==='monthly');
-  const other=visibleBills.filter(b=>b.recurring!=='monthly');
+  const isMonthlyRec=b=>(b.recurring||'monthly').toLowerCase()==='monthly'; // case-insensitive — see isBillDueInMonth note
+  const monthly=visibleBills.filter(isMonthlyRec);
+  const other=visibleBills.filter(b=>!isMonthlyRec(b));
   const dueThisMonth=visibleBills.filter(isBillDueThisMonth);
   const monthlyTotal=dueThisMonth.reduce((s,b)=>s+parseFloat(b.amount||0),0);
   // Scope paid/remaining/progress to THIS MONTH'S due bills so the three figures reconcile (paid + remaining = total).
@@ -5334,7 +5339,10 @@ function importDate(v){
 }
 function importRowVal(row,key){const target=key.toLowerCase();for(const k in row){if(k.toLowerCase().trim()===target)return row[k];}return '';}
 function normIncomeFreq(v){const s=importStr(v).toLowerCase();if(s.startsWith('week'))return 'weekly';if(s.startsWith('bi'))return 'biweekly';if(s.startsWith('semi'))return 'semimonthly';if(s.startsWith('month'))return 'monthly';return 'biweekly';}
-function normBillFreq(v){const s=importStr(v).toLowerCase();if(s.startsWith('quart'))return 'Quarterly';if(s.startsWith('semi'))return 'Semi-Annual';if(s.startsWith('ann'))return 'Annual';return 'Monthly';}
+// Must match the lowercase values the Add/Edit Bill modal writes ('monthly','quarterly','semi-annual',
+// 'annually') — isBillDueInMonth compares case-sensitively (after its own defensive lowercasing), so a
+// mismatched casing/wording here previously made imported non-monthly bills count as due every month.
+function normBillFreq(v){const s=importStr(v).toLowerCase();if(s.startsWith('quart'))return 'quarterly';if(s.startsWith('semi'))return 'semi-annual';if(s.startsWith('ann'))return 'annually';return 'monthly';}
 function importRowBlank(row){return !Object.values(row).some(v=>importStr(v)!=='');}
 function downloadImportTemplate(){
   if(typeof XLSX==='undefined'){toast('Spreadsheet library not loaded yet — try again');return;}
