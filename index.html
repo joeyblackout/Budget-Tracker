@@ -2621,10 +2621,12 @@ function renderDashboard(){
   const dispExpenses=dashBalancePeriod==='month'?expenses.filter(e=>(e.exp_date||'').startsWith(thisMonthStr)).reduce((s,e)=>s+parseFloat(e.amount||0),0):dashBalancePeriod==='year'?expenses.filter(e=>(e.exp_date||'').startsWith(thisYearStr)).reduce((s,e)=>s+parseFloat(e.amount||0),0):totalExpenses;
   const monthlyBills=bills.filter(b=>!isBillExpired(b)&&isBillDueThisMonth(b));
   const monthlyTotal=monthlyBills.reduce((s,b)=>s+parseFloat(b.amount||0),0);
-  const monthlyPaidAmt=billPayments.filter(p=>(p.paid_date||'').startsWith(thisMonthStr)).reduce((s,p)=>s+parseFloat(p.amount||0),0);
-  const monthlyPaidCount=monthlyBills.filter(b=>billPayments.some(p=>p.bill_id===b.id&&(p.paid_date||'').startsWith(thisMonthStr))).length;
-  const monthlyRemaining=Math.max(0,monthlyTotal-monthlyPaidAmt);
-  const billsProgress=monthlyTotal>0?Math.min((monthlyPaidAmt/monthlyTotal)*100,100):0;
+  // Scope paid/remaining/progress to this month's due bills so they reconcile (see Bills-tab note in renderBills).
+  const isMonthlyBillPaid=b=>billPayments.some(p=>p.bill_id===b.id&&(p.paid_date||'').startsWith(thisMonthStr));
+  const monthlyPaidCount=monthlyBills.filter(isMonthlyBillPaid).length;
+  const monthlyRemaining=monthlyBills.filter(b=>!isMonthlyBillPaid(b)).reduce((s,b)=>s+parseFloat(b.amount||0),0);
+  const monthlyPaidAmt=monthlyTotal-monthlyRemaining;
+  const billsProgress=monthlyBills.length>0?(monthlyPaidCount/monthlyBills.length)*100:0;
 
   el.innerHTML=`
     ${onboardingChecklistHtml()}
@@ -3333,10 +3335,14 @@ function renderBills(){
   const other=visibleBills.filter(b=>b.recurring!=='monthly');
   const dueThisMonth=visibleBills.filter(isBillDueThisMonth);
   const monthlyTotal=dueThisMonth.reduce((s,b)=>s+parseFloat(b.amount||0),0);
-  const monthlyPaidThisMonth=billPayments.filter(p=>(p.paid_date||'').startsWith(thisMonth)).reduce((s,b)=>s+parseFloat(b.amount||0),0);
-  const monthlyPaidCount=dueThisMonth.filter(b=>billPayments.some(p=>p.bill_id===b.id&&(p.paid_date||'').startsWith(thisMonth))).length;
-  const monthlyRemaining=Math.max(0,monthlyTotal-monthlyPaidThisMonth);
-  const progress=monthlyTotal>0?Math.min((monthlyPaidThisMonth/monthlyTotal)*100,100):0;
+  // Scope paid/remaining/progress to THIS MONTH'S due bills so the three figures reconcile (paid + remaining = total).
+  // Previously paid summed ALL payments this month — incl. early/duplicate/non-due — which could exceed the total,
+  // pinning progress at 100% and remaining at $0 while bills were still unpaid.
+  const isBillPaidThisMonth=b=>billPayments.some(p=>p.bill_id===b.id&&(p.paid_date||'').startsWith(thisMonth));
+  const monthlyPaidCount=dueThisMonth.filter(isBillPaidThisMonth).length;
+  const monthlyRemaining=dueThisMonth.filter(b=>!isBillPaidThisMonth(b)).reduce((s,b)=>s+parseFloat(b.amount||0),0);
+  const monthlyPaidThisMonth=monthlyTotal-monthlyRemaining;
+  const progress=dueThisMonth.length>0?(monthlyPaidCount/dueThisMonth.length)*100:0;
   const billCard=(b)=>{
     const dueDay=parseInt(b.due_day||0);
     const dueThisMo=isBillDueThisMonth(b); // gate non-monthly bills (quarterly/semi-annual/annual) to their due months
@@ -5449,6 +5455,7 @@ function openModal(id){document.getElementById(id).classList.add('open');}
 function closeModal(id){document.getElementById(id).classList.remove('open');}
 function openPaycalcModal(){openModal('paycalc-modal');renderPaycalc();}
 const CHANGELOG=[
+  {date:new Date('2026-06-29T18:00:00').getTime(),icon:'ti-progress-check',title:'Bills progress bar reflects unpaid bills',desc:'The monthly bills progress bar and Remaining total now count only this month\'s due bills, so the bar matches the "X of Y bills paid" count and Remaining shows what you actually still owe. Early or duplicate payments no longer push it to 100% while bills are still unpaid.'},
   {date:new Date('2026-06-29T17:00:00').getTime(),icon:'ti-bell',title:'Dismiss button works on the Updates notification',desc:'Tapping Dismiss on the "new updates since your last visit" notification now reliably clears it and updates the bell count, instead of sometimes leaving it on screen.'},
   {date:new Date('2026-06-29T16:00:00').getTime(),icon:'ti-credit-card',title:'Forecast uses your real credit card minimums',desc:'Credit card minimums in the Forecast now use the minimum you entered instead of an estimated 2% of the balance, so a card set to a $94 minimum no longer shows a lower phantom amount. The 2% estimate is now only a fallback for cards with no minimum entered.'},
   {date:new Date('2026-06-29T15:00:00').getTime(),icon:'ti-credit-card',title:'Forecast hides already-paid bills & debt minimums',desc:'If you pay a bill or debt minimum early, the Forecast no longer lists it as upcoming — even when you pay in the prior month (e.g. due Jul 1, paid Jun 25). It checks payments logged in the ~16 days before each due date and drops anything already covered.'},
