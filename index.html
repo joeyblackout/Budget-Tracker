@@ -2442,12 +2442,11 @@ async function routineStep1Next(){
 }
 
 function getRoutineBillsList(){
-  const thisMonth=thisMonthLocal();
   return bills.filter(b=>{
     if(b.debt_id)return false;
     if(isBillExpired(b))return false;
     if(!isBillDueThisMonth(b))return false;
-    if(billPayments.some(p=>p.bill_id===b.id&&(p.paid_date||'').startsWith(thisMonth)))return false;
+    if(isBillCoveredForCurrentCycle(b))return false;
     return true;
   });
 }
@@ -3457,6 +3456,10 @@ function billPaidThisMonth(b){return billPaymentsForCurrentDue(b).reduce((s,p)=>
 // live bill.amount: users routinely bump a bill's amount right after paying it (e.g. a utility bill) to set
 // up the NEXT cycle's higher invoice, and that edit must never retroactively reopen the cycle already paid.
 function isBillFullyPaidThisMonth(b){return billPaymentsForCurrentDue(b).length>0;}
+// SAME check, alias used at call sites outside the Bills tab (Notifications, nav badge, Payday Routine,
+// Dashboard budget card, Bills breakdown modal) — one shared implementation so "paid for current cycle"
+// can't drift out of sync between features again by each re-deriving its own startsWith(thisMonth) check.
+function isBillCoveredForCurrentCycle(b){return isBillFullyPaidThisMonth(b);}
 // The amount that counted for this bill's current cycle: once paid, that's a fixed snapshot (whatever was
 // actually paid) so a later amount edit can't inflate it — otherwise (not yet paid) it's the live amount,
 // since an unpaid cycle should reflect whatever is currently owed.
@@ -3668,7 +3671,7 @@ function showBillCatDetail(idx){
   const freqNames={'monthly':'Monthly','weekly':'Weekly','biweekly':'Biweekly','quarterly':'Quarterly','semi-annual':'Semi-Annual','annually':'Annual','once':'One-Time'};
   const rows=entries.map(function(e){
     const b=e.b,amt=e.amt,occ=e.occurrences;
-    const isPaid=billsPiePeriod!=='year'&&billPayments.some(p=>p.bill_id===b.id&&(p.paid_date||'').startsWith(thisMonth));
+    const isPaid=billsPiePeriod!=='year'&&isBillCoveredForCurrentCycle(b);
     const paidBadge=isPaid?'<span style="font-size:10px;color:var(--success);font-weight:700;margin-left:6px;">✓ Paid</span>':'';
     const detail=billsPiePeriod==='year'
       ?(freqNames[b.recurring||'monthly']||capFirst(b.recurring||'monthly'))+(occ>1?' × '+occ+' · '+fmt(parseFloat(b.amount||0))+'/ea':'')
@@ -4466,7 +4469,7 @@ async function savePayment(){
     if(newBal===0&&allOthers.every(d=>parseFloat(d.balance||0)===0)){await autoPost(`🏆 ${name} is officially DEBT FREE! 🎊`);}
     if(newBal===0){const lb=bills.find(b=>b.debt_id===debt_id);if(lb){await deleteBillWithPayments(lb.id);debtBillRemoved=true;}}
   }
-  if(!debtBillRemoved&&debt&&parseFloat(debt.min_payment||0)>0&&amount>=parseFloat(debt.min_payment||0)){const linkedBill=bills.find(b=>b.debt_id===debt_id);if(linkedBill){const thisMonth=pay_date.slice(0,7);const alreadyPaid=billPayments.find(p=>p.bill_id===linkedBill.id&&(p.paid_date||'').startsWith(thisMonth));if(!alreadyPaid){await sb.from('bill_payments').insert({user_id:currentUser.id,bill_id:linkedBill.id,amount,paid_date:pay_date,notes:`Auto: ${debt.name} payment`});}}}
+  if(!debtBillRemoved&&debt&&parseFloat(debt.min_payment||0)>0&&amount>=parseFloat(debt.min_payment||0)){const linkedBill=bills.find(b=>b.debt_id===debt_id);if(linkedBill&&!isBillCoveredForCurrentCycle(linkedBill)){await sb.from('bill_payments').insert({user_id:currentUser.id,bill_id:linkedBill.id,amount,paid_date:pay_date,notes:`Auto: ${debt.name} payment`});}}
   closeModal('payment-modal');
   await Promise.all([loadPayments(),loadDebts(),loadBills(),loadBillPayments()]);
   renderDebts();renderPayments();renderDashboard();renderBills();updateBillBadge();
@@ -4643,7 +4646,7 @@ function renderBudgetInsights(){
   const _confirmedWkIds=new Set(paychecks.map(p=>p.pay_week_id));
   const incomeThisMo=paychecks.filter(p=>(p.pay_date||'').startsWith(thisMonth)).reduce((s,p)=>s+parseFloat(p.amount||0),0)
     +weeks.filter(w=>(w.pay_date||'').startsWith(thisMonth)&&!_confirmedWkIds.has(w.id)).reduce((s,w)=>s+parseFloat(w.expected_amount||0),0);
-  const billsThisMo=bills.filter(b=>isBillDueThisMonth(b)&&!billPayments.some(p=>p.bill_id===b.id&&(p.paid_date||'').startsWith(thisMonth))).reduce((s,b)=>s+parseFloat(b.amount||0),0);
+  const billsThisMo=bills.filter(b=>isBillDueThisMonth(b)&&!isBillCoveredForCurrentCycle(b)).reduce((s,b)=>s+parseFloat(b.amount||0),0);
   const incomeNetBills=incomeThisMo-billsThisMo;
   const incomeNetCol=incomeNetBills>=0?'var(--success)':'var(--danger)';
 
@@ -5508,14 +5511,12 @@ async function deleteReceipt(id,path,mode,expenseId){
 }
 function updateBillBadge(){
   const todayDay=new Date().getDate();
-  const thisMonth=thisMonthLocal();
   const urgent=bills.filter(b=>{
     if(isBillExpired(b))return false;
     if(!isBillDueThisMonth(b))return false;
     const dueDay=parseInt(b.due_day||0);
     if(!dueDay)return false;
-    const isPaid=billPayments.some(p=>p.bill_id===b.id&&(p.paid_date||'').startsWith(thisMonth));
-    if(isPaid)return false;
+    if(isBillCoveredForCurrentCycle(b))return false;
     const diff=dueDay-todayDay;
     return diff>=0&&diff<=5||todayDay>dueDay;
   });
@@ -5908,7 +5909,6 @@ function closeNotifications(){
 function getNotifications(){
   const todayDay=new Date().getDate();
   const todayStr=today();
-  const thisMonth=thisMonthLocal();
   const notifs=[];
   // 0. New feature updates since last login (DB-backed dismissal; skip first-ever login)
   if(whatsNewPrevLogin>0){
@@ -5923,11 +5923,11 @@ function getNotifications(){
     notifs.push({type:'invite',priority:1,icon:'<i class="ti ti-users"></i>',title:`${displayName(inv.inviter_id)} invited you`,body:`Join "${esc(inv.pot_name)}" shared savings pot`,action:()=>{closeNotifications();switchView('savings',null);},accept:()=>acceptInvite(inv.id,inv.pot_id),decline:()=>declineInvite(inv.id)});
   });
   // 2. Overdue bills
-  bills.filter(b=>{if(isBillExpired(b))return false;const d=parseInt(b.due_day||0);if(!d)return false;const paid=billPayments.some(p=>p.bill_id===b.id&&(p.paid_date||'').startsWith(thisMonth));return!paid&&todayDay>d&&isBillDueThisMonth(b);}).forEach(b=>{
+  bills.filter(b=>{if(isBillExpired(b))return false;const d=parseInt(b.due_day||0);if(!d)return false;return!isBillCoveredForCurrentCycle(b)&&todayDay>d&&isBillDueThisMonth(b);}).forEach(b=>{
     notifs.push({type:'bill-overdue',priority:2,icon:'<i class="ti ti-alert-circle" style="color:var(--danger);"></i>',title:`${esc(b.name)} is overdue`,body:`$${parseFloat(b.amount).toFixed(2)} was due on day ${b.due_day}`,action:()=>{closeNotifications();switchView('bills',null);}});
   });
   // 3. Bills due soon (within 5 days)
-  bills.filter(b=>{if(isBillExpired(b))return false;const d=parseInt(b.due_day||0);if(!d)return false;const paid=billPayments.some(p=>p.bill_id===b.id&&(p.paid_date||'').startsWith(thisMonth));const diff=d-todayDay;return!paid&&diff>=0&&diff<=5&&isBillDueThisMonth(b);}).forEach(b=>{
+  bills.filter(b=>{if(isBillExpired(b))return false;const d=parseInt(b.due_day||0);if(!d)return false;const diff=d-todayDay;return!isBillCoveredForCurrentCycle(b)&&diff>=0&&diff<=5&&isBillDueThisMonth(b);}).forEach(b=>{
     const diff=parseInt(b.due_day)-todayDay;
     notifs.push({type:'bill-soon',priority:3,icon:'<i class="ti ti-calendar"></i>',title:`${esc(b.name)} due ${diff===0?'today':`in ${diff} day${diff!==1?'s':''}`}`,body:`$${parseFloat(b.amount).toFixed(2)} due day ${b.due_day}`,action:()=>{closeNotifications();switchView('bills',null);}});
   });
