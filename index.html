@@ -610,9 +610,10 @@ select option{background:var(--surface);color:var(--text);}
   <div class="modal-handle"></div>
   <div class="modal-title" id="interest-modal-title">Log Interest</div>
   <input type="hidden" id="interest-debt-id"/>
+  <input type="hidden" id="interest-log-id"/>
   <div class="field"><label>Date Interest Was Charged</label><input type="date" id="interest-date"/></div>
   <div class="field"><label>Amount Charged ($)</label><input type="number" id="interest-amount" placeholder="0.00" step="0.01" min="0"/></div>
-  <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal('interest-modal')">Cancel</button><button class="btn btn-primary" onclick="saveDebtInterest()">Save</button></div>
+  <div class="modal-actions"><button class="btn btn-ghost" onclick="cancelInterestModal()">Cancel</button><button class="btn btn-primary" onclick="saveDebtInterest()">Save</button></div>
 </div></div>
 
 <!-- BILL MODAL --><div class="modal-overlay" id="bill-modal"><div class="modal">
@@ -1161,17 +1162,20 @@ async function topUpPeriods(){
 }
 async function loadDebts(){const{data}=await sb.from('debts').select('*').eq('user_id',currentUser.id).order('created_at');debts=data||[];}
 async function loadPayments(){const{data}=await sb.from('payments').select('*').eq('user_id',currentUser.id).order('pay_date',{ascending:false});payments=data||[];}
-// ALTER TABLE — run once in Supabase SQL editor:
+// Run once in Supabase SQL editor (if debt_interest_log doesn't exist yet):
 // CREATE TABLE debt_interest_log (
 //   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
 //   user_id UUID REFERENCES auth.users NOT NULL,
 //   debt_id UUID REFERENCES debts NOT NULL,
 //   amount NUMERIC NOT NULL,
 //   charged_date DATE NOT NULL,
-//   created_at TIMESTAMPTZ DEFAULT NOW()
+//   created_at TIMESTAMPTZ DEFAULT NOW(),
+//   updated_at TIMESTAMPTZ
 // );
 // ALTER TABLE debt_interest_log ENABLE ROW LEVEL SECURITY;
 // CREATE POLICY "Users manage own debt_interest_log" ON debt_interest_log FOR ALL USING (auth.uid() = user_id);
+// If the table already exists from an earlier version (no updated_at column), just run:
+// ALTER TABLE debt_interest_log ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ;
 async function loadDebtInterestLog(){const{data}=await sb.from('debt_interest_log').select('*').eq('user_id',currentUser.id).order('charged_date',{ascending:false});debtInterestLog=data||[];}
 async function loadExpenses(){const{data}=await sb.from('expenses').select('*').eq('user_id',currentUser.id).order('exp_date',{ascending:false});expenses=data||[];}
 async function loadWeeks(){const{data}=await sb.from('pay_weeks').select('*').eq('user_id',currentUser.id).order('pay_date',{ascending:false});weeks=data||[];}
@@ -4322,14 +4326,42 @@ function openInterestModalForDebt(debtId){
   if(!debt)return;
   document.getElementById('interest-modal-title').textContent=`Log Interest — ${debt.name}`;
   document.getElementById('interest-debt-id').value=debtId;
+  document.getElementById('interest-log-id').value='';
+  delete document.getElementById('interest-modal').dataset.reopenHistoryFor;
   const dateEl=document.getElementById('interest-date');
   dateEl.value=today();
   dateEl.max=today(); // no future-dated charges
   document.getElementById('interest-amount').value='';
   openModal('interest-modal');
 }
+// Opens the same modal pre-filled with an existing entry's values — saveDebtInterest() detects
+// interest-log-id is set and updates that row instead of inserting a new one. Closes the History modal
+// first (both overlays share the same z-index, so stacking them is unreliable) and remembers which debt
+// to reopen History for once the edit is saved or cancelled.
+function openEditInterestModal(logId){
+  const entry=debtInterestLog.find(l=>l.id===logId);
+  if(!entry)return;
+  const debt=debts.find(d=>d.id===entry.debt_id);
+  closeModal('dash-detail-modal');
+  document.getElementById('interest-modal').dataset.reopenHistoryFor=entry.debt_id;
+  document.getElementById('interest-modal-title').textContent=`Edit Interest${debt?' — '+debt.name:''}`;
+  document.getElementById('interest-debt-id').value=entry.debt_id;
+  document.getElementById('interest-log-id').value=logId;
+  const dateEl=document.getElementById('interest-date');
+  dateEl.value=entry.charged_date;
+  dateEl.max=today();
+  document.getElementById('interest-amount').value=entry.amount;
+  openModal('interest-modal');
+}
+function cancelInterestModal(){
+  const reopenFor=document.getElementById('interest-modal').dataset.reopenHistoryFor;
+  delete document.getElementById('interest-modal').dataset.reopenHistoryFor;
+  closeModal('interest-modal');
+  if(reopenFor&&debts.find(d=>d.id===reopenFor))showDebtDetail(reopenFor);
+}
 async function saveDebtInterest(){
   const debtId=document.getElementById('interest-debt-id').value;
+  const logId=document.getElementById('interest-log-id').value;
   const chargedDate=document.getElementById('interest-date').value;
   const amount=parseFloat(document.getElementById('interest-amount').value);
   if(!chargedDate){toast('Select a date');return;}
@@ -4337,16 +4369,45 @@ async function saveDebtInterest(){
   if(!amount||amount<=0){toast('Enter a valid amount');return;}
   const debt=debts.find(d=>d.id===debtId);
   if(!debt){toast('Debt not found');return;}
-  const{error}=await sb.from('debt_interest_log').insert({user_id:currentUser.id,debt_id:debtId,amount,charged_date:chargedDate});
-  if(error){toast('Error: '+error.message);return;}
   // Interest accrues onto the balance, same as real-world statements — without this, tracked balance would
   // silently drift below the real balance since only payments (not accrued interest) touch it otherwise.
-  const newBalance=parseFloat(debt.balance||0)+amount;
-  await sb.from('debts').update({balance:newBalance}).eq('id',debtId);
+  if(logId){
+    // Editing: reverse the OLD amount's effect before applying the new one, so balance = balance - old + new
+    const oldEntry=debtInterestLog.find(l=>l.id===logId);
+    const oldAmount=parseFloat(oldEntry?.amount||0);
+    const{error}=await sb.from('debt_interest_log').update({amount,charged_date:chargedDate,updated_at:new Date().toISOString()}).eq('id',logId);
+    if(error){toast('Error: '+error.message);return;}
+    const newBalance=parseFloat(debt.balance||0)-oldAmount+amount;
+    await sb.from('debts').update({balance:newBalance}).eq('id',debtId);
+  }else{
+    const{error}=await sb.from('debt_interest_log').insert({user_id:currentUser.id,debt_id:debtId,amount,charged_date:chargedDate});
+    if(error){toast('Error: '+error.message);return;}
+    const newBalance=parseFloat(debt.balance||0)+amount;
+    await sb.from('debts').update({balance:newBalance}).eq('id',debtId);
+  }
   closeModal('interest-modal');
+  const reopenFor=document.getElementById('interest-modal').dataset.reopenHistoryFor;
+  delete document.getElementById('interest-modal').dataset.reopenHistoryFor;
   await Promise.all([loadDebtInterestLog(),loadDebts()]);
   renderDebts();renderDashboard();
-  toast('Interest logged ✓');
+  if(reopenFor&&debts.find(d=>d.id===reopenFor))showDebtDetail(reopenFor);
+  toast(logId?'Interest entry updated ✓':'Interest logged ✓');
+}
+async function deleteDebtInterestEntry(logId){
+  if(!confirm('Delete this interest entry?'))return;
+  const entry=debtInterestLog.find(l=>l.id===logId);
+  if(!entry)return;
+  const debt=debts.find(d=>d.id===entry.debt_id);
+  const{error}=await sb.from('debt_interest_log').delete().eq('id',logId);
+  if(error){toast('Error: '+error.message);return;}
+  if(debt){
+    const newBalance=parseFloat(debt.balance||0)-parseFloat(entry.amount||0);
+    await sb.from('debts').update({balance:newBalance}).eq('id',debt.id);
+  }
+  await Promise.all([loadDebtInterestLog(),loadDebts()]);
+  renderDebts();renderDashboard();
+  if(debt)showDebtDetail(debt.id); // refresh the open History modal's comparison list
+  toast('Interest entry deleted');
 }
 function useMinPayment(){
   const debtId=document.getElementById('pay-debt-id').value;
@@ -6120,7 +6181,7 @@ function showDebtDetail(debtId){
     ${interestCmp.entries.map(e=>{
       const flag=Math.abs(e.variancePct)>=20;
       const col=e.variancePct>0?'var(--danger)':'var(--success)';
-      return`<div class="account-row"><div><div class="account-name">${fmt(e.actual)} <span style="color:var(--muted);font-weight:400;">actual vs ${fmt(e.estimated)} est.</span></div><div class="account-detail">${fmtDate(e.charged_date)}</div></div>${flag?`<div style="font-size:11px;font-weight:700;color:${col};">${e.variancePct>0?'+':''}${e.variancePct.toFixed(0)}%</div>`:''}</div>`;
+      return`<div class="account-row"><div><div class="account-name">${fmt(e.actual)} <span style="color:var(--muted);font-weight:400;">actual vs ${fmt(e.estimated)} est.</span></div><div class="account-detail">${fmtDate(e.charged_date)}${flag?` · <span style="font-weight:700;color:${col};">${e.variancePct>0?'+':''}${e.variancePct.toFixed(0)}%</span>`:''}</div></div><div style="display:flex;gap:4px;flex-shrink:0;"><button class="del-btn" onclick="openEditInterestModal('${e.id}')">Edit</button><button class="del-btn" onclick="deleteDebtInterestEntry('${e.id}')">Delete</button></div></div>`;
     }).join('')}`}`;
   const content=`
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px;">
