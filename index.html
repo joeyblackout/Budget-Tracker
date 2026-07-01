@@ -4320,13 +4320,8 @@ async function deletePayment(id){
   const debt=payment?debts.find(d=>d.id===payment.debt_id):null;
   const restoreMsg=debt?`\n\nRestore $${parseFloat(payment.amount).toFixed(2)} back to ${debt.name}'s balance?`:'';
   if(!confirm(`Delete this payment?${restoreMsg}`))return;
-  await sb.from('payments').delete().eq('id',id);
-  if(debt&&payment){
-    const restored=parseFloat(debt.balance||0)+parseFloat(payment.amount||0);
-    await sb.from('debts').update({balance:restored}).eq('id',debt.id);
-    await loadDebts();renderDebts();
-  }
-  await loadPayments();renderPayments();renderDashboard();
+  if(!await reverseDebtPayment(id))return;
+  renderDebts();renderPayments();renderDashboard();
   if(document.getElementById('view-weekly').classList.contains('active'))renderWeekly();
   toast('Payment deleted');
 }
@@ -6019,8 +6014,32 @@ function showDebtDetail(debtId){
     </div>
     <div class="card-title">Payment History</div>
     ${debtPayments.length===0?'<div class="text-muted" style="padding:12px 0;">No payments logged yet.</div>':
-    debtPayments.map(p=>`<div class="account-row"><div><div class="account-name">-${fmt(p.amount)}</div><div class="account-detail">${fmtDate(p.pay_date)}${p.notes?' · '+esc(p.notes):''}</div></div></div>`).join('')}`;
+    debtPayments.map(p=>`<div class="account-row"><div><div class="account-name">-${fmt(p.amount)}</div><div class="account-detail">${fmtDate(p.pay_date)}${p.notes?' · '+esc(p.notes):''}</div></div><button class="del-btn" onclick="deleteDebtHistoryPayment('${p.id}','${debtId}')">Delete</button></div>`).join('')}`;
   openDashModal(debt.name,content,'payments');
+}
+// Shared delete+balance-restore step used by both the main Payments tab delete and the Debt History modal delete —
+// deletes the payment row and adds its amount back onto the debt's balance (undoing the payment's effect).
+async function reverseDebtPayment(id){
+  const payment=payments.find(p=>p.id===id);
+  const debt=payment?debts.find(d=>d.id===payment.debt_id):null;
+  const{error}=await sb.from('payments').delete().eq('id',id);
+  if(error){toast('Error: '+error.message);return false;}
+  if(debt&&payment){
+    const restored=parseFloat(debt.balance||0)+parseFloat(payment.amount||0);
+    await sb.from('debts').update({balance:restored}).eq('id',debt.id);
+  }
+  await Promise.all([loadDebts(),loadPayments()]);
+  return true;
+}
+// Delete from within the Debt History modal — restores balance, refreshes Debts/Dashboard (Available Balance,
+// utilization, etc.), and re-renders the still-open History modal in place with the updated list.
+async function deleteDebtHistoryPayment(id,debtId){
+  if(!confirm('Delete this payment record?'))return;
+  if(!await reverseDebtPayment(id))return;
+  renderDebts();renderDashboard();renderPayments();
+  if(document.getElementById('view-weekly').classList.contains('active'))renderWeekly();
+  if(debts.find(d=>d.id===debtId))showDebtDetail(debtId);
+  toast('Payment deleted');
 }
 
 // BUDGET TARGETS (#2)
