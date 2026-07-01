@@ -4335,10 +4335,16 @@ async function saveDebtInterest(){
   if(!chargedDate){toast('Select a date');return;}
   if(chargedDate>today()){toast("Date can't be in the future");return;}
   if(!amount||amount<=0){toast('Enter a valid amount');return;}
+  const debt=debts.find(d=>d.id===debtId);
+  if(!debt){toast('Debt not found');return;}
   const{error}=await sb.from('debt_interest_log').insert({user_id:currentUser.id,debt_id:debtId,amount,charged_date:chargedDate});
   if(error){toast('Error: '+error.message);return;}
+  // Interest accrues onto the balance, same as real-world statements — without this, tracked balance would
+  // silently drift below the real balance since only payments (not accrued interest) touch it otherwise.
+  const newBalance=parseFloat(debt.balance||0)+amount;
+  await sb.from('debts').update({balance:newBalance}).eq('id',debtId);
   closeModal('interest-modal');
-  await loadDebtInterestLog();
+  await Promise.all([loadDebtInterestLog(),loadDebts()]);
   renderDebts();renderDashboard();
   toast('Interest logged ✓');
 }
