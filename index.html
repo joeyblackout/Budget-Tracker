@@ -605,6 +605,16 @@ select option{background:var(--surface);color:var(--text);}
   <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal('payment-modal')">Cancel</button><button class="btn btn-primary" onclick="savePayment()">Save</button></div>
 </div></div>
 
+<!-- LOG INTEREST MODAL -->
+<div class="modal-overlay" id="interest-modal"><div class="modal">
+  <div class="modal-handle"></div>
+  <div class="modal-title" id="interest-modal-title">Log Interest</div>
+  <input type="hidden" id="interest-debt-id"/>
+  <div class="field"><label>Date Interest Was Charged</label><input type="date" id="interest-date"/></div>
+  <div class="field"><label>Amount Charged ($)</label><input type="number" id="interest-amount" placeholder="0.00" step="0.01" min="0"/></div>
+  <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal('interest-modal')">Cancel</button><button class="btn btn-primary" onclick="saveDebtInterest()">Save</button></div>
+</div></div>
+
 <!-- BILL MODAL --><div class="modal-overlay" id="bill-modal"><div class="modal">
   <div class="modal-handle"></div><div class="modal-title" id="bill-modal-title">Add Bill</div>
   <input type="hidden" id="bill-edit-id"/>
@@ -928,7 +938,7 @@ const {createClient}=supabase;
 const sb=createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
 const APP_VERSION='2.1';
 let currentUser=null;
-let debts=[],payments=[],expenses=[],weeks=[],paychecks=[],bills=[],billPayments=[],pots=[],savingsTxns=[];
+let debts=[],payments=[],expenses=[],weeks=[],paychecks=[],bills=[],billPayments=[],pots=[],savingsTxns=[],debtInterestLog=[];
 let billsGroupBy='type';
 let billsCatOpen={};
 let billsPiePeriod='month';
@@ -1133,7 +1143,7 @@ async function cleanupPaidOffDebtBills(){
   await loadBills();
   return true;
 }
-async function loadAll(){await Promise.all([loadDebts(),loadPayments(),loadExpenses(),loadWeeks(),loadPaychecks(),loadBills(),loadBillPayments(),loadPots(),loadSavingsTxns(),loadProfiles(),loadPosts(),loadReactions(),loadShared(),loadRecurring(),loadAssets(),loadBudgetTargets(),loadNetWorthHistory(),loadReceipts()]);await topUpPeriods();await migrateDiningCategory();await cleanupPaidOffDebtBills();await snapshotNetWorth();switchView('dashboard',null);updateBillBadge();updateNotifBadge();startPolling();await openPaydayRoutine();checkWhatsNew(whatsNewPrevLogin);}
+async function loadAll(){await Promise.all([loadDebts(),loadPayments(),loadExpenses(),loadWeeks(),loadPaychecks(),loadBills(),loadBillPayments(),loadPots(),loadSavingsTxns(),loadProfiles(),loadPosts(),loadReactions(),loadShared(),loadRecurring(),loadAssets(),loadBudgetTargets(),loadNetWorthHistory(),loadReceipts(),loadDebtInterestLog()]);await topUpPeriods();await migrateDiningCategory();await cleanupPaidOffDebtBills();await snapshotNetWorth();switchView('dashboard',null);updateBillBadge();updateNotifBadge();startPolling();await openPaydayRoutine();checkWhatsNew(whatsNewPrevLogin);}
 async function topUpPeriods(){
   // Only extend recurring sources if the furthest period is within 10 months out
   if(recurringSources.length===0)return;
@@ -1151,6 +1161,18 @@ async function topUpPeriods(){
 }
 async function loadDebts(){const{data}=await sb.from('debts').select('*').eq('user_id',currentUser.id).order('created_at');debts=data||[];}
 async function loadPayments(){const{data}=await sb.from('payments').select('*').eq('user_id',currentUser.id).order('pay_date',{ascending:false});payments=data||[];}
+// ALTER TABLE — run once in Supabase SQL editor:
+// CREATE TABLE debt_interest_log (
+//   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+//   user_id UUID REFERENCES auth.users NOT NULL,
+//   debt_id UUID REFERENCES debts NOT NULL,
+//   amount NUMERIC NOT NULL,
+//   charged_date DATE NOT NULL,
+//   created_at TIMESTAMPTZ DEFAULT NOW()
+// );
+// ALTER TABLE debt_interest_log ENABLE ROW LEVEL SECURITY;
+// CREATE POLICY "Users manage own debt_interest_log" ON debt_interest_log FOR ALL USING (auth.uid() = user_id);
+async function loadDebtInterestLog(){const{data}=await sb.from('debt_interest_log').select('*').eq('user_id',currentUser.id).order('charged_date',{ascending:false});debtInterestLog=data||[];}
 async function loadExpenses(){const{data}=await sb.from('expenses').select('*').eq('user_id',currentUser.id).order('exp_date',{ascending:false});expenses=data||[];}
 async function loadWeeks(){const{data}=await sb.from('pay_weeks').select('*').eq('user_id',currentUser.id).order('pay_date',{ascending:false});weeks=data||[];}
 async function loadPaychecks(){const{data}=await sb.from('paychecks').select('*').eq('user_id',currentUser.id).order('pay_date',{ascending:false});paychecks=data||[];}
@@ -1315,6 +1337,34 @@ function strategyExtraOfDisc(disc){
   if(forecastStrategy==='custom'){const minPay=debts.reduce((s,d)=>s+parseFloat(d.min_payment||0),0);return forecastCustomMode==='%'?(forecastCustomAmt/100)*disc:Math.max(0,forecastCustomAmt-minPay);}
   return 0;
 }
+// Effective APR for a debt, derived from logged actual interest (debt_interest_log) when enough recent
+// history exists — falls back to the debt's stated APR otherwise. We don't store a balance snapshot per
+// log entry, so the debt's CURRENT balance is used as an approximation of the balance interest accrued
+// against; a reasonable estimate for a simple personal tracker, not a precise restatement of history.
+// Uses up to the last 3 logged cycles, and the actual charged_date gaps between them (falling back to a
+// 30-day assumed cycle when there isn't enough history to measure a gap) to annualize the rate.
+function effectiveAprForDebt(debt){
+  const statedApr=parseFloat(debt.apr||0);
+  const bal=parseFloat(debt.balance||0);
+  if(bal<=0)return statedApr;
+  const log=debtInterestLog.filter(l=>l.debt_id===debt.id).sort((a,b)=>a.charged_date<b.charged_date?-1:1);
+  if(log.length===0)return statedApr;
+  const recent=log.slice(-3);
+  const avgAmount=recent.reduce((s,l)=>s+parseFloat(l.amount||0),0)/recent.length;
+  let avgGapDays=30;
+  if(recent.length>1){
+    const gaps=[];
+    for(let i=1;i<recent.length;i++){
+      const days=Math.round((new Date(recent[i].charged_date)-new Date(recent[i-1].charged_date))/(1000*60*60*24));
+      if(days>0)gaps.push(days);
+    }
+    if(gaps.length>0)avgGapDays=gaps.reduce((s,g)=>s+g,0)/gaps.length;
+  }
+  const effectiveApr=(avgAmount/bal)*(365/avgGapDays)*100;
+  // Sanity bound — an absurd derived rate (sparse/bad data) falls back to the stated APR rather than skew the sim
+  if(!isFinite(effectiveApr)||effectiveApr<=0||effectiveApr>100)return statedApr;
+  return effectiveApr;
+}
 // Month-by-month debt simulation over `maxMonths` (the actual horizon — NOT the forecast window).
 // extraOfDisc(discretionary) returns the strategy's extra allocation for a month; pass ()=>0 for
 // minimums-only. Implements the rollover cascade: freed minimums roll to the next debt within a month
@@ -1322,7 +1372,7 @@ function strategyExtraOfDisc(disc){
 // runs (strategy vs minimums-only) share no state.
 function runDebtSim(extraOfDisc,maxMonths){
   const active=debts.filter(d=>parseFloat(d.balance||0)>0).map(d=>({
-    id:d.id,name:d.name,type:d.type,bal:parseFloat(d.balance||0),apr:parseFloat(d.apr||0),
+    id:d.id,name:d.name,type:d.type,bal:parseFloat(d.balance||0),apr:effectiveAprForDebt(d),
     minPay:parseFloat(d.min_payment||0),interestPaid:0,totalPaid:0,payoffMonth:null,payoffDate:null,payoffDateEst:false,balEnd:0
   }));
   const fb=recurringFallbackAvg().avg;
@@ -1399,7 +1449,7 @@ function monthLabelFromIndex(m){const now=new Date();const d=new Date(now.getFul
 // Extra allocation goes to CCs above 30%, sorted by avalanche/snowball method.
 function runUtil30Sim(extraOfDisc,maxMonths){
   const active=debts.filter(d=>parseFloat(d.balance||0)>0).map(d=>({
-    id:d.id,name:d.name,type:d.type,bal:parseFloat(d.balance||0),apr:parseFloat(d.apr||0),
+    id:d.id,name:d.name,type:d.type,bal:parseFloat(d.balance||0),apr:effectiveAprForDebt(d),
     minPay:parseFloat(d.min_payment||0),creditLimit:parseFloat(d.credit_limit||0),
     interestPaid:0,totalPaid:0,targetMonth:null,targetDate:null,targetDateEst:false,balEnd:0
   }));
@@ -4217,7 +4267,7 @@ function renderDebts(){
           <div><div class="pill-label">Min Payment</div><div style="font-size:12px;font-weight:700;">${fmt(d.min_payment||0)}</div></div>
           <div><div class="pill-label">Due</div><div style="font-size:12px;font-weight:700;">Day ${d.due_date||'—'}</div></div>
         </div>
-        ${bal>0?`<button onclick="event.stopPropagation();openPaymentForDebt('${d.id}')" style="background:linear-gradient(135deg,var(--success),#0a9e74);color:#fff;border:none;border-radius:99px;padding:6px 12px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;"><i class="ti ti-credit-card"></i> Log Payment</button>`:`<span style="font-size:12px;color:var(--success);font-weight:700;">✓ Paid off!</span>`}
+        ${bal>0?`<div style="display:flex;gap:6px;"><button onclick="event.stopPropagation();openInterestModalForDebt('${d.id}')" style="background:var(--surface2);color:var(--muted);border:1px solid var(--border);border-radius:99px;padding:6px 12px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;">% Log Interest</button><button onclick="event.stopPropagation();openPaymentForDebt('${d.id}')" style="background:linear-gradient(135deg,var(--success),#0a9e74);color:#fff;border:none;border-radius:99px;padding:6px 12px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;"><i class="ti ti-credit-card"></i> Log Payment</button></div>`:`<span style="font-size:12px;color:var(--success);font-weight:700;">✓ Paid off!</span>`}
       </div>
       ${debtPayoffLine(d.id,bal)}
       </div>`}
@@ -4266,6 +4316,31 @@ function openPaymentForDebt(debtId){
   }
   delete document.getElementById('payment-modal').dataset.weekId;
   openModal('payment-modal');
+}
+function openInterestModalForDebt(debtId){
+  const debt=debts.find(d=>d.id===debtId);
+  if(!debt)return;
+  document.getElementById('interest-modal-title').textContent=`Log Interest — ${debt.name}`;
+  document.getElementById('interest-debt-id').value=debtId;
+  const dateEl=document.getElementById('interest-date');
+  dateEl.value=today();
+  dateEl.max=today(); // no future-dated charges
+  document.getElementById('interest-amount').value='';
+  openModal('interest-modal');
+}
+async function saveDebtInterest(){
+  const debtId=document.getElementById('interest-debt-id').value;
+  const chargedDate=document.getElementById('interest-date').value;
+  const amount=parseFloat(document.getElementById('interest-amount').value);
+  if(!chargedDate){toast('Select a date');return;}
+  if(chargedDate>today()){toast("Date can't be in the future");return;}
+  if(!amount||amount<=0){toast('Enter a valid amount');return;}
+  const{error}=await sb.from('debt_interest_log').insert({user_id:currentUser.id,debt_id:debtId,amount,charged_date:chargedDate});
+  if(error){toast('Error: '+error.message);return;}
+  closeModal('interest-modal');
+  await loadDebtInterestLog();
+  renderDebts();renderDashboard();
+  toast('Interest logged ✓');
 }
 function useMinPayment(){
   const debtId=document.getElementById('pay-debt-id').value;
@@ -6000,11 +6075,47 @@ function renderPayoffCalc(){
 }
 
 // DEBT DETAIL (#4)
+// Actual-vs-estimated interest for a debt, built from debt_interest_log entries. The APR-based estimate
+// per entry uses the debt's CURRENT balance and the gap since the previous logged entry (30 days for the
+// first) — we don't store a historical balance snapshot per entry, so this is an approximation of what the
+// estimate would have been on that date, not a precise restatement.
+function debtInterestComparison(debtId){
+  const debt=debts.find(d=>d.id===debtId);
+  if(!debt)return{entries:[],totalActual:0,totalEstimated:0};
+  const log=debtInterestLog.filter(l=>l.debt_id===debtId).sort((a,b)=>a.charged_date<b.charged_date?-1:1);
+  const bal=parseFloat(debt.balance||0);
+  const apr=parseFloat(debt.apr||0);
+  let prevDate=null;
+  const entries=log.map(l=>{
+    const gapDays=prevDate?Math.max(1,Math.round((new Date(l.charged_date)-new Date(prevDate))/(1000*60*60*24))):30;
+    prevDate=l.charged_date;
+    const estimated=bal*(apr/100)*(gapDays/365);
+    const actual=parseFloat(l.amount||0);
+    const variancePct=estimated>0.005?((actual-estimated)/estimated)*100:0;
+    return{id:l.id,charged_date:l.charged_date,actual,estimated,variancePct};
+  }).reverse(); // most recent first for display
+  const totalActual=log.reduce((s,l)=>s+parseFloat(l.amount||0),0);
+  const totalEstimated=entries.reduce((s,e)=>s+e.estimated,0);
+  return{entries,totalActual,totalEstimated};
+}
 function showDebtDetail(debtId){
   const debt=debts.find(d=>d.id===debtId);
   if(!debt)return;
   const debtPayments=payments.filter(p=>p.debt_id===debtId).sort((a,b)=>b.pay_date<a.pay_date?-1:1);
   const totalPaidOnDebt=debtPayments.reduce((s,p)=>s+parseFloat(p.amount||0),0);
+  const interestCmp=debtInterestComparison(debtId);
+  const interestSection=`
+    <div class="card-title" style="margin-top:14px;">Interest — Estimated vs Actual</div>
+    ${interestCmp.entries.length===0?'<div class="text-muted" style="padding:12px 0;">No interest logged yet. Tap % Log Interest on the debt card to add one.</div>':`
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+      <div class="balance-line"><span class="balance-line-label">Total Actual</span><span class="balance-line-val text-danger">${fmt(interestCmp.totalActual)}</span></div>
+      <div class="balance-line"><span class="balance-line-label">Total Estimated</span><span class="balance-line-val">${fmt(interestCmp.totalEstimated)}</span></div>
+    </div>
+    ${interestCmp.entries.map(e=>{
+      const flag=Math.abs(e.variancePct)>=20;
+      const col=e.variancePct>0?'var(--danger)':'var(--success)';
+      return`<div class="account-row"><div><div class="account-name">${fmt(e.actual)} <span style="color:var(--muted);font-weight:400;">actual vs ${fmt(e.estimated)} est.</span></div><div class="account-detail">${fmtDate(e.charged_date)}</div></div>${flag?`<div style="font-size:11px;font-weight:700;color:${col};">${e.variancePct>0?'+':''}${e.variancePct.toFixed(0)}%</div>`:''}</div>`;
+    }).join('')}`}`;
   const content=`
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px;">
       <div class="balance-line"><span class="balance-line-label">Balance</span><span class="balance-line-val text-danger">${fmt(debt.balance)}</span></div>
@@ -6014,7 +6125,8 @@ function showDebtDetail(debtId){
     </div>
     <div class="card-title">Payment History</div>
     ${debtPayments.length===0?'<div class="text-muted" style="padding:12px 0;">No payments logged yet.</div>':
-    debtPayments.map(p=>`<div class="account-row"><div><div class="account-name">-${fmt(p.amount)}</div><div class="account-detail">${fmtDate(p.pay_date)}${p.notes?' · '+esc(p.notes):''}</div></div><button class="del-btn" onclick="deleteDebtHistoryPayment('${p.id}','${debtId}')">Delete</button></div>`).join('')}`;
+    debtPayments.map(p=>`<div class="account-row"><div><div class="account-name">-${fmt(p.amount)}</div><div class="account-detail">${fmtDate(p.pay_date)}${p.notes?' · '+esc(p.notes):''}</div></div><button class="del-btn" onclick="deleteDebtHistoryPayment('${p.id}','${debtId}')">Delete</button></div>`).join('')}
+    ${interestSection}`;
   openDashModal(debt.name,content,'payments');
 }
 // Shared delete+balance-restore step used by both the main Payments tab delete and the Debt History modal delete —
