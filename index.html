@@ -2642,7 +2642,8 @@ function renderDashboard(){
   const monthlyRemaining=monthlyBills.reduce((s,b)=>s+billRemainingThisMonth(b),0);
   const monthlyPaidAmt=monthlyTotal-monthlyRemaining;
   const monthlyPaidCount=monthlyBills.filter(isBillFullyPaidThisMonth).length;
-  const billsProgress=monthlyBills.length>0?(monthlyPaidCount/monthlyBills.length)*100:0;
+  // Dollar-based, matching the Bills tab (see renderBills) so the bar agrees with the Paid/Remaining $ shown.
+  const billsProgress=monthlyTotal>0?(monthlyPaidAmt/monthlyTotal)*100:0;
 
   el.innerHTML=`
     ${onboardingChecklistHtml()}
@@ -3391,7 +3392,9 @@ function renderBills(){
   const monthlyRemaining=dueThisMonth.reduce((s,b)=>s+billRemainingThisMonth(b),0);
   const monthlyPaidThisMonth=monthlyTotal-monthlyRemaining;
   const monthlyPaidCount=dueThisMonth.filter(isBillFullyPaidThisMonth).length;
-  const progress=dueThisMonth.length>0?(monthlyPaidCount/dueThisMonth.length)*100:0;
+  // Dollar-based, not count-based, so the bar/percent always agree with the Paid/Remaining figures shown
+  // right above it — a single small unpaid bill shouldn't make the bar look far less done than it is.
+  const progress=monthlyTotal>0?(monthlyPaidThisMonth/monthlyTotal)*100:0;
   const billCard=(b)=>{
     const dueDay=parseInt(b.due_day||0);
     const dueThisMo=isBillDueThisMonth(b); // gate non-monthly bills (quarterly/semi-annual/annual) to their due months
@@ -5509,6 +5512,7 @@ function openModal(id){document.getElementById(id).classList.add('open');}
 function closeModal(id){document.getElementById(id).classList.remove('open');}
 function openPaycalcModal(){openModal('paycalc-modal');renderPaycalc();}
 const CHANGELOG=[
+  {date:new Date('2026-06-30T16:00:00').getTime(),icon:'ti-chart-pie',title:'Bills progress bar reflects dollars, not bill count',desc:'The Bills progress bar and percentage now track how much money is paid vs. remaining, not how many bills are checked off — so $1,862.66 paid of $1,863.65 total shows as 99.9% complete instead of 93% just because one small $0.99 bill is still open. "X of Y bills paid" stays as a separate count.'},
   {date:new Date('2026-06-30T15:15:00').getTime(),icon:'ti-target',title:'30% Utilization debt payoff goal',desc:'The Debt Payoff Calculator on Forecast now lets you choose a goal — Debt-Free or 30% Card Utilization — so you can see exactly when Avalanche or Snowball gets your credit cards under the recommended 30% mark, not just fully paid off.'},
   {date:new Date('2026-06-30T15:10:00').getTime(),icon:'ti-paperclip',title:'Attach receipts to expenses',desc:'Tap Add Receipt when logging or editing an expense to snap a photo or choose one from your gallery (JPG, PNG, or PDF up to 5 MB each). The app tries to read the receipt and auto-fill the amount, description, date, and category — always double-check what it pulls in before saving.'},
   {date:new Date('2026-06-30T15:05:00').getTime(),icon:'ti-chart-dots',title:'Daily window added to Trends',desc:'Spending Insights → Trends now has a Daily tab alongside Weekly, 3 Months, and Yearly, so you can zoom in on day-to-day spending per category.'},
