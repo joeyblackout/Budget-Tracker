@@ -3342,12 +3342,26 @@ function isBillDueInMonth(b,year,month){
   return true;
 }
 function isBillDueThisMonth(b){const n=new Date();return isBillDueInMonth(b,n.getFullYear(),n.getMonth());}
-// Actual $ applied toward a bill in the current calendar month (sums real payment rows).
-function billPaidThisMonth(billId){const tm=thisMonthLocal();return billPayments.filter(p=>p.bill_id===billId&&(p.paid_date||'').startsWith(tm)).reduce((s,p)=>s+parseFloat(p.amount||0),0);}
-// Unpaid portion of a bill's amount for the current month (a partial payment leaves a real remainder).
-function billRemainingThisMonth(b){return Math.max(0,parseFloat(b.amount||0)-billPaidThisMonth(b.id));}
-// Fully paid = payments this month cover the full bill amount (partial payments are NOT "paid").
-function isBillFullyPaidThisMonth(b){return billPaidThisMonth(b.id)>=parseFloat(b.amount||0)-0.005;}
+// Payments credited toward a bill's CURRENT due date — recognizes early payments made since the previous
+// occurrence's due date (same cycle-window logic as the Forecast fix, via forecastCycleStartStr), unioned
+// with any payment logged in the current calendar month (covers on-time/late payments). Mirroring the
+// Forecast tab's early-payment recognition here fixes bills paid early showing as unpaid/double-counted.
+function billPaymentsForCurrentDue(b){
+  const now=new Date();const y=now.getFullYear(),m=now.getMonth();
+  const cycleMonths=forecastCycleMonths(b.recurring);
+  const lastDay=new Date(y,m+1,0).getDate();
+  const dd=Math.min(parseInt(b.due_day)||lastDay,lastDay);
+  const billDateStr=new Date(y,m,dd).toISOString().slice(0,10);
+  const cycleStartStr=forecastCycleStartStr(y,m,b.due_day,cycleMonths);
+  const tm=thisMonthLocal();
+  return billPayments.filter(p=>p.bill_id===b.id&&((p.paid_date>cycleStartStr&&p.paid_date<=billDateStr)||(p.paid_date||'').startsWith(tm)));
+}
+// Actual $ applied toward a bill's current due date (sums real payment rows, early or this-month).
+function billPaidThisMonth(b){return billPaymentsForCurrentDue(b).reduce((s,p)=>s+parseFloat(p.amount||0),0);}
+// Unpaid portion of a bill's amount for its current due date (a partial payment leaves a real remainder).
+function billRemainingThisMonth(b){return Math.max(0,parseFloat(b.amount||0)-billPaidThisMonth(b));}
+// Fully paid = payments toward the current due date cover the full bill amount (partial payments are NOT "paid").
+function isBillFullyPaidThisMonth(b){return billPaidThisMonth(b)>=parseFloat(b.amount||0)-0.005;}
 function renderBills(){
   const el=document.getElementById('bills-list');
   const payAllBtn=document.getElementById('pay-all-due-btn');
@@ -3374,7 +3388,7 @@ function renderBills(){
     const dueThisMo=isBillDueThisMonth(b); // gate non-monthly bills (quarterly/semi-annual/annual) to their due months
     const dueSoon=dueThisMo&&dueDay>0&&(dueDay-todayDay)>=0&&(dueDay-todayDay)<=5;
     const overdue=dueThisMo&&dueDay>0&&todayDay>dueDay;
-    const paidThisMonth=billPayments.filter(p=>p.bill_id===b.id&&(p.paid_date||'').startsWith(thisMonth));
+    const paidThisMonth=billPaymentsForCurrentDue(b);
     const isPaid=paidThisMonth.length>0;
     const paidAmount=paidThisMonth.reduce((s,p)=>s+parseFloat(p.amount||0),0);
     return`<div class="swipe-wrap"><div class="swipe-delete" onclick="swipeDelete(this)"><i class="ti ti-trash"></i></div><div class="swipe-content" data-del-type="bill" data-del-id="${b.id}"><div class="bill-row" style="${isPaid?'opacity:0.6':''}">
@@ -3402,13 +3416,13 @@ function renderBills(){
     </div></div></div>`;
   };
   const sortBills=(arr)=>{
-    const isPaidFn=id=>billPayments.some(p=>p.bill_id===id&&(p.paid_date||'').startsWith(thisMonth));
-    const lastPaid=id=>{const p=[...billPayments].filter(x=>x.bill_id===id&&(x.paid_date||'').startsWith(thisMonth)).sort((a,b)=>b.paid_date<a.paid_date?-1:1)[0];return p?p.paid_date:'';};
+    const isPaidFn=bill=>billPaymentsForCurrentDue(bill).length>0;
+    const lastPaidDate=bill=>{const p=billPaymentsForCurrentDue(bill).sort((x,y)=>y.paid_date<x.paid_date?-1:1)[0];return p?p.paid_date:'';};
     return[...arr].sort((a,b)=>{
-      const ap=isPaidFn(a.id),bp=isPaidFn(b.id);
+      const ap=isPaidFn(a),bp=isPaidFn(b);
       if(ap!==bp)return ap?1:-1;
       if(!ap)return(parseInt(a.due_day||0))-(parseInt(b.due_day||0));
-      return lastPaid(b.id).localeCompare(lastPaid(a.id));
+      return lastPaidDate(b).localeCompare(lastPaidDate(a));
     });
   };
   const groupToggle=`<div style="display:flex;gap:6px;margin-bottom:12px;">
@@ -3421,7 +3435,7 @@ function renderBills(){
       const group=visibleBills.filter(b=>(b.category||'Uncategorized')===cat);
       const catTotal=group.reduce((s,b)=>s+parseFloat(b.amount||0),0);
       const isOpen=!!billsCatOpen[cat];
-      const paidCount=group.filter(b=>billPayments.some(p=>p.bill_id===b.id&&(p.paid_date||'').startsWith(thisMonth))).length;
+      const paidCount=group.filter(b=>billPaymentsForCurrentDue(b).length>0).length;
       return`<div onclick="billsCatOpen['${esc(cat)}']=!billsCatOpen['${esc(cat)}'];renderBills();" style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:var(--surface);border-radius:var(--radius-sm);margin-top:6px;cursor:pointer;user-select:none;">
         <div>
           <div style="font-size:13px;font-weight:700;">${esc(cat)}</div>
@@ -3461,8 +3475,7 @@ function renderBills(){
         billPayments.filter(p=>(p.paid_date||'').startsWith(_yearStr)).forEach(p=>{if(!_sched.has(p.bill_id)){const b=visibleBills.find(x=>x.id===p.bill_id);if(b)_entries.push({cat:b.category||'Uncategorized',amt:parseFloat(b.amount||0),id:b.id});}});
         _pieEntries=_entries;
       }else{
-        const _paid=new Set(billPayments.filter(p=>(p.paid_date||'').startsWith(thisMonth)).map(p=>p.bill_id));
-        _pieEntries=visibleBills.filter(b=>isBillDueThisMonth(b)||_paid.has(b.id)).map(b=>({cat:b.category||'Uncategorized',amt:parseFloat(b.amount||0),id:b.id}));
+        _pieEntries=visibleBills.filter(b=>isBillDueThisMonth(b)||billPaymentsForCurrentDue(b).length>0).map(b=>({cat:b.category||'Uncategorized',amt:parseFloat(b.amount||0),id:b.id}));
       }
       const allCats=[...new Set(_pieEntries.map(e=>e.cat))].sort();
       const grandTotal=_pieEntries.reduce((s,e)=>s+e.amt,0);
@@ -5485,6 +5498,7 @@ function openModal(id){document.getElementById(id).classList.add('open');}
 function closeModal(id){document.getElementById(id).classList.remove('open');}
 function openPaycalcModal(){openModal('paycalc-modal');renderPaycalc();}
 const CHANGELOG=[
+  {date:new Date('2026-06-30T13:00:00').getTime(),icon:'ti-checkbox',title:'Bills tab recognizes bills paid early',desc:'A bill paid in the prior month for this month\'s due date (e.g. paid Jun 25 for a bill due Jul 1) now shows as ✓ Paid on the Bills tab instead of looking unpaid and double-counting into Remaining. Uses the same early-payment cycle check as the Forecast fix, applied consistently to the bill cards, progress bar, Remaining total, and "X of Y bills paid" count.'},
   {date:new Date('2026-06-30T12:00:00').getTime(),icon:'ti-cash',title:'Partial bill payments now tracked',desc:'If you pay only part of a bill, the leftover now stays in your Remaining total and in Pay All Due, and the bill isn\'t counted as fully paid until it\'s actually covered. Paid + Remaining always add up to the month\'s total.'},
   {date:new Date('2026-06-30T11:30:00').getTime(),icon:'ti-calendar-check',title:'Forecast recognizes early payments for every bill type',desc:'The Forecast now checks each bill or debt minimum against its full billing cycle (back to the previous due date) instead of a fixed 16-day window — so an early payment on a monthly, quarterly, semi-annual, or annual bill is correctly dropped from upcoming items. Unpaid credit-card minimums also fall back to your linked min-payment bill amount when no minimum is entered.'},
   {date:new Date('2026-06-29T18:00:00').getTime(),icon:'ti-progress-check',title:'Bills progress bar reflects unpaid bills',desc:'The monthly bills progress bar and Remaining total now count only this month\'s due bills, so the bar matches the "X of Y bills paid" count and Remaining shows what you actually still owe. Early or duplicate payments no longer push it to 100% while bills are still unpaid.'},
