@@ -932,6 +932,22 @@ select option{background:var(--surface);color:var(--text);}
   </div>
 </div></div>
 
+<!-- BALANCE CHANGE MODAL -->
+<div class="modal-overlay" id="balance-change-modal"><div class="modal">
+  <div class="modal-handle"></div>
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
+    <span style="font-size:26px;width:36px;text-align:center;color:var(--warning);flex-shrink:0;"><i class="ti ti-alert-triangle"></i></span>
+    <div>
+      <div style="font-size:18px;font-weight:800;letter-spacing:-0.02em;">Your balance changed</div>
+      <div style="font-size:12px;color:var(--muted);">Here's why the number moved</div>
+    </div>
+  </div>
+  <div id="balance-change-content"></div>
+  <div class="modal-actions" style="margin-top:20px;">
+    <button class="btn btn-primary" onclick="acknowledgeBalanceChange()">Got it</button>
+  </div>
+</div></div>
+
 <script>
 const SUPABASE_URL='https://edhsytkmmltzhgxxhpqy.supabase.co';
 const SUPABASE_ANON_KEY='sb_publishable_tAn5TF5Cuear3qJMzZdN5Q_4G_mUVUh';
@@ -1144,7 +1160,7 @@ async function cleanupPaidOffDebtBills(){
   await loadBills();
   return true;
 }
-async function loadAll(){await Promise.all([loadDebts(),loadPayments(),loadExpenses(),loadWeeks(),loadPaychecks(),loadBills(),loadBillPayments(),loadPots(),loadSavingsTxns(),loadProfiles(),loadPosts(),loadReactions(),loadShared(),loadRecurring(),loadAssets(),loadBudgetTargets(),loadNetWorthHistory(),loadReceipts(),loadDebtInterestLog()]);await topUpPeriods();await migrateDiningCategory();await cleanupPaidOffDebtBills();await snapshotNetWorth();switchView('dashboard',null);updateBillBadge();updateNotifBadge();startPolling();await openPaydayRoutine();checkWhatsNew(whatsNewPrevLogin);}
+async function loadAll(){await Promise.all([loadDebts(),loadPayments(),loadExpenses(),loadWeeks(),loadPaychecks(),loadBills(),loadBillPayments(),loadPots(),loadSavingsTxns(),loadProfiles(),loadPosts(),loadReactions(),loadShared(),loadRecurring(),loadAssets(),loadBudgetTargets(),loadNetWorthHistory(),loadReceipts(),loadDebtInterestLog()]);await topUpPeriods();await migrateDiningCategory();await cleanupPaidOffDebtBills();await snapshotNetWorth();switchView('dashboard',null);updateBillBadge();updateNotifBadge();startPolling();await openPaydayRoutine();checkWhatsNew(whatsNewPrevLogin);checkBalanceChangeNotice();}
 async function topUpPeriods(){
   // Only extend recurring sources if the furthest period is within 10 months out
   if(recurringSources.length===0)return;
@@ -5715,6 +5731,13 @@ async function confirmImport(){
 function openModal(id){document.getElementById(id).classList.add('open');}
 function closeModal(id){document.getElementById(id).classList.remove('open');}
 function openPaycalcModal(){openModal('paycalc-modal');renderPaycalc();}
+// Entries support two optional fields on top of {date,icon,title,desc}:
+//   affectsBalance: true  — flags a fix/change that altered how Available Balance (or a debt/bill balance)
+//                           is calculated, so it can surface in the dedicated "Your balance changed" popup
+//                           (see checkBalanceChangeNotice) instead of only the general Updates list.
+//   impact: '...'          — plain-language explanation of how the number moved, shown in that popup in
+//                           place of desc when present (desc is used as a fallback if impact is omitted).
+// Any future fix that touches balance-calculation logic should add affectsBalance:true + an impact string.
 const CHANGELOG=[
   {date:new Date('2026-06-30T16:00:00').getTime(),icon:'ti-chart-pie',title:'Bills progress bar reflects dollars, not bill count',desc:'The Bills progress bar and percentage now track how much money is paid vs. remaining, not how many bills are checked off — so $1,862.66 paid of $1,863.65 total shows as 99.9% complete instead of 93% just because one small $0.99 bill is still open. "X of Y bills paid" stays as a separate count.'},
   {date:new Date('2026-06-30T15:15:00').getTime(),icon:'ti-target',title:'30% Utilization debt payoff goal',desc:'The Debt Payoff Calculator on Forecast now lets you choose a goal — Debt-Free or 30% Card Utilization — so you can see exactly when Avalanche or Snowball gets your credit cards under the recommended 30% mark, not just fully paid off.'},
@@ -5779,6 +5802,37 @@ async function dismissUpdates(){
   renderNotifications();updateNotifBadge();
 }
 function showWhatsNew(){showUpdatesModal();} // legacy entry retained for any deferred callers
+// Balance-affecting changelog entries since the same cutoff used for the general Updates list — a subset
+// flagged affectsBalance:true, surfaced separately because a shifted balance is easy to mistake for a bug
+// or a lost transaction if the user isn't told why the number moved.
+function getBalanceAffectingUpdates(){
+  const cutoff=getUpdatesCutoff();
+  return CHANGELOG.filter(e=>e.affectsBalance&&e.date>cutoff).sort((a,b)=>b.date-a.date);
+}
+function openBalanceChangeModal(items){
+  if(!items||!items.length)return;
+  const html=items.map((it,i)=>'<div style="display:flex;gap:12px;align-items:flex-start;padding:12px 0;'+(i<items.length-1?'border-bottom:1px solid var(--border);':'')+'">'
+    +'<span style="font-size:20px;width:28px;text-align:center;color:var(--warning);flex-shrink:0;"><i class="ti '+it.icon+'"></i></span>'
+    +'<div><div style="font-size:14px;font-weight:700;margin-bottom:2px;">'+it.title+'</div>'
+    +'<div style="font-size:12px;color:var(--muted);line-height:1.5;">'+(it.impact||it.desc)+'</div></div>'
+    +'</div>').join('');
+  document.getElementById('balance-change-content').innerHTML=html;
+  openModal('balance-change-modal');
+}
+// Auto-popup (unlike the general Updates list, which is bell-only) — a silently shifted balance can look
+// like a bug or a lost transaction, so this one is shown proactively and requires acknowledgment.
+function checkBalanceChangeNotice(){
+  if(!(whatsNewPrevLogin>0))return; // skip first-ever login, same guard as getNotifications' updates check
+  const items=getBalanceAffectingUpdates();
+  if(items.length>0)setTimeout(()=>openBalanceChangeModal(items),700);
+}
+// "Got it" acknowledges via the SAME cutoff as the general Updates list (updates_dismissed_ts) — per spec,
+// reuses that mechanism rather than adding a new column, so acknowledging here also clears the bell's
+// Updates notification for anything up to the same point.
+async function acknowledgeBalanceChange(){
+  closeModal('balance-change-modal');
+  await dismissUpdates();
+}
 document.querySelectorAll('.modal-overlay').forEach(o=>{o.addEventListener('click',e=>{if(e.target===o)o.classList.remove('open');});});
 
 // SWIPE TO DELETE
