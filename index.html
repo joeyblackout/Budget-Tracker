@@ -619,6 +619,17 @@ select option{background:var(--surface);color:var(--text);}
   <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal('bill-modal')">Cancel</button><button class="btn btn-primary" onclick="saveBill()">Save</button></div>
 </div></div>
 
+<!-- MARK BILL PAID MODAL -->
+<div class="modal-overlay" id="bill-paid-modal"><div class="modal">
+  <div class="modal-handle"></div>
+  <div class="modal-title" id="bill-paid-modal-title">Mark Paid</div>
+  <input type="hidden" id="bill-paid-id"/>
+  <input type="hidden" id="bill-paid-name"/>
+  <input type="hidden" id="bill-paid-amount"/>
+  <div class="field"><label>Date Paid</label><input type="date" id="bill-paid-date"/></div>
+  <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal('bill-paid-modal')">Cancel</button><button class="btn btn-primary" onclick="confirmMarkBillPaid()">Save</button></div>
+</div></div>
+
 <!-- SAVINGS POT MODAL -->
 <div class="modal-overlay" id="pot-modal"><div class="modal">
   <div class="modal-handle"></div><div class="modal-title" id="pot-modal-title">New Savings Pot</div>
@@ -3671,9 +3682,28 @@ async function confirmPayAllDue(){
   renderBills();renderDebts();renderDashboard();updateBillBadge();
   toast(`${due.length} bill${due.length!==1?'s':''} marked paid ✓`);
 }
-async function markBillPaid(billId,billName,amount){
-  const{error}=await sb.from('bill_payments').insert({user_id:currentUser.id,bill_id:billId,amount:parseFloat(amount),paid_date:today(),notes:billName});
+// Opens the Date Paid picker instead of instantly logging with today's date — lets a payment be
+// backdated (or corrected) so it lands in the right billing cycle under billCycleWindow.
+function markBillPaid(billId,billName,amount){
+  document.getElementById('bill-paid-id').value=billId;
+  document.getElementById('bill-paid-name').value=billName;
+  document.getElementById('bill-paid-amount').value=amount;
+  document.getElementById('bill-paid-modal-title').textContent=`Mark Paid — ${billName}`;
+  const dateEl=document.getElementById('bill-paid-date');
+  dateEl.value=today();
+  dateEl.max=today(); // no future-dated payments
+  openModal('bill-paid-modal');
+}
+async function confirmMarkBillPaid(){
+  const billId=document.getElementById('bill-paid-id').value;
+  const billName=document.getElementById('bill-paid-name').value;
+  const amount=parseFloat(document.getElementById('bill-paid-amount').value);
+  const paidDate=document.getElementById('bill-paid-date').value;
+  if(!paidDate){toast('Select a date');return;}
+  if(paidDate>today()){toast("Date paid can't be in the future");return;}
+  const{error}=await sb.from('bill_payments').insert({user_id:currentUser.id,bill_id:billId,amount:parseFloat(amount),paid_date:paidDate,notes:billName});
   if(error){toast('Error: '+error.message);return;}
+  closeModal('bill-paid-modal');
   // If this bill is linked to a debt, log a payment and decrement the balance
   const bill=bills.find(b=>b.id===billId);
   if(bill?.debt_id){
@@ -3681,7 +3711,7 @@ async function markBillPaid(billId,billName,amount){
     if(debt){
       const newBal=Math.max(0,parseFloat(debt.balance||0)-parseFloat(amount));
       await sb.from('debts').update(newBal===0?{balance:0,min_payment:0}:{balance:newBal}).eq('id',debt.id);
-      await sb.from('payments').insert({user_id:currentUser.id,debt_id:debt.id,amount:parseFloat(amount),pay_date:today(),notes:`Min payment via ${billName}`});
+      await sb.from('payments').insert({user_id:currentUser.id,debt_id:debt.id,amount:parseFloat(amount),pay_date:paidDate,notes:`Min payment via ${billName}`});
       await Promise.all([loadDebts(),loadPayments()]);
     }
   }
