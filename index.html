@@ -1727,14 +1727,16 @@ function recentAvgSpendingPerDay(){
 }
 // How many months one billing cycle spans, by recurrence (debts are always monthly → 1).
 function forecastCycleMonths(rec){rec=(rec||'monthly').toLowerCase();if(rec==='quarterly')return 3;if(rec==='semi-annual')return 6;if(rec==='annually'||rec==='annual'||rec==='once')return 12;return 1;}
-// Start of the billing cycle for an occurrence = the PREVIOUS occurrence's due date (one cycle earlier,
-// clamped to that month's length). A payment after this and on/before the due date covers the occurrence —
-// recognizes early payments fully (even across a month boundary) without clearing the NEXT occurrence.
-function forecastCycleStartStr(y,m,dueDayRaw,cycleMonths){
-  const pm=new Date(y,m-cycleMonths,1);
-  const lastDay=new Date(pm.getFullYear(),pm.getMonth()+1,0).getDate();
-  const pdd=Math.min(parseInt(dueDayRaw)||lastDay,lastDay);
-  return new Date(pm.getFullYear(),pm.getMonth(),pdd).toISOString().slice(0,10);
+// Payment window for a bill/debt occurrence due on dueDateStr — symmetric around that due date so a single
+// payment can only ever satisfy ONE cycle. Extends ~half the cycle length before (recognizes payments made
+// well ahead of the due date) and a few days after (covers late payments), but never far enough to also
+// reach the neighboring cycle's due date — fixes a payment made just after one due date being reused to
+// also mark the NEXT occurrence paid.
+function billCycleWindow(dueDateStr,cycleMonths){
+  const due=new Date(dueDateStr+'T00:00:00');
+  const start=new Date(due);start.setDate(start.getDate()-Math.round(cycleMonths*30/2));
+  const end=new Date(due);end.setDate(end.getDate()+5);
+  return{start:start.toISOString().slice(0,10),end:end.toISOString().slice(0,10)};
 }
 function renderForecast(){
   _forecastSchedule=null; // rebuild the income schedule fresh each render
@@ -1813,8 +1815,8 @@ function renderForecast(){
       // Skip bills already paid for THIS billing cycle — counts payments back to the previous occurrence's
       // due date, so an early payment (any time after the last occurrence) is recognized for all frequencies.
       const billDateStr=billDate.toISOString().slice(0,10);
-      const bCycleStartStr=forecastCycleStartStr(y,m,b.due_day,forecastCycleMonths(b.recurring));
-      const billPaid=billPayments.filter(p=>p.bill_id===b.id&&(p.paid_date||'')>bCycleStartStr&&(p.paid_date||'')<=billDateStr).reduce((s,p)=>s+parseFloat(p.amount||0),0);
+      const bWin=billCycleWindow(billDateStr,forecastCycleMonths(b.recurring));
+      const billPaid=billPayments.filter(p=>p.bill_id===b.id&&(p.paid_date||'')>bWin.start&&(p.paid_date||'')<=bWin.end).reduce((s,p)=>s+parseFloat(p.amount||0),0);
       if(billPaid>=parseFloat(b.amount||0)-0.005)return;
       events.push({date:billDateStr,amount:-parseFloat(b.amount||0),label:b.name,type:b.debt_id?'debt':'bill'});
     });
@@ -1850,8 +1852,8 @@ function renderForecast(){
       // Skip if already covered by a payment in this billing cycle — back to the previous month's due day,
       // so an early minimum payment (even across a month boundary) is recognized.
       const ddStr=dd.toISOString().slice(0,10);
-      const cycleStartStr=forecastCycleStartStr(y,mo,d.due_date||15,1);
-      const paidForCycle=payments.filter(p=>p.debt_id===d.id&&(p.pay_date||'')>cycleStartStr&&(p.pay_date||'')<=ddStr).reduce((s,p)=>s+parseFloat(p.amount||0),0);
+      const dWin=billCycleWindow(ddStr,1);
+      const paidForCycle=payments.filter(p=>p.debt_id===d.id&&(p.pay_date||'')>dWin.start&&(p.pay_date||'')<=dWin.end).reduce((s,p)=>s+parseFloat(p.amount||0),0);
       if(paidForCycle>=minimum-0.005)return;
       events.push({date:ddStr,amount:-minimum,label:d.name+' (min)',type:'debt'});
     });
@@ -3344,19 +3346,20 @@ function isBillDueInMonth(b,year,month){
   return true;
 }
 function isBillDueThisMonth(b){const n=new Date();return isBillDueInMonth(b,n.getFullYear(),n.getMonth());}
-// Payments credited toward a bill's CURRENT due date — recognizes early payments made since the previous
-// occurrence's due date (same cycle-window logic as the Forecast fix, via forecastCycleStartStr), unioned
-// with any payment logged in the current calendar month (covers on-time/late payments). Mirroring the
-// Forecast tab's early-payment recognition here fixes bills paid early showing as unpaid/double-counted.
+// Payments credited toward a bill's CURRENT due date — recognizes payments made reasonably early (within
+// the cycle window around the due date, via billCycleWindow), unioned with any payment logged in the
+// current calendar month (covers on-time/late payments). The window is bounded on both sides so a single
+// payment can only ever satisfy the ONE cycle it's closest to — a payment made just after this due date
+// must never also count toward NEXT cycle's due date.
 function billPaymentsForCurrentDue(b){
   const now=new Date();const y=now.getFullYear(),m=now.getMonth();
   const cycleMonths=forecastCycleMonths(b.recurring);
   const lastDay=new Date(y,m+1,0).getDate();
   const dd=Math.min(parseInt(b.due_day)||lastDay,lastDay);
   const billDateStr=new Date(y,m,dd).toISOString().slice(0,10);
-  const cycleStartStr=forecastCycleStartStr(y,m,b.due_day,cycleMonths);
+  const win=billCycleWindow(billDateStr,cycleMonths);
   const tm=thisMonthLocal();
-  return billPayments.filter(p=>p.bill_id===b.id&&((p.paid_date>cycleStartStr&&p.paid_date<=billDateStr)||(p.paid_date||'').startsWith(tm)));
+  return billPayments.filter(p=>p.bill_id===b.id&&((p.paid_date>win.start&&p.paid_date<=win.end)||(p.paid_date||'').startsWith(tm)));
 }
 // Actual $ applied toward a bill's current due date (sums real payment rows, early or this-month).
 function billPaidThisMonth(b){return billPaymentsForCurrentDue(b).reduce((s,p)=>s+parseFloat(p.amount||0),0);}
