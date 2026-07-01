@@ -2636,8 +2636,9 @@ function renderDashboard(){
   const dispBillsPaid=dashBalancePeriod==='month'?billPayments.filter(p=>(p.paid_date||'').startsWith(thisMonthStr)&&!linkedBillIds.has(p.bill_id)).reduce((s,p)=>s+parseFloat(p.amount||0),0):dashBalancePeriod==='year'?billPayments.filter(p=>(p.paid_date||'').startsWith(thisYearStr)&&!linkedBillIds.has(p.bill_id)).reduce((s,p)=>s+parseFloat(p.amount||0),0):billPayments.filter(p=>!linkedBillIds.has(p.bill_id)).reduce((s,p)=>s+parseFloat(p.amount||0),0);
   const dispExpenses=dashBalancePeriod==='month'?expenses.filter(e=>(e.exp_date||'').startsWith(thisMonthStr)).reduce((s,e)=>s+parseFloat(e.amount||0),0):dashBalancePeriod==='year'?expenses.filter(e=>(e.exp_date||'').startsWith(thisYearStr)).reduce((s,e)=>s+parseFloat(e.amount||0),0):totalExpenses;
   const monthlyBills=bills.filter(b=>!isBillExpired(b)&&isBillDueThisMonth(b));
-  const monthlyTotal=monthlyBills.reduce((s,b)=>s+parseFloat(b.amount||0),0);
-  // True-remainder accounting, identical to the Bills tab (see note in renderBills).
+  // Already-paid bills use their paid-time snapshot (billAmountForCurrentCycle), identical to the Bills tab
+  // (see note in renderBills) — keeps a post-payment amount edit from inflating this total.
+  const monthlyTotal=monthlyBills.reduce((s,b)=>s+billAmountForCurrentCycle(b),0);
   const monthlyRemaining=monthlyBills.reduce((s,b)=>s+billRemainingThisMonth(b),0);
   const monthlyPaidAmt=monthlyTotal-monthlyRemaining;
   const monthlyPaidCount=monthlyBills.filter(isBillFullyPaidThisMonth).length;
@@ -3358,10 +3359,16 @@ function billPaymentsForCurrentDue(b){
 }
 // Actual $ applied toward a bill's current due date (sums real payment rows, early or this-month).
 function billPaidThisMonth(b){return billPaymentsForCurrentDue(b).reduce((s,p)=>s+parseFloat(p.amount||0),0);}
-// Unpaid portion of a bill's amount for its current due date (a partial payment leaves a real remainder).
-function billRemainingThisMonth(b){return Math.max(0,parseFloat(b.amount||0)-billPaidThisMonth(b));}
-// Fully paid = payments toward the current due date cover the full bill amount (partial payments are NOT "paid").
-function isBillFullyPaidThisMonth(b){return billPaidThisMonth(b)>=parseFloat(b.amount||0)-0.005;}
+// Fully paid = a payment already exists for the current due date. Deliberately does NOT compare against the
+// live bill.amount: users routinely bump a bill's amount right after paying it (e.g. a utility bill) to set
+// up the NEXT cycle's higher invoice, and that edit must never retroactively reopen the cycle already paid.
+function isBillFullyPaidThisMonth(b){return billPaymentsForCurrentDue(b).length>0;}
+// The amount that counted for this bill's current cycle: once paid, that's a fixed snapshot (whatever was
+// actually paid) so a later amount edit can't inflate it — otherwise (not yet paid) it's the live amount,
+// since an unpaid cycle should reflect whatever is currently owed.
+function billAmountForCurrentCycle(b){const paid=billPaidThisMonth(b);return paid>0?paid:parseFloat(b.amount||0);}
+// Unpaid portion of a bill for its current due date — zero once paid, the live amount otherwise.
+function billRemainingThisMonth(b){return isBillFullyPaidThisMonth(b)?0:parseFloat(b.amount||0);}
 function renderBills(){
   const el=document.getElementById('bills-list');
   const payAllBtn=document.getElementById('pay-all-due-btn');
@@ -3374,11 +3381,13 @@ function renderBills(){
   const monthly=visibleBills.filter(isMonthlyRec);
   const other=visibleBills.filter(b=>!isMonthlyRec(b));
   const dueThisMonth=visibleBills.filter(isBillDueThisMonth);
-  const monthlyTotal=dueThisMonth.reduce((s,b)=>s+parseFloat(b.amount||0),0);
+  // Already-paid bills contribute their paid-time snapshot (billAmountForCurrentCycle), not the live amount,
+  // so editing a bill's amount right after paying it (e.g. next cycle's higher utility bill) can't inflate
+  // this month's total or leak a phantom shortfall into Remaining — see billAmountForCurrentCycle.
+  const monthlyTotal=dueThisMonth.reduce((s,b)=>s+billAmountForCurrentCycle(b),0);
   // Scope paid/remaining/progress to THIS MONTH'S due bills so the three figures reconcile (paid + remaining = total).
-  // True-remainder accounting: Remaining sums each bill's UNPAID portion (a partial payment leaves a real
-  // balance), Paid = total − remaining (= capped actual paid), and a bill counts toward the "X of Y" count
-  // only once it's FULLY paid. Avoids both the old 100%/$0 false-complete and hiding partial shortfalls.
+  // A bill counts as paid the moment any payment is logged for its current due date (isBillFullyPaidThisMonth),
+  // regardless of the bill's live amount — Remaining is 0 for those, and Paid = total − remaining.
   const monthlyRemaining=dueThisMonth.reduce((s,b)=>s+billRemainingThisMonth(b),0);
   const monthlyPaidThisMonth=monthlyTotal-monthlyRemaining;
   const monthlyPaidCount=dueThisMonth.filter(isBillFullyPaidThisMonth).length;
@@ -3397,7 +3406,7 @@ function renderBills(){
         <div class="bill-meta">${esc(b.category)}${(()=>{const MO=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];const rec=b.recurring||'monthly';const dm=b.due_month?parseInt(b.due_month)-1:null;const day=b.due_day?' · Day '+b.due_day:'';const rl={'weekly':'Weekly','biweekly':'Every 2 Weeks','quarterly':'Quarterly','semi-annual':'Semi-Annual','annually':'Annually','once':'One Time'};if(rec==='annually'&&dm!=null)return' · Due '+MO[dm]+day+' · Annual';if(rec==='semi-annual'&&dm!=null)return' · Due '+MO[dm]+' & '+MO[(dm+6)%12]+day+' · Semi-Annual';if(rec==='quarterly'&&dm!=null)return' · Due '+MO[dm]+'/'+MO[(dm+3)%12]+'/'+MO[(dm+6)%12]+'/'+MO[(dm+9)%12]+day+' · Quarterly';if(rec==='once'){const yr=b.end_date?parseInt((b.end_date||'').slice(0,4)):(()=>{const n=new Date();return(dm!=null&&dm>=n.getMonth())?n.getFullYear():n.getFullYear()+1;})();if(dm!=null)return' · Due '+MO[dm]+(b.due_day?' '+b.due_day+',':'')+' '+yr+' · One Time';return(b.due_day?' · Due day '+b.due_day:'')+' · One Time';}const freqLabel=rec!=='monthly'?' · '+(rl[rec]||capFirst(rec)):'';return(b.due_day?' · Due day '+b.due_day:'')+freqLabel;})()}${(()=>{const last=billPayments.filter(p=>p.bill_id===b.id).sort((a,c)=>a.paid_date<c.paid_date?1:-1)[0];return last?' · Last paid '+fmtDate(last.paid_date):'';})()}${b.notes?' · '+esc(b.notes):''}</div>
         ${b.end_date&&b.recurring!=='once'?`<div class="bill-meta" style="color:var(--warning);">Ends ${fmtDate(b.end_date)}</div>`:''}
         <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px;">
-          ${isPaid?`<span class="bill-recur" style="background:rgba(45,212,160,0.15);color:var(--success);">Paid ${fmt(paidAmount)}${paidAmount<parseFloat(b.amount||0)?' · '+fmt(parseFloat(b.amount||0)-paidAmount)+' remaining':''}</span>`
+          ${isPaid?`<span class="bill-recur" style="background:rgba(45,212,160,0.15);color:var(--success);">Paid ${fmt(paidAmount)}</span>`
             :dueSoon?`<span class="bill-due-soon">Due in ${dueDay-todayDay} days</span>`
             :overdue?`<span class="bill-due-soon" style="background:rgba(247,90,90,0.15);color:var(--danger);">Overdue</span>`
             :`<span class="bill-recur">${capFirst(b.recurring)}</span>`}
@@ -3674,18 +3683,20 @@ async function markBillPaid(billId,billName,amount){
   toast(`${billName} marked as paid ✓`);
 }
 async function undoBillPayment(billId){
-  const thisMonth=thisMonthLocal();
-  const recent=billPayments.find(p=>p.bill_id===billId&&(p.paid_date||'').startsWith(thisMonth));
+  const bill=bills.find(b=>b.id===billId);
+  // Match renderBills' "paid" check (billPaymentsForCurrentDue), which also recognizes early payments
+  // logged in the previous calendar month — otherwise Undo no-ops for bills paid early.
+  const recent=bill?billPaymentsForCurrentDue(bill).slice().sort((a,b)=>(b.paid_date||'').localeCompare(a.paid_date||''))[0]:null;
   if(!recent)return;
   if(!confirm('Undo this bill payment?'))return;
   await sb.from('bill_payments').delete().eq('id',recent.id);
   // If linked to a debt, also remove the matching payment and restore balance
-  const bill=bills.find(b=>b.id===billId);
   if(bill?.debt_id){
     const debt=debts.find(d=>d.id===bill.debt_id);
     if(debt){
-      // Find and remove the auto-logged payment for this month
-      const matchingPayment=payments.find(p=>p.debt_id===bill.debt_id&&(p.pay_date||'').startsWith(thisMonth)&&(p.notes||'').startsWith('Min payment via'));
+      // Match by exact pay_date (set to the same value as the bill payment's paid_date at insert time)
+      // so this also works for early payments logged in a prior calendar month.
+      const matchingPayment=payments.find(p=>p.debt_id===bill.debt_id&&p.pay_date===recent.paid_date&&(p.notes||'').startsWith('Min payment via'));
       if(matchingPayment){
         await sb.from('payments').delete().eq('id',matchingPayment.id);
         const restoredBal=parseFloat(debt.balance||0)+parseFloat(recent.amount||0);
@@ -5498,6 +5509,8 @@ function openModal(id){document.getElementById(id).classList.add('open');}
 function closeModal(id){document.getElementById(id).classList.remove('open');}
 function openPaycalcModal(){openModal('paycalc-modal');renderPaycalc();}
 const CHANGELOG=[
+  {date:new Date('2026-06-30T14:00:00').getTime(),icon:'ti-edit',title:'Editing a bill\'s amount no longer reopens an already-paid bill',desc:'Bumping a bill\'s amount for next cycle (e.g. a utility bill going up $33) right after paying this cycle no longer flags it as underpaid. A bill counts as paid as soon as a payment is logged for its due date — Remaining, Pay All Due, and the progress bar now use that payment\'s own amount, not the edited live amount, for the cycle already paid. The new amount still applies starting next cycle.'},
+  {date:new Date('2026-06-30T14:00:00').getTime(),icon:'ti-arrow-back-up',title:'Undo works on bills paid early',desc:'Undo on a bill paid early for next month\'s due date (e.g. paid Jun 25 for a bill due Jul 1) now actually removes that payment instead of silently doing nothing. If the bill is linked to a debt, the debt balance is restored correctly too.'},
   {date:new Date('2026-06-30T13:00:00').getTime(),icon:'ti-checkbox',title:'Bills tab recognizes bills paid early',desc:'A bill paid in the prior month for this month\'s due date (e.g. paid Jun 25 for a bill due Jul 1) now shows as ✓ Paid on the Bills tab instead of looking unpaid and double-counting into Remaining. Uses the same early-payment cycle check as the Forecast fix, applied consistently to the bill cards, progress bar, Remaining total, and "X of Y bills paid" count.'},
   {date:new Date('2026-06-30T12:00:00').getTime(),icon:'ti-cash',title:'Partial bill payments now tracked',desc:'If you pay only part of a bill, the leftover now stays in your Remaining total and in Pay All Due, and the bill isn\'t counted as fully paid until it\'s actually covered. Paid + Remaining always add up to the month\'s total.'},
   {date:new Date('2026-06-30T11:30:00').getTime(),icon:'ti-calendar-check',title:'Forecast recognizes early payments for every bill type',desc:'The Forecast now checks each bill or debt minimum against its full billing cycle (back to the previous due date) instead of a fixed 16-day window — so an early payment on a monthly, quarterly, semi-annual, or annual bill is correctly dropped from upcoming items. Unpaid credit-card minimums also fall back to your linked min-payment bill amount when no minimum is entered.'},
