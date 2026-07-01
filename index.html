@@ -1842,6 +1842,19 @@ function billCycleWindow(dueDateStr,cycleMonths){
   const end=new Date(due);end.setDate(end.getDate()+5);
   return{start:start.toISOString().slice(0,10),end:end.toISOString().slice(0,10)};
 }
+// Payments credited toward the SINGLE bill occurrence due on dueDateStr — the one shared primitive behind
+// every "is this bill paid for its current cycle" check in the app (Bills tab, notifications, nav badge,
+// Forecast, payday routine, dashboard budget card). Bounded by billCycleWindow so a payment only ever
+// satisfies the one occurrence it's closest to — never a future cycle.
+function billPaymentsForDue(b,dueDateStr){
+  const win=billCycleWindow(dueDateStr,forecastCycleMonths(b.recurring));
+  return billPayments.filter(p=>p.bill_id===b.id&&(p.paid_date||'')>win.start&&(p.paid_date||'')<=win.end);
+}
+// Same idea for debt minimum payments (payments table; debt cycles are always monthly).
+function debtPaymentsForDue(d,dueDateStr){
+  const win=billCycleWindow(dueDateStr,1);
+  return payments.filter(p=>p.debt_id===d.id&&(p.pay_date||'')>win.start&&(p.pay_date||'')<=win.end);
+}
 function renderForecast(){
   _forecastSchedule=null; // rebuild the income schedule fresh each render
   const el=document.getElementById('forecast-content');
@@ -1916,12 +1929,14 @@ function renderForecast(){
       const dd=Math.min(parseInt(b.due_day),new Date(y,m+1,0).getDate());
       const billDate=new Date(y,m,dd);
       if(billDate<=todayDate||billDate>endDate)return;
-      // Skip bills already paid for THIS billing cycle — counts payments back to the previous occurrence's
-      // due date, so an early payment (any time after the last occurrence) is recognized for all frequencies.
+      // Skip bills already paid for THIS billing cycle — same shared check as the Bills tab / notifications.
+      // Payment-EXISTS semantics, not sum>=bill.amount: editing a bill's amount right after paying it must
+      // not resurrect a forecast event for a cycle that's already been paid (see isBillFullyPaidThisMonth).
+      // The current month's occurrence goes through isBillCoveredForCurrentCycle so a very-late payment
+      // logged this month (outside the bounded window) is also recognized, exactly like the Bills tab.
       const billDateStr=billDate.toISOString().slice(0,10);
-      const bWin=billCycleWindow(billDateStr,forecastCycleMonths(b.recurring));
-      const billPaid=billPayments.filter(p=>p.bill_id===b.id&&(p.paid_date||'')>bWin.start&&(p.paid_date||'')<=bWin.end).reduce((s,p)=>s+parseFloat(p.amount||0),0);
-      if(billPaid>=parseFloat(b.amount||0)-0.005)return;
+      const covered=billDateStr.slice(0,7)===thisMonthLocal()?isBillCoveredForCurrentCycle(b):billPaymentsForDue(b,billDateStr).length>0;
+      if(covered)return;
       events.push({date:billDateStr,amount:-parseFloat(b.amount||0),label:b.name,type:b.debt_id?'debt':'bill'});
     });
     cursor.setMonth(cursor.getMonth()+1);cursor.setDate(1);
@@ -1953,11 +1968,12 @@ function renderForecast(){
       const dueDay=Math.min(parseInt(d.due_date)||15,lastDay);
       const dd=new Date(y,mo,dueDay);
       if(dd<=todayDate||dd>endDate)return;
-      // Skip if already covered by a payment in this billing cycle — back to the previous month's due day,
-      // so an early minimum payment (even across a month boundary) is recognized.
+      // Skip if already covered by a payment in this billing cycle (shared debtPaymentsForDue window, so an
+      // early minimum payment — even across a month boundary — is recognized). Sum-vs-minimum here, NOT
+      // payment-exists: the payments table also holds extra principal payments, and a partial payment below
+      // the minimum still leaves the minimum due.
       const ddStr=dd.toISOString().slice(0,10);
-      const dWin=billCycleWindow(ddStr,1);
-      const paidForCycle=payments.filter(p=>p.debt_id===d.id&&(p.pay_date||'')>dWin.start&&(p.pay_date||'')<=dWin.end).reduce((s,p)=>s+parseFloat(p.amount||0),0);
+      const paidForCycle=debtPaymentsForDue(d,ddStr).reduce((s,p)=>s+parseFloat(p.amount||0),0);
       if(paidForCycle>=minimum-0.005)return;
       events.push({date:ddStr,amount:-minimum,label:d.name+' (min)',type:'debt'});
     });
@@ -3449,20 +3465,21 @@ function isBillDueInMonth(b,year,month){
   return true;
 }
 function isBillDueThisMonth(b){const n=new Date();return isBillDueInMonth(b,n.getFullYear(),n.getMonth());}
-// Payments credited toward a bill's CURRENT due date — recognizes payments made reasonably early (within
-// the cycle window around the due date, via billCycleWindow), unioned with any payment logged in the
-// current calendar month (covers on-time/late payments). The window is bounded on both sides so a single
-// payment can only ever satisfy the ONE cycle it's closest to — a payment made just after this due date
-// must never also count toward NEXT cycle's due date.
-function billPaymentsForCurrentDue(b){
+// This month's occurrence of a bill's due date (due_day clamped to the month's last day).
+function billDueDateThisMonthStr(b){
   const now=new Date();const y=now.getFullYear(),m=now.getMonth();
-  const cycleMonths=forecastCycleMonths(b.recurring);
   const lastDay=new Date(y,m+1,0).getDate();
   const dd=Math.min(parseInt(b.due_day)||lastDay,lastDay);
-  const billDateStr=new Date(y,m,dd).toISOString().slice(0,10);
-  const win=billCycleWindow(billDateStr,cycleMonths);
+  return new Date(y,m,dd).toISOString().slice(0,10);
+}
+// Payments credited toward a bill's CURRENT due date — the bounded cycle window around this month's
+// occurrence (billPaymentsForDue: recognizes payments made reasonably early, never lets one payment
+// satisfy a future cycle), unioned with any payment logged in the current calendar month, which catches
+// a very-late payment (>5 days past due, outside the window) for as long as that month lasts.
+function billPaymentsForCurrentDue(b){
+  const inWin=new Set(billPaymentsForDue(b,billDueDateThisMonthStr(b)).map(p=>p.id));
   const tm=thisMonthLocal();
-  return billPayments.filter(p=>p.bill_id===b.id&&((p.paid_date>win.start&&p.paid_date<=win.end)||(p.paid_date||'').startsWith(tm)));
+  return billPayments.filter(p=>p.bill_id===b.id&&(inWin.has(p.id)||(p.paid_date||'').startsWith(tm)));
 }
 // Actual $ applied toward a bill's current due date (sums real payment rows, early or this-month).
 function billPaidThisMonth(b){return billPaymentsForCurrentDue(b).reduce((s,p)=>s+parseFloat(p.amount||0),0);}
@@ -3646,7 +3663,6 @@ function showBillCatDetail(idx){
   const cat=_billPieCats[idx];
   if(!cat)return;
   const _vBills=bills.filter(b=>!isBillExpired(b));
-  const thisMonth=thisMonthLocal();
   const curYear=new Date().getFullYear();
   const yearStr=curYear.toString();
   let entries;
@@ -3670,8 +3686,9 @@ function showBillCatDetail(idx){
     });
     entries=Object.values(yearBillMap).sort((a,b)=>b.amt-a.amt);
   }else{
-    const paidIds=new Set(billPayments.filter(p=>(p.paid_date||'').startsWith(thisMonth)).map(p=>p.bill_id));
-    entries=_vBills.filter(b=>(b.category||'Uncategorized')===cat&&(isBillDueThisMonth(b)||paidIds.has(b.id)))
+    // Same paid semantics as the pie entries in renderBills — shared isBillCoveredForCurrentCycle, which
+    // (unlike a raw calendar-month check) recognizes early payments and ignores stale same-month ones.
+    entries=_vBills.filter(b=>(b.category||'Uncategorized')===cat&&(isBillDueThisMonth(b)||isBillCoveredForCurrentCycle(b)))
       .map(b=>({b,amt:parseFloat(b.amount||0),occurrences:1}))
       .sort((a,b)=>b.amt-a.amt);
   }
@@ -5780,6 +5797,7 @@ function openPaycalcModal(){openModal('paycalc-modal');renderPaycalc();}
 //                           place of desc when present (desc is used as a fallback if impact is omitted).
 // Any future fix that touches balance-calculation logic should add affectsBalance:true + an impact string.
 const CHANGELOG=[
+  {date:new Date('2026-07-01T12:00:00').getTime(),icon:'ti-checklist',title:'One shared "bill paid" check everywhere',desc:'The Bills tab, notifications, Forecast, and category breakdowns now all use the same logic to decide whether a bill is paid for its current cycle. Fixes the Forecast re-adding a bill you already paid after you edit its amount, and the category drill-down missing payments made a few days early.'},
   {date:new Date('2026-06-30T16:00:00').getTime(),icon:'ti-chart-pie',title:'Bills progress bar reflects dollars, not bill count',desc:'The Bills progress bar and percentage now track how much money is paid vs. remaining, not how many bills are checked off — so $1,862.66 paid of $1,863.65 total shows as 99.9% complete instead of 93% just because one small $0.99 bill is still open. "X of Y bills paid" stays as a separate count.'},
   {date:new Date('2026-06-30T15:15:00').getTime(),icon:'ti-target',title:'30% Utilization debt payoff goal',desc:'The Debt Payoff Calculator on Forecast now lets you choose a goal — Debt-Free or 30% Card Utilization — so you can see exactly when Avalanche or Snowball gets your credit cards under the recommended 30% mark, not just fully paid off.'},
   {date:new Date('2026-06-30T15:10:00').getTime(),icon:'ti-paperclip',title:'Attach receipts to expenses',desc:'Tap Add Receipt when logging or editing an expense to snap a photo or choose one from your gallery (JPG, PNG, or PDF up to 5 MB each). The app tries to read the receipt and auto-fill the amount, description, date, and category — always double-check what it pulls in before saving.'},
