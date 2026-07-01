@@ -948,6 +948,20 @@ select option{background:var(--surface);color:var(--text);}
   </div>
 </div></div>
 
+<!-- ADD CATEGORY MODAL -->
+<div class="modal-overlay" id="add-category-modal"><div class="modal">
+  <div class="modal-handle"></div>
+  <div class="modal-title">Add Category</div>
+  <div class="field"><label>Category Name</label><input type="text" id="add-cat-name" placeholder="e.g. Pet Supplies"/></div>
+  <div class="field"><label>Monthly Budget Target ($)</label><input type="number" id="add-cat-target" placeholder="0.00" step="0.01" min="0"/></div>
+  <div class="field">
+    <label>Color</label>
+    <input type="hidden" id="add-cat-color"/>
+    <div id="add-cat-swatches" style="display:flex;flex-wrap:wrap;gap:10px;margin-top:6px;"></div>
+  </div>
+  <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal('add-category-modal')">Cancel</button><button class="btn btn-primary" onclick="saveNewCategory()">Save</button></div>
+</div></div>
+
 <script>
 const SUPABASE_URL='https://edhsytkmmltzhgxxhpqy.supabase.co';
 const SUPABASE_ANON_KEY='sb_publishable_tAn5TF5Cuear3qJMzZdN5Q_4G_mUVUh';
@@ -4232,7 +4246,7 @@ async function saveEditPaycheck(){
   if(document.getElementById('dash-detail-modal').classList.contains('open'))showConfirmedIncomeModal();
 }
 function openPaymentModalForWeek(weekId){document.getElementById('pay-date').value=today();document.getElementById('pay-amount').value='';document.getElementById('pay-notes').value='';const sel=document.getElementById('pay-account');sel.innerHTML='<option value="">— Select account —</option>'+debts.map(d=>`<option value="${d.id}">${esc(d.name)}</option>`).join('');document.getElementById('payment-modal').dataset.weekId=weekId;openModal('payment-modal');}
-function openExpenseModalForWeek(weekId){document.getElementById('exp-date').value=today();document.getElementById('exp-amount').value='';document.getElementById('exp-desc').value='';document.getElementById('exp-notes').value='';document.getElementById('exp-one-off').checked=false;document.getElementById('expense-modal').dataset.weekId=weekId;pendingReceiptFiles.full=[];renderPendingStrip('full');openModal('expense-modal');}
+function openExpenseModalForWeek(weekId){injectCustomCategoryOptions('exp-category');document.getElementById('exp-date').value=today();document.getElementById('exp-amount').value='';document.getElementById('exp-desc').value='';document.getElementById('exp-notes').value='';document.getElementById('exp-one-off').checked=false;document.getElementById('expense-modal').dataset.weekId=weekId;pendingReceiptFiles.full=[];renderPendingStrip('full');openModal('expense-modal');}
 
 // DEBTS
 const debtCollapsed=new Set();
@@ -4498,6 +4512,25 @@ let expenseSearch='';
 let budgetEditingCat=null;
 
 const CAT_COLORS=['#4f8ef7','#2dd4a0','#f7c948','#f75a5a','#b07fff','#f7a94f','#64748b','#22c55e','#e879f9','#38bdf8','#fb923c','#a3e635'];
+// Built-in categories always offered in every category picker (expense modals, quick-add editor). User-
+// created categories (anything with a budget_targets row that isn't in this list) are merged in alongside
+// them — see customExpenseCategories() / injectCustomCategoryOptions().
+const DEFAULT_EXPENSE_CATEGORIES=['Groceries','Dining','DoorDash','Gas Station','Nicotine','Laundry','Medical / Pharmacy','Personal Care','Clothing','Entertainment','Household Supplies','Transportation / Rideshare','Subscriptions','Other'];
+function customExpenseCategories(){return Object.keys(budgetTargets).filter(c=>!DEFAULT_EXPENSE_CATEGORIES.includes(c)).sort();}
+// Appends any custom categories as <option> elements just before "Other" in a category <select> — called
+// each time an expense modal opens so newly added/deleted categories stay in sync without duplicating
+// options on repeat opens (existing custom options are cleared and rebuilt first).
+function injectCustomCategoryOptions(selectId){
+  const sel=document.getElementById(selectId);
+  if(!sel)return;
+  sel.querySelectorAll('option[data-custom-cat]').forEach(o=>o.remove());
+  const otherOpt=[...sel.options].find(o=>o.value==='Other');
+  customExpenseCategories().forEach(c=>{
+    const opt=document.createElement('option');
+    opt.value=c;opt.textContent=c;opt.dataset.customCat='1';
+    if(otherOpt)sel.insertBefore(opt,otherOpt);else sel.appendChild(opt);
+  });
+}
 
 function toggleInsights(){insightsOpen=!insightsOpen;localStorage.setItem('bt-insights-open',insightsOpen);renderExpenses();}
 function setInsightsTab(t){insightsTab=t;renderInsights();}
@@ -4568,7 +4601,7 @@ function renderCategoryInsights(){
   const total=sorted.reduce((s,[,v])=>s+v,0);
   const bars=sorted.map(([cat,amt],i)=>{
     const pct=(amt/total)*100;
-    const col=CAT_COLORS[i%CAT_COLORS.length];
+    const col=colorForCategory(cat,i);
     const isActive=activeFilter===cat;
     return`<div class="bar-wrap" onclick="setExpenseFilter('${esc(cat)}')" style="cursor:pointer;opacity:${activeFilter&&!isActive?'0.4':'1'};transition:opacity 0.2s;">
       <div class="bar-label-row">
@@ -4626,7 +4659,7 @@ function renderBudgetInsights(){
   // Color map matching Trends tab order
   const catOrder=[...new Set(expenses.map(e=>e.category))];
   const catColorMap={};
-  catOrder.forEach((c,i)=>{catColorMap[c]=CAT_COLORS[i%CAT_COLORS.length];});
+  catOrder.forEach((c,i)=>{catColorMap[c]=colorForCategory(c,i);});
 
   // Summary figures
   const totalTarget=targetedCats.reduce((s,c)=>s+budgetTargets[c],0);
@@ -4691,7 +4724,7 @@ function renderBudgetInsights(){
   });
   const targetedTableCats=tableCats.filter(c=>budgetTargets[c]);
   const hint=targetedCats.length===0
-    ?'<tr><td colspan="5" style="padding:8px 6px;font-size:11px;color:var(--muted);font-style:italic;">Tap any target amount to set or edit your monthly budget</td></tr>'
+    ?'<tr><td colspan="6" style="padding:8px 6px;font-size:11px;color:var(--muted);font-style:italic;">Tap any target amount to set or edit your monthly budget</td></tr>'
     :'';
 
   const _now=new Date();
@@ -4721,7 +4754,7 @@ function renderBudgetInsights(){
         :status==='close'
           ?'<span style="font-size:9px;font-weight:700;color:var(--warning);margin-left:4px;white-space:nowrap;">⚠ Getting Close</span>'
           :'<span style="font-size:9px;font-weight:700;color:var(--success);margin-left:4px;white-space:nowrap;">✓ On Track</span>';
-    const col=catColorMap[cat]||'var(--accent)';
+    const col=catColorMap[cat]||colorForCategory(cat,0);
     const isEditing=budgetEditingCat===cat;
     const tgtCell=isEditing
       ?'<td onclick="event.stopPropagation()" style="padding:5px 6px;">'
@@ -4739,6 +4772,7 @@ function renderBudgetInsights(){
       +'<td style="padding:7px 6px;font-size:12px;text-align:right;">'+fmt(spent)+'</td>'
       +'<td style="padding:7px 6px;font-size:12px;font-weight:700;color:'+rc+';text-align:right;"><span>'+(rem<0?'-':'')+fmt(Math.abs(rem))+'</span>'+badge+'</td>'
       +'<td style="padding:7px 6px;min-width:60px;"><div style="height:5px;background:var(--surface2);border-radius:3px;overflow:hidden;"><div style="width:'+pct+'%;height:100%;background:'+bc+';border-radius:3px;"></div></div></td>'
+      +'<td style="padding:7px 6px;text-align:center;" onclick="event.stopPropagation()"><button onclick="deleteCategoryTarget(\''+esc(cat)+'\')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;padding:2px;line-height:1;" title="Delete category"><i class="ti ti-trash"></i></button></td>'
       +'</tr>';
   }).join('');
 
@@ -4764,6 +4798,7 @@ function renderBudgetInsights(){
       +'<td style="padding:7px 6px;font-size:12px;text-align:right;color:var(--muted);">'+fmt(spent)+'</td>'
       +'<td style="padding:7px 6px;text-align:right;color:var(--muted);">—</td>'
       +'<td></td>'
+      +'<td></td>'
       +'</tr>';
   }).join('');
 
@@ -4774,6 +4809,7 @@ function renderBudgetInsights(){
       +'<td style="padding:8px 6px;font-size:12px;text-align:right;">'+fmt(totalTarget)+'</td>'
       +'<td style="padding:8px 6px;font-size:12px;text-align:right;">'+fmt(totalTargetedSpent)+'</td>'
       +'<td style="padding:8px 6px;font-size:12px;color:'+totRemColor+';text-align:right;">'+(totalRemaining<0?'-':'')+fmt(Math.abs(totalRemaining))+'</td>'
+      +'<td></td>'
       +'<td></td>'
       +'</tr>'
     :'';
@@ -4786,15 +4822,18 @@ function renderBudgetInsights(){
     +'<th style="padding:5px 6px;font-size:10px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:var(--muted);text-align:right;">Spent</th>'
     +'<th style="padding:5px 6px;font-size:10px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:var(--muted);text-align:right;">Remaining</th>'
     +'<th style="padding:5px 6px;font-size:10px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:var(--muted);">% Used</th>'
+    +'<th style="width:28px;"></th>'
     +'</tr></thead>'
     +'<tbody>'+hint+tableRows+unsetRows+totalsRow+'</tbody>'
     +'</table>'
     +'</div>';
 
+  const addCatBtn='<button onclick="openAddCategoryModal()" style="display:flex;align-items:center;gap:6px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:12px;font-weight:700;padding:8px 12px;margin-top:10px;cursor:pointer;"><i class="ti ti-plus"></i> Add Category</button>';
+
   const noTargetsHint=targetedCats.length===0
     ?'<div style="background:var(--surface2);border-radius:var(--radius-sm);padding:12px 16px;margin-bottom:14px;font-size:12px;color:var(--muted);text-align:center;">Tap <strong style="color:var(--text);">+ Set target</strong> in the TARGET column below to track your spending against a monthly budget.</div>'
     :'';
-  return (targetedCats.length===0?noTargetsHint:summary)+table;
+  return (targetedCats.length===0?noTargetsHint:summary)+table+addCatBtn;
 }
 
 function renderBarChart(data,type,targetAmount){
@@ -4903,7 +4942,7 @@ function renderTrendsInsights(){
     const trend=lastTwo[1]-lastTwo[0];
     const trendIcon=trend>5?'↑':trend<-5?'↓':'→';
     const trendColor=trend>5?'var(--danger)':trend<-5?'var(--success)':'var(--muted)';
-    const col=CAT_COLORS[ci%CAT_COLORS.length];
+    const col=colorForCategory(cat,ci);
     const latestVal=(trendsWindow==='yearly'||trendsWindow==='daily')?vals.reduce((s,v)=>s+v,0):vals[vals.length-1];
     const latestLabel=(trendsWindow==='weekly'||trendsWindow==='daily')?'this wk':trendsWindow==='yearly'?'this yr':trendsWindow==='3mo'?'this period':'this mo';
     const lineWidth=(periods.length-1)*ptSpacing;
@@ -5069,7 +5108,7 @@ function pickEmoji(i,emoji){
 }
 function openQuickAddEditor(){
   const qa=getQuickAdds();
-  const cats=['Groceries','Dining','DoorDash','Gas Station','Nicotine','Laundry','Medical / Pharmacy','Personal Care','Clothing','Entertainment','Household Supplies','Transportation / Rideshare','Subscriptions','Other'];
+  const cats=[...DEFAULT_EXPENSE_CATEGORIES.filter(c=>c!=='Other'),...customExpenseCategories(),'Other'];
   const rows=qa.map((q,i)=>`<div style="display:flex;gap:8px;align-items:flex-start;margin-bottom:8px;">
     <div style="display:flex;flex-direction:column;flex-shrink:0;">
       <input type="hidden" id="qe-emoji-${i}" value="${esc(q.emoji)}"/>
@@ -5235,7 +5274,7 @@ async function bulkDeleteExpenses(){
   renderExpenseHeaderControls();renderExpenseSelectBar();renderExpenses();renderDashboard();
   toast(ids.length+' expense'+(ids.length!==1?'s':'')+' deleted');
 }
-function openExpenseModal(){document.getElementById('exp-date').value=today();document.getElementById('exp-amount').value='';document.getElementById('exp-desc').value='';document.getElementById('exp-notes').value='';document.getElementById('exp-one-off').checked=false;delete document.getElementById('expense-modal').dataset.weekId;pendingReceiptFiles.full=[];renderPendingStrip('full');openModal('expense-modal');}
+function openExpenseModal(){injectCustomCategoryOptions('exp-category');document.getElementById('exp-date').value=today();document.getElementById('exp-amount').value='';document.getElementById('exp-desc').value='';document.getElementById('exp-notes').value='';document.getElementById('exp-one-off').checked=false;delete document.getElementById('expense-modal').dataset.weekId;pendingReceiptFiles.full=[];renderPendingStrip('full');openModal('expense-modal');}
 async function saveExpense(){
   const amount=parseFloat(document.getElementById('exp-amount').value);
   if(!amount||amount<=0){toast('Enter a valid amount');return;}
@@ -5249,6 +5288,7 @@ async function saveExpense(){
 async function deleteExpense(id){if(!confirm('Delete this expense?'))return;const _p=receiptsForExpense(id).map(r=>r.storage_path);if(_p.length)await sb.storage.from('receipts').remove(_p);await sb.from('expenses').delete().eq('id',id);await Promise.all([loadExpenses(),loadReceipts()]);renderExpenses();if(document.getElementById('view-weekly').classList.contains('active'))renderWeekly();renderDashboard();toast('Expense deleted');}
 function editExpense(id){
   const e=expenses.find(x=>x.id===id);if(!e)return;
+  injectCustomCategoryOptions('edit-exp-category');
   document.getElementById('edit-exp-id').value=id;
   document.getElementById('edit-exp-date').value=e.exp_date||today();
   document.getElementById('edit-exp-category').value=e.category||'Other';
@@ -6289,11 +6329,56 @@ async function deleteDebtHistoryPayment(id,debtId){
   ALTER TABLE budget_targets ENABLE ROW LEVEL SECURITY;
   CREATE POLICY "Users manage own budget_targets" ON budget_targets
     FOR ALL USING (auth.uid() = user_id);
+
+  -- If budget_targets already existed from an earlier version (no color column), just run:
+  ALTER TABLE budget_targets ADD COLUMN IF NOT EXISTS color TEXT;
 */
-let budgetTargets={};
-async function loadBudgetTargets(){const{data}=await sb.from('budget_targets').select('*').eq('user_id',currentUser.id);budgetTargets={};(data||[]).forEach(r=>{budgetTargets[r.category]=parseFloat(r.monthly_target);});}
-async function saveBudgetTarget(cat,amount){await sb.from('budget_targets').upsert({user_id:currentUser.id,category:cat,monthly_target:amount},{onConflict:'user_id,category'});budgetTargets[cat]=amount;}
-async function deleteBudgetTarget(cat){await sb.from('budget_targets').delete().eq('user_id',currentUser.id).eq('category',cat);delete budgetTargets[cat];}
+let budgetTargets={},budgetTargetColors={};
+async function loadBudgetTargets(){const{data}=await sb.from('budget_targets').select('*').eq('user_id',currentUser.id);budgetTargets={};budgetTargetColors={};(data||[]).forEach(r=>{budgetTargets[r.category]=parseFloat(r.monthly_target);if(r.color)budgetTargetColors[r.category]=r.color;});}
+// color is optional — the inline "tap to set a target" edit flow (confirmBudgetEdit) doesn't pass one, so
+// an existing category's stored color is preserved rather than cleared when just editing its amount.
+async function saveBudgetTarget(cat,amount,color){
+  const useColor=color||budgetTargetColors[cat]||null;
+  await sb.from('budget_targets').upsert({user_id:currentUser.id,category:cat,monthly_target:amount,color:useColor},{onConflict:'user_id,category'});
+  budgetTargets[cat]=amount;
+  if(useColor)budgetTargetColors[cat]=useColor;
+}
+async function deleteBudgetTarget(cat){await sb.from('budget_targets').delete().eq('user_id',currentUser.id).eq('category',cat);delete budgetTargets[cat];delete budgetTargetColors[cat];}
+// The color shown for a category's dot everywhere it appears (Budget list, Trends, category bars) — a
+// user-picked color takes priority; categories without one keep the existing positional CAT_COLORS
+// assignment (indexFallback) so nothing already on screen changes color.
+function colorForCategory(cat,indexFallback){return budgetTargetColors[cat]||CAT_COLORS[indexFallback%CAT_COLORS.length];}
+function openAddCategoryModal(){
+  document.getElementById('add-cat-name').value='';
+  document.getElementById('add-cat-target').value='';
+  document.getElementById('add-cat-color').value=CAT_COLORS[0];
+  document.getElementById('add-cat-swatches').innerHTML=CAT_COLORS.map((c,i)=>
+    '<span onclick="pickCategoryColor(\''+c+'\')" data-swatch="'+c+'" style="width:28px;height:28px;border-radius:50%;background:'+c+';cursor:pointer;display:inline-block;border:2px solid '+(i===0?'var(--text)':'transparent')+';"></span>'
+  ).join('');
+  openModal('add-category-modal');
+}
+function pickCategoryColor(color){
+  document.getElementById('add-cat-color').value=color;
+  document.querySelectorAll('#add-cat-swatches span').forEach(s=>{s.style.border='2px solid '+(s.dataset.swatch===color?'var(--text)':'transparent');});
+}
+async function saveNewCategory(){
+  const name=document.getElementById('add-cat-name').value.trim();
+  const target=parseFloat(document.getElementById('add-cat-target').value);
+  const color=document.getElementById('add-cat-color').value||CAT_COLORS[0];
+  if(!name){toast('Enter a category name');return;}
+  if(budgetTargets.hasOwnProperty(name)){toast('That category already exists');return;}
+  if(!target||target<=0){toast('Enter a valid target amount');return;}
+  await saveBudgetTarget(name,target,color);
+  closeModal('add-category-modal');
+  renderInsights();
+  toast(`${name} added ✓`);
+}
+async function deleteCategoryTarget(cat){
+  if(!confirm(`Delete "${cat}"? It will no longer appear in the Budget list or expense category picker. Expenses already logged under it keep their original category and won't be deleted.`))return;
+  await deleteBudgetTarget(cat);
+  renderInsights();
+  toast(`${cat} removed`);
+}
 function startBudgetEdit(cat){budgetEditingCat=cat;renderInsights();}
 function cancelBudgetEdit(){budgetEditingCat=null;renderInsights();}
 async function confirmBudgetEdit(cat){
