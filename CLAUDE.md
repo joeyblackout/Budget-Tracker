@@ -27,6 +27,7 @@ A mobile-first personal finance web app. Single `index.html` file, no build step
 3. **Check JS syntax after every edit**, not just at the end
 4. **Wait for explicit go-ahead** before generating and sending any file
 5. **Never send a file without the user saying "go"**
+6. **CHANGELOG entry ships WITH the change** — any user-visible feature or behavior change gets an entry in the `CHANGELOG` array (newest first, `{date,icon,title,desc}`) as part of the same edit, never as a follow-up step. Purely internal refactors invisible to the user don't need one. If the change alters how Available Balance (or another financial total) is calculated so a number the user sees shifts, also set `affectsBalance:true` and an `impact:'...'` string — this drives the auto-popup "Your balance changed" notice (`checkBalanceChangeNotice`)
 
 ## Database Schema (Supabase / Postgres)
 
