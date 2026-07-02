@@ -808,6 +808,14 @@ select option{background:var(--surface);color:var(--text);}
   </div>
 </div></div>
 
+<!-- EDIT STARTING CASH MODAL -->
+<div class="modal-overlay" id="starting-cash-modal"><div class="modal">
+  <div class="modal-handle"></div><div class="modal-title">Edit Starting Cash</div>
+  <p class="text-muted mb8" style="font-size:13px;">This is your cash on hand as of the date you started logging — the foundation your Available Balance builds on. It's a single baseline number: This Month, This Year, and All Time all build from this same value, so changing it shifts your balance in every view.</p>
+  <div class="field"><label>Starting Cash ($)</label><input type="number" id="dash-starting-cash" placeholder="0.00" step="0.01"/></div>
+  <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal('starting-cash-modal')">Cancel</button><button class="btn btn-primary" onclick="saveStartingCashFromDash()">Save</button></div>
+</div></div>
+
 <!-- COMMUNITY POST MODAL -->
 <div class="modal-overlay" id="post-modal"><div class="modal">
   <div class="modal-handle"></div><div class="modal-title">Share an Update</div>
@@ -2789,7 +2797,7 @@ function renderDashboard(){
       </div>
       <div class="balance-amount ${runningBalance>=0?'text-success':'text-danger'}">${fmt(runningBalance)}</div>
       <div class="balance-breakdown">
-        ${startingCash>0?`<div class="balance-line"><span class="balance-line-label">Starting Cash</span><span class="balance-line-val text-success">+${fmt(startingCash)}</span></div>`:''}
+        <div class="balance-line" onclick="openStartingCashModal()"><span class="balance-line-label">Starting Cash <i class="ti ti-pencil" style="font-size:11px;"></i></span><span class="balance-line-val text-success">+${fmt(startingCash)}</span></div>
         <div class="balance-line" onclick="showIncomeBreakdown()"><span class="balance-line-label">Raked In</span><span class="balance-line-val text-success">+${fmt(totalIncome)}</span></div>
         <div class="balance-line" onclick="showDebtPaidBreakdown()"><span class="balance-line-label">Debt Paid</span><span class="balance-line-val text-danger">-${fmt(totalPaid)}</span></div>
         <div class="balance-line" onclick="showBillsPaidBreakdown()"><span class="balance-line-label">Bills Paid</span><span class="balance-line-val text-danger">-${fmt(dispBillsPaid)}</span></div>
@@ -5626,6 +5634,20 @@ async function saveStartingCash(){
   if(error){toast('Error: '+error.message);return;}
   await loadProfiles();renderSetup();renderDashboard();toast('Starting cash saved ✓');
 }
+function openStartingCashModal(){
+  document.getElementById('dash-starting-cash').value=myProfile?.starting_cash?myProfile.starting_cash:'';
+  openModal('starting-cash-modal');
+}
+async function saveStartingCashFromDash(){
+  const cash=parseFloat(document.getElementById('dash-starting-cash').value)||0;
+  const payload={user_id:currentUser.id,display_name:myProfile?.display_name||null,auto_post:myProfile?myProfile.auto_post:true,starting_cash:cash};
+  const{error}=await sb.from('profiles').upsert(payload,{onConflict:'user_id'});
+  if(error){toast('Error: '+error.message);return;}
+  await loadProfiles();
+  closeModal('starting-cash-modal');
+  renderSetup();renderDashboard();
+  toast('Starting cash saved ✓');
+}
 async function toggleAutoPost(){
   const newVal=!(myProfile?myProfile.auto_post!==false:true);
   const payload={user_id:currentUser.id,display_name:myProfile?.display_name||null,auto_post:newVal,starting_cash:myProfile?.starting_cash||0};
@@ -5797,6 +5819,7 @@ function openPaycalcModal(){openModal('paycalc-modal');renderPaycalc();}
 //                           place of desc when present (desc is used as a fallback if impact is omitted).
 // Any future fix that touches balance-calculation logic should add affectsBalance:true + an impact string.
 const CHANGELOG=[
+  {date:new Date('2026-07-02T12:00:00').getTime(),icon:'ti-edit',title:'Edit Starting Cash right from the Dashboard',desc:'Tap the Starting Cash line on the Available Balance card to update it on the spot — no trip to Settings needed. The line now always shows (even at $0.00) so it\'s easy to find, and your Available Balance recalculates the moment you save. Starting Cash is one baseline number that This Month, This Year, and All Time all build from.'},
   {date:new Date('2026-07-01T12:00:00').getTime(),icon:'ti-checklist',title:'One shared "bill paid" check everywhere',desc:'The Bills tab, notifications, Forecast, and category breakdowns now all use the same logic to decide whether a bill is paid for its current cycle. Fixes the Forecast re-adding a bill you already paid after you edit its amount, and the category drill-down missing payments made a few days early.'},
   {date:new Date('2026-07-01T08:00:00').getTime(),icon:'ti-alert-triangle',title:'"Your balance changed" alerts',desc:'If an app update changes how your Available Balance is calculated, a popup now explains exactly why the number moved the next time you open the app — so a shifted balance is never mistaken for a lost transaction. Tapping Got it also clears the Updates bell.'},
   {date:new Date('2026-07-01T07:45:00').getTime(),icon:'ti-category',title:'Custom expense categories',desc:'Tap Add Category under Budget to create your own spending category with a name, monthly target, and color. Custom categories show up in every expense picker and in Trends, and you can delete one anytime — expenses already logged under it keep their history.'},
