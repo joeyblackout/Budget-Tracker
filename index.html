@@ -120,7 +120,7 @@ select option{background:var(--surface);color:var(--text);}
 .progress-label{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-bottom:6px;}
 .progress-bar{height:6px;background:var(--border);border-radius:99px;overflow:hidden;}
 .progress-fill{height:100%;background:linear-gradient(90deg,var(--success),#0a9e74);border-radius:99px;transition:width 0.55s cubic-bezier(0.16,1,0.3,1);}
-@media (prefers-reduced-motion:reduce){.progress-fill,[data-bar-key],[data-badge-key]{transition:none!important;}.paid-flash,.payoff-pop,.view.active,.acc-body,.bell-pulse{animation:none!important;}.skel{animation:none!important;opacity:1;}.skel::after{animation:none!important;display:none;}}
+@media (prefers-reduced-motion:reduce){.progress-fill,[data-bar-key],[data-badge-key]{transition:none!important;}.paid-flash,.payoff-pop,.view.active,.acc-body,.bell-pulse{animation:none!important;}.skel{animation:none!important;opacity:1;}.skel::after{animation:none!important;display:none;}.paid-off-card{animation:none!important;}}
 .account-row{display:flex;align-items:center;justify-content:space-between;padding:13px 0;border-bottom:1px solid var(--border);}
 .account-row:last-child{border-bottom:none;}
 .account-name{font-size:15px;font-weight:600;}
@@ -241,6 +241,11 @@ select option{background:var(--surface);color:var(--text);}
 .acc-body{animation:acc-open 0.26s ease;}
 @keyframes bell-pulse{0%{transform:none;}20%{transform:rotate(12deg) scale(1.15);}40%{transform:rotate(-10deg) scale(1.1);}60%{transform:rotate(6deg) scale(1.05);}80%{transform:rotate(-3deg);}100%{transform:none;}}
 .bell-pulse{display:inline-block;animation:bell-pulse 0.6s ease;}
+/* Signature paid-off debt card — slow success-green gradient border sweep + trophy badge.
+   The one deliberately bold visual in the app; everything else stays quiet by comparison. */
+.paid-off-card{position:relative;border:1.5px solid transparent;border-radius:var(--radius);padding:12px 14px;margin-bottom:6px;background:linear-gradient(var(--surface),var(--surface)) padding-box,linear-gradient(120deg,rgba(45,212,160,0.65) 0%,rgba(45,212,160,0.08) 35%,rgba(45,212,160,0.65) 70%,rgba(45,212,160,0.08) 100%) border-box;background-size:100% 100%,320% 100%;animation:paidoff-border 7s linear infinite;}
+@keyframes paidoff-border{from{background-position:0 0,0% 0;}to{background-position:0 0,320% 0;}}
+.paid-off-trophy{width:34px;height:34px;border-radius:50%;background:rgba(45,212,160,0.15);display:flex;align-items:center;justify-content:center;color:var(--success);font-size:17px;flex-shrink:0;}
 @keyframes payoff-pop{0%{transform:scale(1);}35%{transform:scale(1.03);}70%{transform:scale(0.99);}100%{transform:scale(1);}}
 @keyframes payoff-glow{0%{box-shadow:0 0 0 0 rgba(45,212,160,0);}15%{border-color:var(--success);box-shadow:0 0 26px 4px rgba(45,212,160,0.4);}75%{border-color:var(--success);box-shadow:0 0 22px 3px rgba(45,212,160,0.3);}100%{box-shadow:0 0 0 0 rgba(45,212,160,0);}}
 .payoff-pop{animation:payoff-pop 0.9s cubic-bezier(0.34,1.56,0.64,1),payoff-glow 2.2s ease-out;}
@@ -4540,6 +4545,48 @@ function debtPayoffLine(debtId,bal){
   const d=new Date();d.setMonth(d.getMonth()+monthsLeft);
   return '<div style="font-size:10px;color:var(--muted);margin-top:3px;">Paid off ~'+d.toLocaleString('en-US',{month:'short',year:'numeric'})+' at current pace</div>';
 }
+// Signature paid-off state: replaces the whole debt card once balance hits $0. Renders the same
+// way on every visit (persistent state) — the confetti/pop celebration fires only once, from the
+// payment handlers at the moment of payoff. All stats shown are factual (no speculative "saved" math).
+function paidOffDebtCardHtml(d){
+  const pays=payments.filter(p=>p.debt_id===d.id).sort((a,b)=>(a.pay_date||'')<(b.pay_date||'')?-1:1);
+  const totalPaid=pays.reduce((s,p)=>s+parseFloat(p.amount||0),0);
+  const interestPaid=debtInterestLog.filter(l=>l.debt_id===d.id).reduce((s,l)=>s+parseFloat(l.amount||0),0);
+  const first=pays.length?pays[0].pay_date:null;
+  const last=pays.length?pays[pays.length-1].pay_date:null;
+  let months=0;
+  if(first&&last&&pays.length>1){
+    const a=new Date(first+'T00:00:00'),b=new Date(last+'T00:00:00');
+    months=Math.round((b-a)/(1000*60*60*24*30.44));
+  }
+  const apr=parseFloat(d.apr||0);
+  const stats=[];
+  if(totalPaid>0)stats.push('<div><div class="pill-label">Total Paid</div><div style="font-size:13px;font-weight:800;color:var(--success);">'+fmt(totalPaid)+'</div></div>');
+  if(interestPaid>0)stats.push('<div><div class="pill-label">Interest Paid</div><div style="font-size:13px;font-weight:700;">'+fmt(interestPaid)+'</div></div>');
+  if(apr>0)stats.push('<div><div class="pill-label">APR Beaten</div><div style="font-size:13px;font-weight:700;">'+apr.toFixed(1)+'%</div></div>');
+  const aprLine=apr>0
+    ?'<div style="font-size:11px;color:var(--success);margin-top:8px;font-weight:600;"><i class="ti ti-sparkles"></i> No more '+apr.toFixed(1)+'% APR working against you.</div>'
+    :'';
+  return '<div class="paid-off-card" data-debt-id="'+d.id+'">'
+    +'<div style="display:flex;align-items:center;gap:10px;">'
+      +'<div class="paid-off-trophy"><i class="ti ti-trophy"></i></div>'
+      +'<div style="flex:1;min-width:0;">'
+        +'<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;"><span style="font-size:14px;font-weight:800;letter-spacing:-0.02em;">'+esc(d.name)+'</span><span style="font-size:9px;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;color:var(--success);background:rgba(45,212,160,0.12);border:1px solid rgba(45,212,160,0.3);border-radius:99px;padding:2px 8px;">Paid Off</span></div>'
+        +'<div style="font-size:11px;color:var(--muted);margin-top:2px;">'+esc(d.type)
+          +(last?' · Paid off '+fmtDate(last):'')
+          +(months>0?' · '+months+' month'+(months!==1?'s':'')+' of payments':'')
+        +'</div>'
+      +'</div>'
+      +'<div style="display:flex;gap:6px;flex-shrink:0;">'
+        +'<button class="del-btn" onclick="event.stopPropagation();showDebtDetail(\''+d.id+'\')">History</button>'
+        +'<button class="del-btn" onclick="event.stopPropagation();editDebt(\''+d.id+'\')">Edit</button>'
+        +'<button class="del-btn" onclick="event.stopPropagation();deleteDebt(\''+d.id+'\')">Delete</button>'
+      +'</div>'
+    +'</div>'
+    +(stats.length?'<div style="display:flex;gap:18px;margin-top:10px;padding-top:10px;border-top:1px solid rgba(45,212,160,0.15);">'+stats.join('')+'</div>':'')
+    +aprLine
+    +'</div>';
+}
 function renderDebts(){
   const stratEl=document.getElementById('debts-strategy');
   const el=document.getElementById('debts-list');
@@ -4548,6 +4595,7 @@ function renderDebts(){
   if(debts.length===0){el.innerHTML=`<div class="empty"><div class="icon"><i class="ti ti-credit-card"></i></div><p>No accounts yet. Tap <strong>+</strong> to add one.</p></div>`;return;}
   el.innerHTML=debts.map(d=>{
     const bal=parseFloat(d.balance||0);
+    if(bal<=0)return paidOffDebtCardHtml(d); // signature paid-off state supersedes the normal card
     const lim=parseFloat(d.credit_limit||0);
     const u=lim>0?(bal/lim)*100:null;
     const debtPaid=payments.filter(p=>p.debt_id===d.id).reduce((s,p)=>s+parseFloat(p.amount||0),0);
@@ -6077,6 +6125,7 @@ function openPaycalcModal(){openModal('paycalc-modal');renderPaycalc();}
 //                           place of desc when present (desc is used as a fallback if impact is omitted).
 // Any future fix that touches balance-calculation logic should add affectsBalance:true + an impact string.
 const CHANGELOG=[
+  {date:new Date('2026-07-03T12:00:00').getTime(),icon:'ti-trophy',title:'Paid-off debts get their trophy',desc:'When a debt hits $0 it now transforms into a signature "Paid Off" card — a trophy badge, a slowly shimmering green border, and your real numbers: total paid, months of payments, actual interest paid, and the APR you beat. The confetti celebration still fires once at the moment of payoff; after that the card simply wears its earned state. History, Edit, and Delete stay available on the card.'},
   {date:new Date('2026-07-03T11:00:00').getTime(),icon:'ti-palette',title:'Red now means something is actually wrong',desc:'Bill amounts and the "Remaining" bills total no longer show in red just because money is due — red is reserved for genuine problems: overdue, over budget, or a negative balance. Overdue and due-soon badges are unchanged. Also: "On pace" spending now shows green instead of caution yellow, and the due-soon notification icon is yellow to match the badges. Colors only — no numbers changed.'},
   {date:new Date('2026-07-03T10:00:00').getTime(),icon:'ti-typography',title:'Sharper numbers',desc:'The headline figure on each screen — Available Balance, Projected Cash, and your debt payoff target — is now a touch bigger and bolder so it reads as the clear focal point. All dollar amounts app-wide also switched to fixed-width digits, so columns of numbers in bill lists, budget tables, and payment histories line up vertically instead of wobbling with digit count. Purely cosmetic — no values changed.'},
   {date:new Date('2026-07-03T09:00:00').getTime(),icon:'ti-repeat',title:'Animations replay on every visit + Forecast roll-up',desc:'The Projected Cash number on Forecast now counts up just like the Dashboard balance, and rolls smoothly from the old value to the new one when you switch time frames. Also fixed: count-ups, progress bar fills, chart draw-ins, and the Bills donut now replay every time you enter a tab — previously they only played once after a refresh. Mid-tab updates still don\'t re-trigger them, so nothing flickers while you work.'},
