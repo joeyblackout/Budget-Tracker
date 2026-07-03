@@ -117,7 +117,7 @@ select option{background:var(--surface);color:var(--text);}
 .progress-label{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-bottom:6px;}
 .progress-bar{height:6px;background:var(--border);border-radius:99px;overflow:hidden;}
 .progress-fill{height:100%;background:linear-gradient(90deg,var(--success),#0a9e74);border-radius:99px;transition:width 0.55s cubic-bezier(0.16,1,0.3,1);}
-@media (prefers-reduced-motion:reduce){.progress-fill,[data-bar-key],[data-badge-key]{transition:none!important;}.paid-flash,.payoff-pop,.view.active,.acc-body,.bell-pulse{animation:none!important;}}
+@media (prefers-reduced-motion:reduce){.progress-fill,[data-bar-key],[data-badge-key]{transition:none!important;}.paid-flash,.payoff-pop,.view.active,.acc-body,.bell-pulse{animation:none!important;}.skel{animation:none!important;opacity:1;}.skel::after{animation:none!important;display:none;}}
 .account-row{display:flex;align-items:center;justify-content:space-between;padding:13px 0;border-bottom:1px solid var(--border);}
 .account-row:last-child{border-bottom:none;}
 .account-name{font-size:15px;font-weight:600;}
@@ -229,6 +229,11 @@ select option{background:var(--surface);color:var(--text);}
 @keyframes celebrate-pop{0%{transform:translate(-50%,-50%) scale(0.6);opacity:0;}50%{transform:translate(-50%,-50%) scale(1.08);opacity:1;}100%{transform:translate(-50%,-50%) scale(1);opacity:1;}}
 @keyframes paid-flash{0%{box-shadow:inset 0 0 0 999px rgba(45,212,160,0.28);}100%{box-shadow:inset 0 0 0 999px rgba(45,212,160,0);}}
 .paid-flash{animation:paid-flash 0.4s ease-out;border-radius:8px;}
+/* Skeleton loaders — blocks stay invisible for ~180ms then fade in, so fast loads never flash them */
+.skel{position:relative;overflow:hidden;background:var(--surface2);border-radius:8px;opacity:0;animation:skel-in 0.2s ease 0.18s forwards;}
+.skel::after{content:'';position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,0.05),transparent);animation:skel-sweep 1.4s ease-in-out infinite;}
+@keyframes skel-in{to{opacity:1;}}
+@keyframes skel-sweep{0%{transform:translateX(-100%);}100%{transform:translateX(100%);}}
 @keyframes acc-open{from{opacity:0;transform:translateY(-6px);}to{opacity:1;transform:none;}}
 .acc-body{animation:acc-open 0.26s ease;}
 @keyframes bell-pulse{0%{transform:none;}20%{transform:rotate(12deg) scale(1.15);}40%{transform:rotate(-10deg) scale(1.1);}60%{transform:rotate(6deg) scale(1.05);}80%{transform:rotate(-3deg);}100%{transform:none;}}
@@ -1001,6 +1006,7 @@ let recurringSources=[];
 let netWorthHistory=[];
 let expenseSelectMode=false;
 let selectedExpenseIds=new Set();
+let appDataReady=false; // false until the initial loadAll() data fetch completes — renders show skeletons before this
 
 let isInviteFlow=false;
 let lastShownUserId=null;
@@ -1060,16 +1066,17 @@ async function showApp(){
     document.getElementById('welcome-screen').style.display='flex';
     return;
   }
-  // Reveal the app underneath the branded loading screen, finish loading data
-  // (loadAll ends by initializing the dashboard view), then fade the screen out
-  // so the dashboard is ready on first paint — no grey placeholder flash, and
-  // no need for the user to tap a tab.
+  // Reveal the app shell with skeleton placeholders while the data loads, then fade the
+  // branded loading screen out. The skeleton blocks stay invisible for ~180ms (CSS delay),
+  // so a fast load swaps in real content before any skeleton is ever seen — no flash.
   document.getElementById('welcome-screen').style.display='none';
   document.getElementById('set-password-screen').style.display='none';
   document.getElementById('reset-password-screen').style.display='none';
   document.getElementById('app-screen').classList.add('visible');
   document.getElementById('sidebar-email').textContent=currentUser.email;
   await syncLoginTimestamp();
+  switchView('dashboard',null); // renders skeletons — appDataReady is still false
+  hideLoadingScreen();
   try{
     await loadAll();
   }catch(e){
@@ -1193,7 +1200,7 @@ async function cleanupPaidOffDebtBills(){
   await loadBills();
   return true;
 }
-async function loadAll(){await Promise.all([loadDebts(),loadPayments(),loadExpenses(),loadWeeks(),loadPaychecks(),loadBills(),loadBillPayments(),loadPots(),loadSavingsTxns(),loadProfiles(),loadPosts(),loadReactions(),loadShared(),loadRecurring(),loadAssets(),loadBudgetTargets(),loadNetWorthHistory(),loadReceipts(),loadDebtInterestLog()]);await topUpPeriods();await migrateDiningCategory();await cleanupPaidOffDebtBills();await snapshotNetWorth();switchView('dashboard',null);updateBillBadge();updateNotifBadge();startPolling();await openPaydayRoutine();checkWhatsNew(whatsNewPrevLogin);checkBalanceChangeNotice();}
+async function loadAll(){await Promise.all([loadDebts(),loadPayments(),loadExpenses(),loadWeeks(),loadPaychecks(),loadBills(),loadBillPayments(),loadPots(),loadSavingsTxns(),loadProfiles(),loadPosts(),loadReactions(),loadShared(),loadRecurring(),loadAssets(),loadBudgetTargets(),loadNetWorthHistory(),loadReceipts(),loadDebtInterestLog()]);appDataReady=true;await topUpPeriods();await migrateDiningCategory();await cleanupPaidOffDebtBills();await snapshotNetWorth();const _activeV=document.querySelector('.view.active');switchView(_activeV?_activeV.id.replace('view-',''):'dashboard',null);updateBillBadge();updateNotifBadge();startPolling();await openPaydayRoutine();checkWhatsNew(whatsNewPrevLogin);checkBalanceChangeNotice();}
 async function topUpPeriods(){
   // Only extend recurring sources if the furthest period is within 10 months out
   if(recurringSources.length===0)return;
@@ -1877,6 +1884,7 @@ function debtPaymentsForDue(d,dueDateStr){
 function renderForecast(){
   _forecastSchedule=null; // rebuild the income schedule fresh each render
   const el=document.getElementById('forecast-content');
+  if(!appDataReady){el.innerHTML=skelForecastHtml();return;}
   const windows={biweekly:{label:'Biweekly',days:14},monthly:{label:'Monthly',days:30},'3month':{label:'3 Months',days:90},'6month':{label:'6 Months',days:180},annual:{label:'Annual',days:365},custom:{label:'Custom',days:0}};
   const todayDate=new Date();todayDate.setHours(0,0,0,0);
   let endDate,winLabel;
@@ -2815,6 +2823,44 @@ function flashPaid(selector){
     setTimeout(()=>el.classList.remove('paid-flash'),500);
   });
 }
+// SKELETON LOADERS — placeholder layouts shown while the initial data fetch runs (appDataReady=false)
+function skelRows(n,h){let s='';for(let i=0;i<n;i++){s+='<div class="skel" style="height:'+h+'px;margin-bottom:8px;"></div>';}return s;}
+function skelDashboardHtml(){
+  return '<div class="balance-card">'
+    +'<div class="skel" style="width:40%;height:12px;margin-bottom:12px;"></div>'
+    +'<div class="skel" style="width:58%;height:34px;margin-bottom:14px;"></div>'
+    +skelRows(5,30)
+    +'</div>'
+    +skelRows(2,110);
+}
+function skelBillsHtml(){
+  return '<div class="card" style="padding:14px 18px;">'
+    +'<div style="display:flex;justify-content:space-between;margin-bottom:12px;">'
+      +'<div class="skel" style="width:30%;height:26px;"></div>'
+      +'<div class="skel" style="width:30%;height:26px;"></div>'
+    +'</div>'
+    +'<div class="skel" style="height:10px;margin-bottom:4px;border-radius:99px;"></div>'
+    +'</div>'
+    +skelRows(6,58);
+}
+function skelForecastHtml(){
+  return '<div class="card">'
+    +'<div class="skel" style="width:45%;height:12px;margin-bottom:12px;"></div>'
+    +'<div class="skel" style="width:55%;height:30px;margin-bottom:16px;"></div>'
+    +skelRows(6,40)
+    +'</div>';
+}
+function skelSparkHtml(){
+  let s='';
+  for(let i=0;i<5;i++){
+    s+='<div style="display:flex;align-items:center;gap:10px;padding:9px 0;">'
+      +'<div class="skel" style="width:8px;height:8px;border-radius:50%;flex-shrink:0;"></div>'
+      +'<div style="flex:1;min-width:0;"><div class="skel" style="width:45%;height:11px;margin-bottom:6px;"></div><div class="skel" style="width:30%;height:9px;"></div></div>'
+      +'<div class="skel" style="width:110px;height:26px;flex-shrink:0;"></div>'
+    +'</div>';
+  }
+  return s;
+}
 // Accordion open animation: the toggle handler records which section is being opened, and the
 // next render consumes it exactly once (accClass) — so only a genuine expand animates, never an
 // unrelated re-render of an already-open section. Display-toggled accordions use replayAccOpen.
@@ -2901,6 +2947,7 @@ function celebrateDebtPayoff(name,debtId){
 }
 function renderDashboard(){
   const el=document.getElementById('dashboard-content');
+  if(!appDataReady){el.innerHTML=skelDashboardHtml();return;}
   const totalDebt=debts.reduce((s,d)=>s+parseFloat(d.balance||0),0);
   const totalPaid=payments.reduce((s,p)=>s+parseFloat(p.amount||0),0);
   const startDebt=totalDebt+totalPaid;
@@ -3072,6 +3119,7 @@ function renderDashboard(){
 // SAVINGS
 function renderSavings(){
   const el=document.getElementById('savings-list');
+  if(!appDataReady){el.innerHTML=skelRows(4,84);return;}
   const potTotals={};
   savingsTxns.forEach(t=>{if(!potTotals[t.pot_id])potTotals[t.pot_id]=0;potTotals[t.pot_id]+=(t.type==='deposit'||t.type==='transfer_in')?parseFloat(t.amount||0):-(parseFloat(t.amount||0));});
   const totalAcrossPots=pots.reduce((s,p)=>s+Math.max(0,potTotals[p.id]||0),0);
@@ -3543,6 +3591,7 @@ function openSharedHistory(potId,potName){
 const REACTION_EMOJIS=['🔥','💪','🎉','👏','❤️'];
 function renderCommunity(){
   const el=document.getElementById('community-list');
+  if(!appDataReady){el.innerHTML=skelRows(4,90);return;}
   if(!myProfile?.display_name){
     el.innerHTML=`<div class="card" style="border-color:var(--warning);"><div style="font-size:15px;font-weight:700;margin-bottom:8px;">Set your name first</div><p class="text-muted mb8">Add a display name in Settings so others know who you are in the feed.</p><button class="btn btn-primary" onclick="switchView('setup',null)">Go to Settings</button></div>`;
     return;
@@ -3671,6 +3720,7 @@ function billRemainingThisMonth(b){return isBillFullyPaidThisMonth(b)?0:parseFlo
 function renderBills(){
   const el=document.getElementById('bills-list');
   const payAllBtn=document.getElementById('pay-all-due-btn');
+  if(!appDataReady){if(payAllBtn)payAllBtn.style.display='none';el.innerHTML=skelBillsHtml();return;}
   if(payAllBtn)payAllBtn.style.display=getDueBills().length>0?'':'none';
   if(bills.length===0){el.innerHTML=`<div class="empty"><div class="icon"><i class="ti ti-home"></i></div><p>No bills yet. Tap <strong>+</strong> to add one.</p></div>`;return;}
   const todayDay=new Date().getDate();
@@ -4101,6 +4151,7 @@ function weekAllowance(w){
 }
 function renderWeekly(){
   const el=document.getElementById('weekly-list');
+  if(!appDataReady){el.innerHTML=skelRows(6,64);return;}
   if(weeks.length===0){el.innerHTML=`<div class="empty"><div class="icon"><i class="ti ti-calendar"></i></div><p>No pay periods yet. Set up <strong>Recurring</strong> income, or tap <strong>+</strong> to add one manually.</p></div>`;return;}
   const todayStr=today();
   // Order: current & upcoming periods first (soonest first), then past periods (most recent first)
@@ -4469,8 +4520,9 @@ function debtPayoffLine(debtId,bal){
 }
 function renderDebts(){
   const stratEl=document.getElementById('debts-strategy');
-  if(stratEl)stratEl.innerHTML=forecastStrategySection();
   const el=document.getElementById('debts-list');
+  if(!appDataReady){if(stratEl)stratEl.innerHTML='';el.innerHTML=skelRows(4,86);return;}
+  if(stratEl)stratEl.innerHTML=forecastStrategySection();
   if(debts.length===0){el.innerHTML=`<div class="empty"><div class="icon"><i class="ti ti-credit-card"></i></div><p>No accounts yet. Tap <strong>+</strong> to add one.</p></div>`;return;}
   el.innerHTML=debts.map(d=>{
     const bal=parseFloat(d.balance||0);
@@ -4756,6 +4808,7 @@ function getMonthKey(dateStr){return(dateStr||'').slice(0,7);}
 function renderInsights(){
   const el=document.getElementById('expense-insights');
   if(!el)return;
+  if(!appDataReady){el.innerHTML='<div class="card" style="margin-bottom:14px;">'+skelSparkHtml()+'</div>';return;}
   if(!insightsOpen){
     el.innerHTML=`<div onclick="toggleInsights()" style="display:flex;justify-content:space-between;align-items:center;padding:14px 18px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);cursor:pointer;margin-bottom:14px;">
       <div style="font-size:15px;font-weight:700;"><i class="ti ti-chart-bar"></i> Spending Insights</div>
@@ -5395,6 +5448,7 @@ function expenseRowHtml(e){
 function filterExpenses(){
   const el=document.getElementById('expenses-list');
   if(!el)return;
+  if(!appDataReady){el.innerHTML=skelRows(6,52);return;}
   const q=expenseSearch.trim().toLowerCase();
   const filtered=expenses.filter(e=>{
     if(activeFilter&&e.category!==activeFilter)return false;
@@ -6001,6 +6055,7 @@ function openPaycalcModal(){openModal('paycalc-modal');renderPaycalc();}
 //                           place of desc when present (desc is used as a fallback if impact is omitted).
 // Any future fix that touches balance-calculation logic should add affectsBalance:true + an impact string.
 const CHANGELOG=[
+  {date:new Date('2026-07-02T17:00:00').getTime(),icon:'ti-loader',title:'Faster-feeling startup with skeleton loading',desc:'Instead of holding the full loading screen until every last number is fetched, the app now appears right away with shimmering placeholder shapes where your balance, bills, debts, charts, and forecast will land — then the real content fades in as it arrives. On a fast connection you\'ll never even see the placeholders (they only appear if loading takes longer than a blink). Nothing about your data or calculations changed.'},
   {date:new Date('2026-07-02T16:00:00').getTime(),icon:'ti-transition-right',title:'Smoother navigation',desc:'Switching tabs now eases in with a quick fade instead of a hard swap, expanding a collapsed section (Debt Payoff Strategy, Past Periods, bill categories, expense months, debt cards, Spending Insights) slides its content in softly, and the notification bell gives one quick ring-shake when something new arrives — never a repeating animation. All visual only, all skipped if your device prefers reduced motion.'},
   {date:new Date('2026-07-02T15:00:00').getTime(),icon:'ti-chart-line',title:'Charts now draw themselves in',desc:'Trends sparklines sweep in left-to-right with their dots popping in as the line reaches them, and the Bills "Breakdown by Category" donut grows its segments into place one after another. Plays on first view and when you switch time frames or the Month/Year toggle — not on every refresh — and stays off if your device prefers reduced motion.'},
   {date:new Date('2026-07-02T14:00:00').getTime(),icon:'ti-confetti',title:'Little wins now feel like wins',desc:'Marking a bill paid gives a quick green flash on the row, paying a debt down to $0 sets off a small confetti burst with a card glow, and Budget category status colors (On Track → Getting Close → Over Budget) now fade smoothly instead of snapping. All purely visual — nothing about your numbers changed — and everything respects your device\'s reduce-motion setting.'},
