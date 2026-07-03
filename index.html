@@ -1163,6 +1163,7 @@ function switchView(name,btn){
   else{const direct=document.querySelector(`.nav-btn[data-view="${name}"]`);if(direct)direct.classList.add('active');}
   // sync sidebar active state
   document.querySelectorAll('.side-item').forEach(s=>s.classList.toggle('active',s.dataset.sview===name));
+  resetViewAnimations(name); // entering a tab re-arms its count-up/bar animations
   if(name==='dashboard')renderDashboard();
   if(name==='forecast')renderForecast();
   if(name==='weekly')renderWeekly();
@@ -2078,7 +2079,7 @@ function renderForecast(){
     </div>`:''}
     <div class="balance-card">
       <div class="balance-label">Projected Cash · ${forecastWindow==='custom'?'Custom · '+dateRangeLabel:forecastWindow==='annual'?winLabel:winLabel+' · '+dateRangeLabel}</div>
-      <div class="balance-amount ${endBalance>=0?'text-success':'text-danger'}">${fmt(endBalance)}</div>
+      <div class="balance-amount ${endBalance>=0?'text-success':'text-danger'}" id="forecast-cash-val">${fmt(endBalance)}</div>
       <div style="font-size:12px;color:var(--muted);margin-bottom:14px;">Starting from ${fmt(startBalance)} cash on hand today</div>
       <div class="balance-breakdown">
         <div class="balance-line" style="cursor:pointer;" onclick="showForecastBreakdown('cash')"><span class="balance-line-label">Cash Now</span><span class="balance-line-val">${fmt(startBalance)}</span></div>
@@ -2125,6 +2126,7 @@ function renderForecast(){
         </div>`;
       }).join('');
     })()}`:`<div class="empty"><div class="icon"><i class="ti ti-inbox"></i></div><p>No upcoming income or bills in this window. Set up recurring income and bills to see a projection.</p></div>`}`;
+  animateCountUpTo('forecast-cash-val','forecast-cash',endBalance);
 }
 
 // DASH DETAIL MODAL
@@ -2762,13 +2764,18 @@ function onboardingChecklistHtml(){
 }
 // COUNT-UP + BAR FILL ANIMATIONS
 function prefersReducedMotion(){return window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;}
-let balancePrevShown=null,balanceRafId=null;
-function animateBalanceTo(target){
-  const el=document.getElementById('balance-amount-val');
+// Generic count-up engine, keyed so multiple numbers (Dashboard balance, Forecast projected
+// cash) can animate independently. from=0 on first render or after a tab-entry reset;
+// otherwise rolls from the previously shown value.
+const countUpPrev={};
+const countUpRafs={};
+function animateCountUpTo(elId,memoKey,target){
+  const el=document.getElementById(elId);
   if(!el)return;
-  const from=balancePrevShown===null?0:balancePrevShown;
-  balancePrevShown=target;
-  if(balanceRafId){cancelAnimationFrame(balanceRafId);balanceRafId=null;}
+  const prev=countUpPrev[memoKey];
+  const from=(prev===undefined||prev===null)?0:prev;
+  countUpPrev[memoKey]=target;
+  if(countUpRafs[memoKey]){cancelAnimationFrame(countUpRafs[memoKey]);countUpRafs[memoKey]=null;}
   if(from===target||prefersReducedMotion()){el.textContent=fmt(target);return;}
   el.textContent=fmt(from);
   const dur=700,start=performance.now();
@@ -2776,10 +2783,24 @@ function animateBalanceTo(target){
     const t=Math.min((now-start)/dur,1);
     const eased=1-Math.pow(1-t,3);
     el.textContent=fmt(from+(target-from)*eased);
-    if(t<1){balanceRafId=requestAnimationFrame(step);}
-    else{balanceRafId=null;}
+    if(t<1){countUpRafs[memoKey]=requestAnimationFrame(step);}
+    else{countUpRafs[memoKey]=null;}
   };
-  balanceRafId=requestAnimationFrame(step);
+  countUpRafs[memoKey]=requestAnimationFrame(step);
+}
+// Re-arm a view's animations when the user navigates TO it (called from switchView), so
+// count-ups and bar fills replay on every tab entry — while re-renders within the same
+// tab stay memoized and don't replay.
+function resetViewAnimations(name){
+  if(name==='dashboard'){countUpPrev['dashboard-balance']=null;}
+  else if(name==='forecast'){countUpPrev['forecast-cash']=null;}
+  else if(name==='bills'){delete barFillPrev['bills-progress'];donutAnimLastKey='';}
+  else if(name==='debts'){Object.keys(barFillPrev).forEach(k=>{if(k.indexOf('debt-util-')===0)delete barFillPrev[k];});}
+  else if(name==='expenses'){
+    Object.keys(barFillPrev).forEach(k=>{if(k.indexOf('budget-cat-')===0)delete barFillPrev[k];});
+    Object.keys(colorFadePrev).forEach(k=>{delete colorFadePrev[k];});
+    sparkAnimLastKey='';
+  }
 }
 // Bars render at their final width/color; this re-plays the fill (and color fade) only when the
 // value actually changed since the last render (memoized per key), so unrelated re-renders don't animate.
@@ -3113,7 +3134,7 @@ function renderDashboard(){
     </div>
     ${renderNetWorth()}
     ${netWorthSparklineHtml()}`;
-  animateBalanceTo(runningBalance);
+  animateCountUpTo('balance-amount-val','dashboard-balance',runningBalance);
 }
 
 // SAVINGS
@@ -6055,6 +6076,7 @@ function openPaycalcModal(){openModal('paycalc-modal');renderPaycalc();}
 //                           place of desc when present (desc is used as a fallback if impact is omitted).
 // Any future fix that touches balance-calculation logic should add affectsBalance:true + an impact string.
 const CHANGELOG=[
+  {date:new Date('2026-07-03T09:00:00').getTime(),icon:'ti-repeat',title:'Animations replay on every visit + Forecast roll-up',desc:'The Projected Cash number on Forecast now counts up just like the Dashboard balance, and rolls smoothly from the old value to the new one when you switch time frames. Also fixed: count-ups, progress bar fills, chart draw-ins, and the Bills donut now replay every time you enter a tab — previously they only played once after a refresh. Mid-tab updates still don\'t re-trigger them, so nothing flickers while you work.'},
   {date:new Date('2026-07-02T17:00:00').getTime(),icon:'ti-loader',title:'Faster-feeling startup with skeleton loading',desc:'Instead of holding the full loading screen until every last number is fetched, the app now appears right away with shimmering placeholder shapes where your balance, bills, debts, charts, and forecast will land — then the real content fades in as it arrives. On a fast connection you\'ll never even see the placeholders (they only appear if loading takes longer than a blink). Nothing about your data or calculations changed.'},
   {date:new Date('2026-07-02T16:00:00').getTime(),icon:'ti-transition-right',title:'Smoother navigation',desc:'Switching tabs now eases in with a quick fade instead of a hard swap, expanding a collapsed section (Debt Payoff Strategy, Past Periods, bill categories, expense months, debt cards, Spending Insights) slides its content in softly, and the notification bell gives one quick ring-shake when something new arrives — never a repeating animation. All visual only, all skipped if your device prefers reduced motion.'},
   {date:new Date('2026-07-02T15:00:00').getTime(),icon:'ti-chart-line',title:'Charts now draw themselves in',desc:'Trends sparklines sweep in left-to-right with their dots popping in as the line reaches them, and the Bills "Breakdown by Category" donut grows its segments into place one after another. Plays on first view and when you switch time frames or the Month/Year toggle — not on every refresh — and stays off if your device prefers reduced motion.'},
