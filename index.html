@@ -30,7 +30,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .auth-msg.error{background:rgba(247,90,90,0.12);color:var(--danger);display:block;}
 .auth-msg.success{background:rgba(45,212,160,0.12);color:var(--success);display:block;}
 .field{margin-bottom:16px;}
-.field label{display:block;font-size:12px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:var(--muted);margin-bottom:7px;}
+.field label{display:block;font-size:12px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:var(--muted);margin-bottom:8px;}
 .field input,.field select,.field textarea{width:100%;background:var(--bg);border:1.5px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:16px;padding:13px 14px;outline:none;transition:border-color 0.2s;appearance:none;-webkit-appearance:none;}
 .field input:focus,.field select:focus,.field textarea:focus{border-color:var(--accent);}
 .field textarea{resize:vertical;min-height:80px;font-family:inherit;}
@@ -126,7 +126,7 @@ select option{background:var(--surface);color:var(--text);}
 .account-name{font-size:15px;font-weight:600;}
 .account-detail{font-size:12px;color:var(--muted);margin-top:2px;}
 .account-balance{font-size:17px;font-weight:800;letter-spacing:-0.02em;text-align:right;}
-.util-badge{display:inline-block;font-size:10px;font-weight:700;padding:2px 7px;border-radius:99px;margin-top:3px;}
+.util-badge{display:inline-block;font-size:10px;font-weight:700;padding:2px 7px;border-radius:99px;margin-top:4px;}
 .util-over{background:rgba(247,90,90,0.2);color:var(--danger);}
 .util-high{background:rgba(247,201,72,0.2);color:var(--warning);}
 .util-ok{background:rgba(45,212,160,0.2);color:var(--success);}
@@ -157,7 +157,7 @@ select option{background:var(--surface);color:var(--text);}
 @media(hover:hover){.bulk-tip-wrap:hover .bulk-tip{opacity:1;}}
 .bulk-tip.show{opacity:1;}
 .bill-name{font-size:15px;font-weight:700;}
-.bill-meta{font-size:12px;color:var(--muted);margin-top:3px;}
+.bill-meta{font-size:12px;color:var(--muted);margin-top:2px;}
 .bill-amount{font-size:17px;font-weight:800;color:var(--text);text-align:right;} /* neutral — a normal due amount isn't a problem; overdue/due-soon get their own badges */
 .bill-recur{display:inline-block;font-size:10px;font-weight:700;padding:2px 8px;border-radius:99px;margin-top:4px;background:rgba(79,142,247,0.15);color:var(--accent);}
 .bill-due-soon{display:inline-block;font-size:10px;font-weight:700;padding:2px 8px;border-radius:99px;margin-top:4px;background:rgba(247,201,72,0.15);color:var(--warning);}
@@ -178,7 +178,7 @@ select option{background:var(--surface);color:var(--text);}
 .week-actions .btn{padding:11px;font-size:13px;}
 .current-badge{display:inline-block;font-size:10px;font-weight:700;padding:3px 8px;border-radius:99px;background:rgba(79,142,247,0.2);color:var(--accent);margin-left:8px;vertical-align:middle;}
 /* SAVINGS */
-.savings-pot{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px;margin-bottom:12px;}
+.savings-pot{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px;margin-bottom:14px;}
 .savings-pot-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;}
 .pot-emoji{font-size:28px;margin-right:10px;}
 .pot-name{font-size:16px;font-weight:800;letter-spacing:-0.02em;}
@@ -214,7 +214,7 @@ select option{background:var(--surface);color:var(--text);}
 .text-success{color:var(--success);}
 .text-danger{color:var(--danger);}
 .text-warning{color:var(--warning);}
-.pill-label{font-size:11px;font-weight:700;color:var(--muted);letter-spacing:0.05em;text-transform:uppercase;margin-bottom:5px;}
+.pill-label{font-size:11px;font-weight:700;color:var(--muted);letter-spacing:0.05em;text-transform:uppercase;margin-bottom:4px;}
 .mt8{margin-top:8px;}
 .mb8{margin-bottom:8px;}
 .badge{display:inline-block;font-size:10px;font-weight:700;padding:3px 8px;border-radius:99px;margin-left:6px;background:rgba(45,212,160,0.2);color:var(--success);vertical-align:middle;}
@@ -1805,7 +1805,7 @@ function forecastStrategySection(){
   const open=forecastStrategyOpen;
   let html='<div class="card" style="margin:0 0 14px;background:rgba(168,85,247,0.06);border:1px solid rgba(168,85,247,0.25);border-left:3px solid #a855f7;cursor:pointer;" onclick="toggleForecastStrategy()">'
     +'<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">'
-    +'<div><div style="font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:#c084fc;">Debt Payoff Strategy</div><div style="font-size:12px;color:var(--muted);margin-top:3px;">See how different payment strategies affect your payoff timeline</div></div>'
+    +'<div><div style="font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:#c084fc;">Debt Payoff Strategy</div><div style="font-size:12px;color:var(--muted);margin-top:2px;">See how different payment strategies affect your payoff timeline</div></div>'
     +'<span style="font-size:14px;color:var(--muted);flex-shrink:0;">'+(open?'▲':'▼')+'</span></div></div>';
   if(open){
     // Strategy simulation ALWAYS runs a fixed 10-year (120-month) horizon, fully independent of the
@@ -3091,9 +3091,9 @@ function renderDashboard(){
       return'<div class="card" onclick="switchView(\'expenses\',null);setTimeout(()=>{insightsTab=\'budget\';insightsOpen=true;renderInsights();},100);" style="cursor:pointer;">'
         +'<div class="card-title">Expense Budget · '+tMoLabel+'</div>'
         +'<div style="text-align:center;margin-bottom:12px;">'
-          +'<div class="stat-label" style="font-size:11px;margin-bottom:5px;">Income Less Bills</div>'
+          +'<div class="stat-label" style="font-size:11px;margin-bottom:4px;">Income Less Bills</div>'
           +'<div style="font-size:26px;font-weight:800;color:'+tIncNetCol+';">'+(tIncNet<0?'-':'')+fmt(Math.abs(tIncNet))+'</div>'
-          +'<div style="font-size:11px;color:var(--muted);margin-top:3px;">'+fmt(tIncMo)+' expected − '+fmt(tBillsMo)+' remaining bills</div>'
+          +'<div style="font-size:11px;color:var(--muted);margin-top:4px;">'+fmt(tIncMo)+' expected − '+fmt(tBillsMo)+' remaining bills</div>'
         +'</div>'
         +'<div style="height:1px;background:var(--border);margin-bottom:12px;"></div>'
         +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:0;">'
@@ -3792,7 +3792,7 @@ function renderBills(){
             :overdue?`<span class="bill-due-soon" style="background:rgba(247,90,90,0.15);color:var(--danger);">Overdue</span>`
             :`<span class="bill-recur">${capFirst(b.recurring)}</span>`}
         </div>
-        ${isPaid&&paidThisMonth.length>1?'<div style="margin-top:4px;">'+paidThisMonth.map(p=>'<div style="font-size:11px;color:var(--muted);margin-top:1px;">'+fmtDate(p.paid_date)+' · '+fmt(p.amount)+'</div>').join('')+'</div>':''}
+        ${isPaid&&paidThisMonth.length>1?'<div style="margin-top:4px;">'+paidThisMonth.map(p=>'<div style="font-size:11px;color:var(--muted);margin-top:2px;">'+fmtDate(p.paid_date)+' · '+fmt(p.amount)+'</div>').join('')+'</div>':''}
       </div>
       <div style="text-align:right;flex-shrink:0;margin-left:12px;">
         <div class="bill-amount">${fmt(b.amount)}</div>
@@ -4225,7 +4225,7 @@ function renderWeekly(){
         <div>
           <div class="week-num">${w._checkLabel}${isCurrent?'<span class="current-badge">Current</span>':''}${isPending?'<span class="current-badge" style="background:rgba(247,201,72,0.2);color:var(--warning);">Pending</span>':''}</div>
           <div class="week-date-label">${fmtDate(w.pay_date)}</div>
-          ${w.notes?`<div style="font-size:12px;color:var(--muted);margin-top:3px;">${esc(w.notes)}</div>`:''}
+          ${w.notes?`<div style="font-size:12px;color:var(--muted);margin-top:2px;">${esc(w.notes)}</div>`:''}
         </div>
         <div>
           ${isPending?`<div class="week-net-label">Expected</div><div class="week-net text-warning">${fmt(expected)}</div>${allowAmt>0?`<div style="font-size:10px;color:var(--muted);text-align:right;">Incl. ${fmt(allowAmt)} allowance</div>`:''}`:`<div class="week-net-label">Net Cash</div><div class="week-net ${net>=0?'text-success':'text-danger'}">${fmt(net)}</div>`}
@@ -4315,7 +4315,7 @@ function renderWeekly(){
     const first=ds[0],last=ds[ds.length-1];
     const fmtOne=(d)=>new Date(d+'T00:00:00').getFullYear()===curYear?fmtStatDate(d):new Date(d+'T00:00:00').toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric'});
     const label=first===last?fmtOne(first):`${fmtOne(first)} – ${fmtOne(last)}`;
-    return `<div style="font-size:10px;color:var(--muted);margin-top:1px;">${label}</div>`;
+    return `<div style="font-size:10px;color:var(--muted);margin-top:2px;">${label}</div>`;
   };
   const confirmedSub=dateRangeSub(confirmedPaychecks.map(p=>p.pay_date));
   const pendingSub=dateRangeSub(pendingPeriods.map(w=>w.pay_date));
@@ -4546,7 +4546,7 @@ function debtPayoffLine(debtId,bal){
   if(avg<=0)return '<div style="font-size:12px;color:var(--muted);margin-top:10px;">Log a payment to see payoff estimate</div>';
   const monthsLeft=Math.ceil(bal/avg);
   const d=new Date();d.setMonth(d.getMonth()+monthsLeft);
-  return '<div style="font-size:10px;color:var(--muted);margin-top:3px;">Paid off ~'+d.toLocaleString('en-US',{month:'short',year:'numeric'})+' at current pace</div>';
+  return '<div style="font-size:10px;color:var(--muted);margin-top:2px;">Paid off ~'+d.toLocaleString('en-US',{month:'short',year:'numeric'})+' at current pace</div>';
 }
 // Signature paid-off state: replaces the whole debt card once balance hits $0. Renders the same
 // way on every visit (persistent state) — the confetti/pop celebration fires only once, from the
@@ -5024,9 +5024,9 @@ function renderBudgetInsights(){
   const summary='<div style="background:var(--surface2);border-radius:var(--radius-sm);padding:14px 16px;margin-bottom:14px;">'
     +'<div style="font-size:11px;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;color:var(--muted);margin-bottom:10px;">Expense Budget · '+_moLabelB+'</div>'
     +'<div style="text-align:center;margin-bottom:12px;">'
-      +'<div style="font-size:11px;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;color:var(--muted);margin-bottom:5px;">Income Less Bills</div>'
+      +'<div style="font-size:11px;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;color:var(--muted);margin-bottom:4px;">Income Less Bills</div>'
       +'<div style="font-size:26px;font-weight:800;color:'+incomeNetCol+';">'+(incomeNetBills<0?'-':'')+fmt(Math.abs(incomeNetBills))+'</div>'
-      +'<div style="font-size:11px;color:var(--muted);margin-top:3px;">'+fmt(incomeThisMo)+' expected − '+fmt(billsThisMo)+' remaining bills</div>'
+      +'<div style="font-size:11px;color:var(--muted);margin-top:4px;">'+fmt(incomeThisMo)+' expected − '+fmt(billsThisMo)+' remaining bills</div>'
     +'</div>'
     +'<div style="height:1px;background:var(--border);margin-bottom:12px;"></div>'
     +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:0;">'
@@ -5046,7 +5046,7 @@ function renderBudgetInsights(){
     +'<div style="height:8px;background:var(--surface);border-radius:4px;overflow:hidden;margin-top:12px;">'
       +'<div style="width:'+overallPct+'%;height:100%;background:'+barColor+';border-radius:4px;transition:width 0.3s;"></div>'
     +'</div>'
-    +'<div style="display:flex;justify-content:space-between;margin-top:5px;">'
+    +'<div style="display:flex;justify-content:space-between;margin-top:4px;">'
       +'<span style="font-size:10px;color:var(--muted);">'+overallPct.toFixed(0)+'% used</span>'
       +'<span style="font-size:10px;color:var(--muted);">'+_moLabelB+'</span>'
     +'</div>'
@@ -5837,7 +5837,7 @@ async function runReceiptOcr(){
     if(data.amount!=null)bits.push('Amount: $'+data.amount.toFixed(2));
     if(data.date)bits.push('Date: '+esc(data.date));
     statusEl.innerHTML=bits.length
-      ?'<div style="color:var(--success);font-weight:700;font-size:12px;margin-bottom:3px;"><i class="ti ti-sparkles"></i> Auto-filled — review &amp; edit below</div><div style="font-size:11px;color:var(--muted);">'+bits.join(' · ')+'</div>'
+      ?'<div style="color:var(--success);font-weight:700;font-size:12px;margin-bottom:4px;"><i class="ti ti-sparkles"></i> Auto-filled — review &amp; edit below</div><div style="font-size:11px;color:var(--muted);">'+bits.join(' · ')+'</div>'
       :'<div style="font-size:12px;color:var(--muted);">Couldn\'t read receipt. Enter the details manually.</div>';
   }catch(e){
     statusEl.innerHTML='<div style="font-size:12px;color:var(--muted);">Couldn\'t read receipt. Enter the details manually.</div>';
@@ -7061,7 +7061,7 @@ function renderInstructions(){
   const section=(emoji,title,items)=>`
     <div class="card" style="margin-bottom:14px;">
       <div style="font-size:16px;font-weight:800;margin-bottom:12px;">${emoji} ${title}</div>
-      ${items.map(([q,a])=>`<div style="margin-bottom:12px;"><div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:3px;">${q}</div><div style="font-size:13px;color:var(--muted);line-height:1.6;">${a}</div></div>`).join('<div class="divider" style="margin:10px 0;"></div>')}
+      ${items.map(([q,a])=>`<div style="margin-bottom:12px;"><div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:4px;">${q}</div><div style="font-size:13px;color:var(--muted);line-height:1.6;">${a}</div></div>`).join('<div class="divider" style="margin:10px 0;"></div>')}
     </div>`;
   el.innerHTML=`
     <div class="card" style="border-color:var(--accent);background:rgba(45,212,160,0.08);margin-bottom:14px;">
