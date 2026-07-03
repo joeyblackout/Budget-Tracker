@@ -17,7 +17,7 @@
 <style>
 :root{--bg:#080808;--surface:#111111;--surface2:#1a1a1a;--border:#272727;--accent:#2dd4a0;--accent2:#0a9e74;--success:#2dd4a0;--warning:#f7c948;--danger:#f75a5a;--text:#f0f0f0;--muted:#666666;--radius:14px;--radius-sm:8px;}
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);min-height:100dvh;overscroll-behavior:none;}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);min-height:100dvh;overscroll-behavior:none;font-variant-numeric:tabular-nums;}
 #auth-screen{min-height:100dvh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;background:radial-gradient(ellipse at 50% 0%,var(--surface2) 0%,var(--bg) 70%);}
 .auth-logo{font-size:13px;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;color:var(--muted);margin-bottom:8px;}
 .auth-title{font-size:32px;font-weight:800;letter-spacing:-0.03em;color:var(--text);margin-bottom:40px;text-align:center;line-height:1.1;}
@@ -107,7 +107,10 @@ select option{background:var(--surface);color:var(--text);}
 .balance-card{background:var(--surface);border:2px solid var(--accent);border-radius:var(--radius);padding:20px 18px;margin-bottom:14px;position:relative;overflow:hidden;}
 .balance-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--accent),var(--accent2));}
 .balance-label{font-size:11px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:var(--accent);margin-bottom:8px;}
-.balance-amount{font-size:36px;font-weight:800;letter-spacing:-0.04em;line-height:1;margin-bottom:16px;}
+/* Hero numbers — the one headline figure per screen (Available Balance, Projected Cash, payoff target).
+   Shared scale: weight 900 + a modest size bump over that screen's secondary numbers. */
+.hero-num{font-weight:900;letter-spacing:-0.045em;}
+.balance-amount{font-size:40px;font-weight:900;letter-spacing:-0.045em;line-height:1;margin-bottom:16px;}
 .balance-breakdown{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
 .balance-line{display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:var(--surface2);border-radius:var(--radius-sm);cursor:pointer;transition:background 0.15s;}
 .balance-line:active{background:var(--border);}
@@ -1686,7 +1689,7 @@ function forecastUtil30Callout(sim){
   }
   const totalPaid=sim.totalPaid||0;
   return '<div class="card" style="margin-bottom:14px;">'
-    +'<div style="font-size:18px;font-weight:800;color:'+color+';">'+main+'</div>'
+    +'<div class="hero-num" style="font-size:20px;color:'+color+';">'+main+'</div>'
     +(sub?'<div style="font-size:12px;color:var(--muted);margin-top:2px;">'+sub+'</div>':'')
     +(tm!==null&&tm!==0&&targetDateStr?'<div style="font-size:12px;color:var(--muted);margin-top:4px;">Target date: <span style="color:var(--text);font-weight:700;">'+targetDateStr+'</span>'+(targetDateEst?' (est.)':'')+'</div>':'')
     +'<div style="margin-top:12px;font-size:13px;color:var(--muted);">Est. interest paid: <span style="color:var(--text);font-weight:800;">'+fmt(sim.totalInterest)+'</span></div>'
@@ -1717,7 +1720,7 @@ function forecastDebtCallout(sim,minSim){
     savingsLine='<div style="font-size:12px;color:var(--warning);margin-top:2px;">Minimums only: Est. '+fmt(sim.totalInterest)+' interest over 10 years (not paid off)</div>';
   }
   return '<div class="card" style="margin-bottom:14px;">'
-    +'<div style="font-size:18px;font-weight:800;color:'+color+';">'+main+'</div>'
+    +'<div class="hero-num" style="font-size:20px;color:'+color+';">'+main+'</div>'
     +(sub?'<div style="font-size:12px;color:var(--muted);margin-top:2px;">'+sub+'</div>':'')
     +(dfm!==null&&dfDateStr?'<div style="font-size:12px;color:var(--muted);margin-top:4px;">Target date: <span style="color:var(--text);font-weight:700;">'+dfDateStr+'</span>'+(dfDateEst?' (est.)':'')+'</div>':'')
     +'<div style="margin-top:12px;font-size:13px;color:var(--muted);">Est. interest paid: <span style="color:var(--text);font-weight:800;">'+fmt(sim.totalInterest)+'</span></div>'
@@ -6074,6 +6077,7 @@ function openPaycalcModal(){openModal('paycalc-modal');renderPaycalc();}
 //                           place of desc when present (desc is used as a fallback if impact is omitted).
 // Any future fix that touches balance-calculation logic should add affectsBalance:true + an impact string.
 const CHANGELOG=[
+  {date:new Date('2026-07-03T10:00:00').getTime(),icon:'ti-typography',title:'Sharper numbers',desc:'The headline figure on each screen — Available Balance, Projected Cash, and your debt payoff target — is now a touch bigger and bolder so it reads as the clear focal point. All dollar amounts app-wide also switched to fixed-width digits, so columns of numbers in bill lists, budget tables, and payment histories line up vertically instead of wobbling with digit count. Purely cosmetic — no values changed.'},
   {date:new Date('2026-07-03T09:00:00').getTime(),icon:'ti-repeat',title:'Animations replay on every visit + Forecast roll-up',desc:'The Projected Cash number on Forecast now counts up just like the Dashboard balance, and rolls smoothly from the old value to the new one when you switch time frames. Also fixed: count-ups, progress bar fills, chart draw-ins, and the Bills donut now replay every time you enter a tab — previously they only played once after a refresh. Mid-tab updates still don\'t re-trigger them, so nothing flickers while you work.'},
   {date:new Date('2026-07-02T17:00:00').getTime(),icon:'ti-loader',title:'Faster-feeling startup with skeleton loading',desc:'Instead of holding the full loading screen until every last number is fetched, the app now appears right away with shimmering placeholder shapes where your balance, bills, debts, charts, and forecast will land — then the real content fades in as it arrives. On a fast connection you\'ll never even see the placeholders (they only appear if loading takes longer than a blink). Nothing about your data or calculations changed.'},
   {date:new Date('2026-07-02T16:00:00').getTime(),icon:'ti-transition-right',title:'Smoother navigation',desc:'Switching tabs now eases in with a quick fade instead of a hard swap, expanding a collapsed section (Debt Payoff Strategy, Past Periods, bill categories, expense months, debt cards, Spending Insights) slides its content in softly, and the notification bell gives one quick ring-shake when something new arrives — never a repeating animation. All visual only, all skipped if your device prefers reduced motion.'},
