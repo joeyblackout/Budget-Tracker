@@ -158,7 +158,7 @@ select option{background:var(--surface);color:var(--text);}
 .bulk-tip.show{opacity:1;}
 .bill-name{font-size:15px;font-weight:700;}
 .bill-meta{font-size:12px;color:var(--muted);margin-top:3px;}
-.bill-amount{font-size:17px;font-weight:800;color:var(--danger);text-align:right;}
+.bill-amount{font-size:17px;font-weight:800;color:var(--text);text-align:right;} /* neutral — a normal due amount isn't a problem; overdue/due-soon get their own badges */
 .bill-recur{display:inline-block;font-size:10px;font-weight:700;padding:2px 8px;border-radius:99px;margin-top:4px;background:rgba(79,142,247,0.15);color:var(--accent);}
 .bill-due-soon{display:inline-block;font-size:10px;font-weight:700;padding:2px 8px;border-radius:99px;margin-top:4px;background:rgba(247,201,72,0.15);color:var(--warning);}
 .week-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:14px;overflow:hidden;}
@@ -3041,7 +3041,7 @@ function renderDashboard(){
       <div class="card-title">Bills This Month</div>
       <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:8px;">
         <div><div class="stat-label">Paid This Month</div><div style="font-size:20px;font-weight:800;color:var(--success);">${fmt(monthlyPaidAmt)}</div></div>
-        <div style="text-align:right;"><div class="stat-label">Remaining</div><div style="font-size:20px;font-weight:800;color:${monthlyRemaining>0?'var(--danger)':'var(--success)'};">${fmt(monthlyRemaining)}</div></div>
+        <div style="text-align:right;"><div class="stat-label">Remaining</div><div style="font-size:20px;font-weight:800;color:${monthlyRemaining>0?'var(--text)':'var(--success)'};">${fmt(monthlyRemaining)}</div></div>
       </div>
       <div class="progress-bar" style="height:10px;margin-bottom:8px;">
         <div class="progress-fill" style="width:${billsProgress}%;background:${billsProgress>=100?'var(--success)':'linear-gradient(90deg,var(--accent),var(--success))'}"></div>
@@ -3835,7 +3835,7 @@ function renderBills(){
   }
   el.innerHTML=`
         <div><div class="stat-label">Paid This Month</div><div style="font-size:20px;font-weight:800;color:var(--success);">${fmt(monthlyPaidThisMonth)}</div></div>
-        <div style="text-align:right;"><div class="stat-label">Remaining</div><div style="font-size:20px;font-weight:800;color:${monthlyRemaining>0?'var(--danger)':'var(--success)'};">${fmt(monthlyRemaining)}</div></div>
+        <div style="text-align:right;"><div class="stat-label">Remaining</div><div style="font-size:20px;font-weight:800;color:${monthlyRemaining>0?'var(--text)':'var(--success)'};">${fmt(monthlyRemaining)}</div></div>
       </div>
       <div class="progress-bar" style="height:10px;margin-bottom:8px;">
         <div class="progress-fill" data-bar-key="bills-progress" data-bar-target="${progress}" style="width:${progress}%;background:${progress>=100?'var(--success)':'linear-gradient(90deg,var(--accent),var(--success))'}"></div>
@@ -5204,7 +5204,7 @@ function renderTrendsInsights(){
     const projected=(thisMonthSpend/dayOfMonth)*daysInMonth;
     const lastMonthSpend=expenses.filter(e=>(e.exp_date||'').startsWith(periods[periods.length-2].month)&&!e.is_one_off).reduce((s,e)=>s+parseFloat(e.amount||0),0);
     const pctChange=lastMonthSpend>0?((projected-lastMonthSpend)/lastMonthSpend)*100:0;
-    const paceColor=pctChange>10?'var(--danger)':pctChange<-10?'var(--success)':'var(--warning)';
+    const paceColor=pctChange>10?'var(--danger)':'var(--success)'; // On/Under pace are both good states — green, not caution yellow
     const paceLabel=pctChange>10?'Over pace':pctChange<-10?'Under pace':'On pace';
     projCard=`<div style="background:rgba(79,142,247,0.08);border:1px solid rgba(79,142,247,0.2);border-radius:var(--radius-sm);padding:14px;margin-bottom:14px;">
       <div style="font-size:12px;color:var(--muted);margin-bottom:4px;">Projected spend this month</div>
@@ -6077,6 +6077,7 @@ function openPaycalcModal(){openModal('paycalc-modal');renderPaycalc();}
 //                           place of desc when present (desc is used as a fallback if impact is omitted).
 // Any future fix that touches balance-calculation logic should add affectsBalance:true + an impact string.
 const CHANGELOG=[
+  {date:new Date('2026-07-03T11:00:00').getTime(),icon:'ti-palette',title:'Red now means something is actually wrong',desc:'Bill amounts and the "Remaining" bills total no longer show in red just because money is due — red is reserved for genuine problems: overdue, over budget, or a negative balance. Overdue and due-soon badges are unchanged. Also: "On pace" spending now shows green instead of caution yellow, and the due-soon notification icon is yellow to match the badges. Colors only — no numbers changed.'},
   {date:new Date('2026-07-03T10:00:00').getTime(),icon:'ti-typography',title:'Sharper numbers',desc:'The headline figure on each screen — Available Balance, Projected Cash, and your debt payoff target — is now a touch bigger and bolder so it reads as the clear focal point. All dollar amounts app-wide also switched to fixed-width digits, so columns of numbers in bill lists, budget tables, and payment histories line up vertically instead of wobbling with digit count. Purely cosmetic — no values changed.'},
   {date:new Date('2026-07-03T09:00:00').getTime(),icon:'ti-repeat',title:'Animations replay on every visit + Forecast roll-up',desc:'The Projected Cash number on Forecast now counts up just like the Dashboard balance, and rolls smoothly from the old value to the new one when you switch time frames. Also fixed: count-ups, progress bar fills, chart draw-ins, and the Bills donut now replay every time you enter a tab — previously they only played once after a refresh. Mid-tab updates still don\'t re-trigger them, so nothing flickers while you work.'},
   {date:new Date('2026-07-02T17:00:00').getTime(),icon:'ti-loader',title:'Faster-feeling startup with skeleton loading',desc:'Instead of holding the full loading screen until every last number is fetched, the app now appears right away with shimmering placeholder shapes where your balance, bills, debts, charts, and forecast will land — then the real content fades in as it arrives. On a fast connection you\'ll never even see the placeholders (they only appear if loading takes longer than a blink). Nothing about your data or calculations changed.'},
@@ -6282,7 +6283,7 @@ function getNotifications(){
   // 3. Bills due soon (within 5 days)
   bills.filter(b=>{if(isBillExpired(b))return false;const d=parseInt(b.due_day||0);if(!d)return false;const diff=d-todayDay;return!isBillCoveredForCurrentCycle(b)&&diff>=0&&diff<=5&&isBillDueThisMonth(b);}).forEach(b=>{
     const diff=parseInt(b.due_day)-todayDay;
-    notifs.push({type:'bill-soon',priority:3,icon:'<i class="ti ti-calendar"></i>',title:`${esc(b.name)} due ${diff===0?'today':`in ${diff} day${diff!==1?'s':''}`}`,body:`$${parseFloat(b.amount).toFixed(2)} due day ${b.due_day}`,action:()=>{closeNotifications();switchView('bills',null);}});
+    notifs.push({type:'bill-soon',priority:3,icon:'<i class="ti ti-calendar" style="color:var(--warning);"></i>',title:`${esc(b.name)} due ${diff===0?'today':`in ${diff} day${diff!==1?'s':''}`}`,body:`$${parseFloat(b.amount).toFixed(2)} due day ${b.due_day}`,action:()=>{closeNotifications();switchView('bills',null);}});
   });
   // 4. Paychecks to confirm (past pending periods)
   weeks.filter(w=>{return w.pay_date<=todayStr&&w.pay_date>=(()=>{const d=new Date();d.setDate(d.getDate()-7);return d.toISOString().slice(0,10);})()&&paychecks.filter(p=>p.pay_week_id===w.id).length===0;}).forEach(w=>{
