@@ -1384,9 +1384,7 @@ function monthIncome(yr,mo,fallbackAvg){
 }
 // Bills actually due in a specific calendar month (frequency-aware, excludes debt-linked bills)
 function billsDueInMonth(yr,mo){
-  const total=bills.filter(b=>!b.debt_id&&isBillDueInMonth(b,yr,mo)).reduce((s,b)=>s+parseFloat(b.amount||0),0);
-  console.log('[billsDueInMonth] year:',yr,'month:',mo,'total:',total);
-  return total;
+  return bills.filter(b=>!b.debt_id&&isBillDueInMonth(b,yr,mo)).reduce((s,b)=>s+parseFloat(b.amount||0),0);
 }
 // Strategy extra allocation given a month's discretionary income. The full amount goes to the first
 // debt in sorted order (handled inside the sim). disc already includes freed payments.
