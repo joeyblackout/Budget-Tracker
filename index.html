@@ -2761,7 +2761,7 @@ function onboardingChecklistHtml(){
   const done=steps.filter(s=>s[1]).length;
   if(done===6){localStorage.setItem('onboarding_complete','1');return '';}
   const rows=steps.map((s,i)=>'<div onclick="switchView(\''+s[2]+'\',null)" style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);cursor:pointer;'+(s[1]?'opacity:0.55;':'')+'">'
-    +'<span style="font-size:18px;line-height:1;color:'+(s[1]?'var(--success)':'var(--muted)')+';"><i class="ti '+(s[1]?'ti-circle-check-filled':'ti-circle')+'"></i></span>'
+    +'<span style="font-size:18px;line-height:1;color:'+(s[1]?'var(--success)':'var(--muted)')+';"><i class="ti '+(s[1]?'ti-circle-check':'ti-circle')+'"></i></span>'
     +'<span style="flex:1;font-size:14px;font-weight:600;'+(s[1]?'text-decoration:line-through;':'')+'">Step '+(i+1)+' — '+s[0]+'</span>'
     +(s[1]?'':'<span style="font-size:14px;color:var(--accent);">→</span>')+'</div>').join('');
   return '<div class="card" style="border-color:var(--accent);background:rgba(45,212,160,0.06);margin-bottom:14px;">'
@@ -2911,13 +2911,16 @@ function animateSparklines(){
     if(!len||!isFinite(len))return;
     const dots=svg.querySelectorAll('.spark-dot');
     const n=dots.length;
+    const fill=svg.querySelector('.spark-fill');
     line.style.transition='none';
     line.style.strokeDasharray=len+' '+len;
     line.style.strokeDashoffset=len;
     dots.forEach(dot=>{dot.style.transition='none';dot.style.opacity='0';});
+    if(fill){fill.style.transition='none';fill.style.opacity='0';}
     void svg.getBoundingClientRect(); // flush so the hidden start state is committed
     line.style.transition='stroke-dashoffset 0.7s cubic-bezier(0.33,1,0.68,1)';
     line.style.strokeDashoffset='0';
+    if(fill){fill.style.transition='opacity 0.5s ease 0.2s';fill.style.opacity='1';}
     dots.forEach((dot,i)=>{
       // invert the line's ease-out so each dot appears as the stroke reaches its x-position
       const f=n>1?i/(n-1):1;
@@ -5308,6 +5311,8 @@ function renderTrendsInsights(){
       <div style="width:8px;height:8px;border-radius:50%;background:${col};flex-shrink:0;"></div>
       <div style="flex:1;min-width:0;"><div style="font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(cat)}</div><div style="font-size:11px;color:${latestLabelColor};font-weight:${periodTarget>0?'700':'400'};">${subtitleText}</div></div>
       <svg width="${svgWidth}" height="32" style="flex-shrink:0;overflow:visible;">
+        <defs><linearGradient id="sg-${ci}" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" style="stop-color:${col};stop-opacity:0.18"/><stop offset="100%" style="stop-color:${col};stop-opacity:0"/></linearGradient></defs>
+        <polygon class="spark-fill" points="${pts} ${(vals.length-1)*ptSpacing},32 0,32" fill="url(#sg-${ci})"/>
         ${targetLine}
         <polyline points="${pts}" class="sparkline" stroke="${col}" fill="none"/>
         ${vals.map((v,i)=>`<circle class="spark-dot" cx="${i*ptSpacing}" cy="${30-(v/maxV)*28}" r="2.5" fill="${col}"/>`).join('')}
@@ -5331,6 +5336,8 @@ function renderTrendsInsights(){
       <div style="width:8px;height:8px;border-radius:50%;background:${ooCol};flex-shrink:0;"></div>
       <div style="flex:1;min-width:0;"><div style="font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">One-Off Expenses</div><div style="font-size:11px;color:var(--muted);font-weight:400;">${fmt(ooLatest)} ${ooLabel}</div></div>
       <svg width="${svgWidth}" height="32" style="flex-shrink:0;overflow:visible;">
+        <defs><linearGradient id="sg-oo" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" style="stop-color:${ooCol};stop-opacity:0.18"/><stop offset="100%" style="stop-color:${ooCol};stop-opacity:0"/></linearGradient></defs>
+        <polygon class="spark-fill" points="${ooPts} ${(ooVals.length-1)*ptSpacing},32 0,32" fill="url(#sg-oo)"/>
         <polyline points="${ooPts}" class="sparkline" stroke="${ooCol}" fill="none"/>
         ${ooVals.map((v,i)=>`<circle class="spark-dot" cx="${i*ptSpacing}" cy="${30-(v/ooMax)*28}" r="2.5" fill="${ooCol}"/>`).join('')}
       </svg>
@@ -5502,7 +5509,7 @@ function expenseRowHtml(e){
   if(expenseSelectMode){
     const sel=selectedExpenseIds.has(e.id);
     return '<div class="expense-item'+(oneOff?' one-off':'')+'" onclick="toggleExpenseSelect(\''+e.id+'\')" style="cursor:pointer;">'
-      +'<div style="display:flex;align-items:center;margin-right:10px;font-size:20px;color:'+(sel?'var(--accent)':'var(--muted)')+';"><i class="ti '+(sel?'ti-square-check-filled':'ti-square')+'"></i></div>'
+      +'<div style="display:flex;align-items:center;margin-right:10px;font-size:20px;color:'+(sel?'var(--accent)':'var(--muted)')+';"><i class="ti '+(sel?'ti-square-check':'ti-square')+'"></i></div>'
       +info+'<div style="display:flex;align-items:center;gap:5px;">'+oneOffIcon+'<div class="expense-amount"'+amtStyle+'>-'+fmt(e.amount)+'</div></div></div>';
   }
   const content='<div class="expense-item">'+info
@@ -6125,6 +6132,7 @@ function openPaycalcModal(){openModal('paycalc-modal');renderPaycalc();}
 //                           place of desc when present (desc is used as a fallback if impact is omitted).
 // Any future fix that touches balance-calculation logic should add affectsBalance:true + an impact string.
 const CHANGELOG=[
+  {date:new Date('2026-07-03T13:00:00').getTime(),icon:'ti-chart-area-line',title:'Easier-to-read trend charts',desc:'Trends sparklines (including One-Off Expenses and the Daily view) now have a soft color fill under each line that fades toward the bottom, making the direction of your spending easier to take in at a glance. The fill fades in with the line draw. Also tidied two icons to match the outline style used everywhere else.'},
   {date:new Date('2026-07-03T12:00:00').getTime(),icon:'ti-trophy',title:'Paid-off debts get their trophy',desc:'When a debt hits $0 it now transforms into a signature "Paid Off" card — a trophy badge, a slowly shimmering green border, and your real numbers: total paid, months of payments, actual interest paid, and the APR you beat. The confetti celebration still fires once at the moment of payoff; after that the card simply wears its earned state. History, Edit, and Delete stay available on the card.'},
   {date:new Date('2026-07-03T11:00:00').getTime(),icon:'ti-palette',title:'Red now means something is actually wrong',desc:'Bill amounts and the "Remaining" bills total no longer show in red just because money is due — red is reserved for genuine problems: overdue, over budget, or a negative balance. Overdue and due-soon badges are unchanged. Also: "On pace" spending now shows green instead of caution yellow, and the due-soon notification icon is yellow to match the badges. Colors only — no numbers changed.'},
   {date:new Date('2026-07-03T10:00:00').getTime(),icon:'ti-typography',title:'Sharper numbers',desc:'The headline figure on each screen — Available Balance, Projected Cash, and your debt payoff target — is now a touch bigger and bolder so it reads as the clear focal point. All dollar amounts app-wide also switched to fixed-width digits, so columns of numbers in bill lists, budget tables, and payment histories line up vertically instead of wobbling with digit count. Purely cosmetic — no values changed.'},
