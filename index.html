@@ -115,7 +115,8 @@ select option{background:var(--surface);color:var(--text);}
 .progress-wrap{margin:6px 0 14px;}
 .progress-label{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-bottom:6px;}
 .progress-bar{height:6px;background:var(--border);border-radius:99px;overflow:hidden;}
-.progress-fill{height:100%;background:linear-gradient(90deg,var(--success),#0a9e74);border-radius:99px;transition:width 0.5s ease;}
+.progress-fill{height:100%;background:linear-gradient(90deg,var(--success),#0a9e74);border-radius:99px;transition:width 0.55s cubic-bezier(0.16,1,0.3,1);}
+@media (prefers-reduced-motion:reduce){.progress-fill,[data-bar-key]{transition:none!important;}}
 .account-row{display:flex;align-items:center;justify-content:space-between;padding:13px 0;border-bottom:1px solid var(--border);}
 .account-row:last-child{border-bottom:none;}
 .account-name{font-size:15px;font-weight:600;}
@@ -2737,6 +2738,42 @@ function onboardingChecklistHtml(){
     +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;"><div style="font-size:15px;font-weight:700;">🚀 Get Started</div><div style="font-size:12px;font-weight:700;color:var(--accent);">'+done+' of 6 steps complete</div></div>'
     +rows+'</div>';
 }
+// COUNT-UP + BAR FILL ANIMATIONS
+function prefersReducedMotion(){return window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;}
+let balancePrevShown=null,balanceRafId=null;
+function animateBalanceTo(target){
+  const el=document.getElementById('balance-amount-val');
+  if(!el)return;
+  const from=balancePrevShown===null?0:balancePrevShown;
+  balancePrevShown=target;
+  if(balanceRafId){cancelAnimationFrame(balanceRafId);balanceRafId=null;}
+  if(from===target||prefersReducedMotion()){el.textContent=fmt(target);return;}
+  el.textContent=fmt(from);
+  const dur=700,start=performance.now();
+  const step=now=>{
+    const t=Math.min((now-start)/dur,1);
+    const eased=1-Math.pow(1-t,3);
+    el.textContent=fmt(from+(target-from)*eased);
+    if(t<1){balanceRafId=requestAnimationFrame(step);}
+    else{balanceRafId=null;}
+  };
+  balanceRafId=requestAnimationFrame(step);
+}
+// Bars render at their final width; this re-plays the fill only when the value actually
+// changed since the last render (memoized per data-bar-key), so unrelated re-renders don't animate.
+const barFillPrev={};
+function animateBars(){
+  document.querySelectorAll('[data-bar-key]').forEach(el=>{
+    const key=el.getAttribute('data-bar-key');
+    const target=parseFloat(el.getAttribute('data-bar-target'))||0;
+    const prev=Object.prototype.hasOwnProperty.call(barFillPrev,key)?barFillPrev[key]:0;
+    barFillPrev[key]=target;
+    if(prev===target||prefersReducedMotion()){el.style.width=target+'%';return;}
+    el.style.width=prev+'%';
+    void el.offsetWidth; // force reflow so the width change transitions instead of snapping
+    el.style.width=target+'%';
+  });
+}
 function renderDashboard(){
   const el=document.getElementById('dashboard-content');
   const totalDebt=debts.reduce((s,d)=>s+parseFloat(d.balance||0),0);
@@ -2795,7 +2832,7 @@ function renderDashboard(){
           ${[['month','This Month'],['year','This Year'],['all','All Time']].map(([v,l])=>`<button onclick="dashBalancePeriod='${v}';renderDashboard();" style="padding:4px 10px;border-radius:99px;border:none;font-size:11px;font-weight:700;cursor:pointer;background:${dashBalancePeriod===v?'var(--success)':'var(--surface2)'};color:${dashBalancePeriod===v?'var(--bg)':'var(--muted)'};">${l}</button>`).join('')}
         </div>
       </div>
-      <div class="balance-amount ${runningBalance>=0?'text-success':'text-danger'}">${fmt(runningBalance)}</div>
+      <div class="balance-amount ${runningBalance>=0?'text-success':'text-danger'}" id="balance-amount-val">${fmt(runningBalance)}</div>
       <div class="balance-breakdown">
         <div class="balance-line" onclick="openStartingCashModal()"><span class="balance-line-label">Starting Cash <i class="ti ti-pencil" style="font-size:11px;"></i></span><span class="balance-line-val text-success">+${fmt(startingCash)}</span></div>
         <div class="balance-line" onclick="showIncomeBreakdown()"><span class="balance-line-label">Raked In</span><span class="balance-line-val text-success">+${fmt(totalIncome)}</span></div>
@@ -2904,6 +2941,7 @@ function renderDashboard(){
     </div>
     ${renderNetWorth()}
     ${netWorthSparklineHtml()}`;
+  animateBalanceTo(runningBalance);
 }
 
 // SAVINGS
@@ -3603,7 +3641,7 @@ function renderBills(){
         <div style="text-align:right;"><div class="stat-label">Remaining</div><div style="font-size:20px;font-weight:800;color:${monthlyRemaining>0?'var(--danger)':'var(--success)'};">${fmt(monthlyRemaining)}</div></div>
       </div>
       <div class="progress-bar" style="height:10px;margin-bottom:8px;">
-        <div class="progress-fill" style="width:${progress}%;background:${progress>=100?'var(--success)':'linear-gradient(90deg,var(--accent),var(--success))'}"></div>
+        <div class="progress-fill" data-bar-key="bills-progress" data-bar-target="${progress}" style="width:${progress}%;background:${progress>=100?'var(--success)':'linear-gradient(90deg,var(--accent),var(--success))'}"></div>
       </div>
       <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted);">
         <span>${monthlyPaidCount} of ${dueThisMonth.length} bills paid</span>
@@ -3666,6 +3704,7 @@ function renderBills(){
       </div>`;
     })()}
     ${groupedHTML}`;
+  animateBars();
 }
 function showBillCatDetail(idx){
   const cat=_billPieCats[idx];
@@ -4321,7 +4360,7 @@ function renderDebts(){
         ${lim>0?`<div><div class="pill-label">Available Credit</div><div style="font-size:13px;font-weight:700;color:${(lim-bal)>=0?'var(--success)':'var(--danger)'};">${fmt(lim-bal)}</div></div>`:d.original_amount?`<div><div class="pill-label">Original</div><div style="font-size:13px;font-weight:700;">${fmt(d.original_amount)}</div></div>`:`<div><div class="pill-label">Total Paid</div><div style="font-size:13px;font-weight:700;color:var(--success);">${fmt(debtPaid)}</div></div>`}
         <div><div class="pill-label">APR</div><div style="font-size:13px;font-weight:700;">${parseFloat(d.apr||0).toFixed(1)}%</div></div>
       </div>
-      ${u!==null?`<div style="margin:3px 0 4px;"><div class="progress-label"><span>Utilization</span><span class="${u>100?'text-danger':u>30?'text-warning':'text-success'}">${u.toFixed(1)}%</span></div><div class="progress-bar"><div class="progress-fill" style="width:${Math.min(u,100)}%;background:${u>100?'var(--danger)':u>30?'var(--warning)':'var(--success)'}"></div></div></div>`:''}
+      ${u!==null?`<div style="margin:3px 0 4px;"><div class="progress-label"><span>Utilization</span><span class="${u>100?'text-danger':u>30?'text-warning':'text-success'}">${u.toFixed(1)}%</span></div><div class="progress-bar"><div class="progress-fill" data-bar-key="debt-util-${d.id}" data-bar-target="${Math.min(u,100)}" style="width:${Math.min(u,100)}%;background:${u>100?'var(--danger)':u>30?'var(--warning)':'var(--success)'}"></div></div></div>`:''}
       ${(()=>{if(u!==null)return'';const origAmt=parseFloat(d.original_amount||0);if(origAmt>0){const pct=Math.min(Math.max((origAmt-bal)/origAmt*100,0),100);const col=pct>=66?'var(--success)':pct>=33?'var(--warning)':'var(--danger)';return`<div style="margin:3px 0 4px;"><div class="progress-label"><span>Payoff Progress</span><span style="color:${col};font-weight:700;">${pct.toFixed(1)}% paid</span></div><div class="progress-bar"><div class="progress-fill" style="width:${pct}%;background:${col}"></div></div></div>`;}if(debtPaid<=0)return'';const orig=bal+debtPaid;const pct=Math.min((debtPaid/orig)*100,100);const col=pct>=66?'var(--success)':pct>=33?'var(--warning)':'var(--danger)';return`<div style="margin:3px 0 4px;"><div class="progress-label"><span>Payoff Progress</span><span style="color:${col};font-weight:700;">${pct.toFixed(1)}% paid</span></div><div class="progress-bar"><div class="progress-fill" style="width:${pct}%;background:${col}"></div></div></div>`;})()}
       <div class="divider" style="margin:5px 0;"></div>
       <div style="display:flex;justify-content:space-between;align-items:center;">
@@ -4335,6 +4374,7 @@ function renderDebts(){
       </div>`}
     </div>`;
   }).join('');
+  animateBars();
 }
 // ALTER TABLE debts ADD COLUMN IF NOT EXISTS original_amount numeric;
 function toggleDebtOriginalField(){const t=document.getElementById('debt-type').value;document.getElementById('debt-original-field').style.display=t==='Credit Card'?'none':'';}
@@ -4614,6 +4654,7 @@ function renderInsights(){
     ${banner}${tabs}
     ${content}
   </div>`;
+  animateBars();
 }
 
 function renderCategoryInsights(){
@@ -4796,7 +4837,7 @@ function renderBudgetInsights(){
       +tgtCell
       +'<td style="padding:7px 6px;font-size:12px;text-align:right;">'+fmt(spent)+'</td>'
       +'<td style="padding:7px 6px;font-size:12px;font-weight:700;color:'+rc+';text-align:right;"><span>'+(rem<0?'-':'')+fmt(Math.abs(rem))+'</span>'+badge+'</td>'
-      +'<td style="padding:7px 6px;min-width:60px;"><div style="height:5px;background:var(--surface2);border-radius:3px;overflow:hidden;"><div style="width:'+pct+'%;height:100%;background:'+bc+';border-radius:3px;"></div></div></td>'
+      +'<td style="padding:7px 6px;min-width:60px;"><div style="height:5px;background:var(--surface2);border-radius:3px;overflow:hidden;"><div data-bar-key="budget-cat-'+esc(cat)+'" data-bar-target="'+pct+'" style="width:'+pct+'%;height:100%;background:'+bc+';border-radius:3px;transition:width 0.55s cubic-bezier(0.16,1,0.3,1);"></div></div></td>'
       +'<td style="padding:7px 6px;text-align:center;" onclick="event.stopPropagation()"><button onclick="deleteCategoryTarget(\''+esc(cat)+'\')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;padding:2px;line-height:1;" title="Delete category"><i class="ti ti-trash"></i></button></td>'
       +'</tr>';
   }).join('');
@@ -5819,6 +5860,7 @@ function openPaycalcModal(){openModal('paycalc-modal');renderPaycalc();}
 //                           place of desc when present (desc is used as a fallback if impact is omitted).
 // Any future fix that touches balance-calculation logic should add affectsBalance:true + an impact string.
 const CHANGELOG=[
+  {date:new Date('2026-07-02T13:00:00').getTime(),icon:'ti-wand',title:'Smoother numbers and progress bars',desc:'Your Available Balance now counts up (or down) to its new value instead of snapping, and progress bars — Bills paid, Budget categories, and credit card Utilization — fill smoothly when their values change. Purely visual polish: no numbers are calculated any differently, and animations are skipped if your device is set to reduce motion.'},
   {date:new Date('2026-07-02T12:00:00').getTime(),icon:'ti-edit',title:'Edit Starting Cash right from the Dashboard',desc:'Tap the Starting Cash line on the Available Balance card to update it on the spot — no trip to Settings needed. The line now always shows (even at $0.00) so it\'s easy to find, and your Available Balance recalculates the moment you save. Starting Cash is one baseline number that This Month, This Year, and All Time all build from.'},
   {date:new Date('2026-07-01T12:00:00').getTime(),icon:'ti-checklist',title:'One shared "bill paid" check everywhere',desc:'The Bills tab, notifications, Forecast, and category breakdowns now all use the same logic to decide whether a bill is paid for its current cycle. Fixes the Forecast re-adding a bill you already paid after you edit its amount, and the category drill-down missing payments made a few days early.'},
   {date:new Date('2026-07-01T08:00:00').getTime(),icon:'ti-alert-triangle',title:'"Your balance changed" alerts',desc:'If an app update changes how your Available Balance is calculated, a popup now explains exactly why the number moved the next time you open the app — so a shifted balance is never mistaken for a lost transaction. Tapping Got it also clears the Updates bell.'},
