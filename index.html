@@ -116,7 +116,7 @@ select option{background:var(--surface);color:var(--text);}
 .progress-label{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-bottom:6px;}
 .progress-bar{height:6px;background:var(--border);border-radius:99px;overflow:hidden;}
 .progress-fill{height:100%;background:linear-gradient(90deg,var(--success),#0a9e74);border-radius:99px;transition:width 0.55s cubic-bezier(0.16,1,0.3,1);}
-@media (prefers-reduced-motion:reduce){.progress-fill,[data-bar-key]{transition:none!important;}}
+@media (prefers-reduced-motion:reduce){.progress-fill,[data-bar-key],[data-badge-key]{transition:none!important;}.paid-flash,.payoff-pop{animation:none!important;}}
 .account-row{display:flex;align-items:center;justify-content:space-between;padding:13px 0;border-bottom:1px solid var(--border);}
 .account-row:last-child{border-bottom:none;}
 .account-name{font-size:15px;font-weight:600;}
@@ -226,6 +226,11 @@ select option{background:var(--surface);color:var(--text);}
 @keyframes shimmer{0%{transform:translateX(-100%);}100%{transform:translateX(200%);}}
 @keyframes confetti-fall{to{transform:translateY(110vh) rotate(720deg);opacity:0;}}
 @keyframes celebrate-pop{0%{transform:translate(-50%,-50%) scale(0.6);opacity:0;}50%{transform:translate(-50%,-50%) scale(1.08);opacity:1;}100%{transform:translate(-50%,-50%) scale(1);opacity:1;}}
+@keyframes paid-flash{0%{box-shadow:inset 0 0 0 999px rgba(45,212,160,0.28);}100%{box-shadow:inset 0 0 0 999px rgba(45,212,160,0);}}
+.paid-flash{animation:paid-flash 0.4s ease-out;border-radius:8px;}
+@keyframes payoff-pop{0%{transform:scale(1);}35%{transform:scale(1.03);}70%{transform:scale(0.99);}100%{transform:scale(1);}}
+@keyframes payoff-glow{0%{box-shadow:0 0 0 0 rgba(45,212,160,0);}15%{border-color:var(--success);box-shadow:0 0 26px 4px rgba(45,212,160,0.4);}75%{border-color:var(--success);box-shadow:0 0 22px 3px rgba(45,212,160,0.3);}100%{box-shadow:0 0 0 0 rgba(45,212,160,0);}}
+.payoff-pop{animation:payoff-pop 0.9s cubic-bezier(0.34,1.56,0.64,1),payoff-glow 2.2s ease-out;}
 .loading-text{font-size:13px;color:#666666;}
 #toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--surface2);border:1px solid var(--border);border-radius:99px;padding:12px 22px;font-size:14px;font-weight:600;z-index:300;opacity:0;transition:all 0.25s;white-space:nowrap;pointer-events:none;}
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
@@ -2589,20 +2594,24 @@ async function routineStep3Next(){
   const btn=document.getElementById('routine-next-btn');
   if(btn){btn.disabled=true;btn.textContent='Saving…';}
   let total=0;
+  const routinePayoffs=[];
   const activeDebts=debts.filter(d=>parseFloat(d.balance||0)>0);
   for(const d of activeDebts){
     const inp=document.getElementById('routine-debt-'+d.id);
     const amount=parseFloat(inp?.value||0)||0;
     if(amount<=0)continue;
-    const newBal=Math.max(0,parseFloat(d.balance||0)-amount);
+    const oldBal=parseFloat(d.balance||0);
+    const newBal=Math.max(0,oldBal-amount);
     await sb.from('debts').update({balance:newBal}).eq('id',d.id);
     await sb.from('payments').insert({user_id:currentUser.id,debt_id:d.id,amount,pay_date:today(),notes:'Payday payment'});
+    if(oldBal>0&&newBal===0)routinePayoffs.push(d);
     routineDebtPayments[d.id]={name:d.name,amount};
     total+=amount;
   }
   routineDebtsTotal=total;
   await Promise.all([loadDebts(),loadPayments()]);
   if(typeof renderDebts==='function')renderDebts();
+  routinePayoffs.forEach((d,i)=>setTimeout(()=>celebrateDebtPayoff(d.name,d.id),i*700));
   routineSubmittedStep=3;routineStep=4;renderRoutine();
 }
 
@@ -2759,20 +2768,67 @@ function animateBalanceTo(target){
   };
   balanceRafId=requestAnimationFrame(step);
 }
-// Bars render at their final width; this re-plays the fill only when the value actually
-// changed since the last render (memoized per data-bar-key), so unrelated re-renders don't animate.
+// Bars render at their final width/color; this re-plays the fill (and color fade) only when the
+// value actually changed since the last render (memoized per key), so unrelated re-renders don't animate.
 const barFillPrev={};
+const colorFadePrev={};
 function animateBars(){
   document.querySelectorAll('[data-bar-key]').forEach(el=>{
     const key=el.getAttribute('data-bar-key');
     const target=parseFloat(el.getAttribute('data-bar-target'))||0;
     const prev=Object.prototype.hasOwnProperty.call(barFillPrev,key)?barFillPrev[key]:0;
     barFillPrev[key]=target;
-    if(prev===target||prefersReducedMotion()){el.style.width=target+'%';return;}
-    el.style.width=prev+'%';
-    void el.offsetWidth; // force reflow so the width change transitions instead of snapping
+    const color=el.getAttribute('data-bar-color');
+    const prevColor=color?colorFadePrev['bar:'+key]:null;
+    if(color)colorFadePrev['bar:'+key]=color;
+    const widthChanged=prev!==target;
+    const colorChanged=!!(color&&prevColor&&prevColor!==color);
+    if((!widthChanged&&!colorChanged)||prefersReducedMotion()){el.style.width=target+'%';return;}
+    if(widthChanged)el.style.width=prev+'%';
+    if(colorChanged)el.style.background=prevColor;
+    void el.offsetWidth; // force reflow so the width/color change transitions instead of snapping
     el.style.width=target+'%';
+    if(colorChanged)el.style.background=color;
   });
+  document.querySelectorAll('[data-badge-key]').forEach(el=>{
+    const key=el.getAttribute('data-badge-key');
+    const color=el.getAttribute('data-badge-color');
+    const prev=colorFadePrev[key];
+    colorFadePrev[key]=color;
+    if(!prev||prev===color||prefersReducedMotion())return;
+    el.style.color=prev;
+    void el.offsetWidth;
+    el.style.color=color;
+  });
+}
+function flashPaid(selector){
+  if(prefersReducedMotion())return;
+  document.querySelectorAll(selector).forEach(el=>{
+    el.classList.remove('paid-flash');
+    void el.offsetWidth; // restart the animation if it was already applied
+    el.classList.add('paid-flash');
+    setTimeout(()=>el.classList.remove('paid-flash'),500);
+  });
+}
+function celebrateDebtPayoff(name,debtId){
+  if(prefersReducedMotion())return;
+  const card=document.querySelector('[data-debt-id="'+debtId+'"]');
+  if(card){card.classList.add('payoff-pop');setTimeout(()=>card.classList.remove('payoff-pop'),2400);}
+  const overlay=document.createElement('div');
+  overlay.style.cssText='position:fixed;inset:0;z-index:600;pointer-events:none;overflow:hidden;';
+  const colors=['#2dd4a0','#f7c948','#4f8ef7','#ffffff'];
+  for(let i=0;i<40;i++){
+    const piece=document.createElement('div');
+    const size=5+Math.random()*7;
+    piece.style.cssText='position:absolute;top:-20px;left:'+(Math.random()*100)+'%;width:'+size+'px;height:'+(size*0.6)+'px;background:'+colors[i%colors.length]+';border-radius:2px;animation:confetti-fall '+(1.6+Math.random()*1.2).toFixed(2)+'s linear '+(Math.random()*0.5).toFixed(2)+'s forwards;';
+    overlay.appendChild(piece);
+  }
+  const msg=document.createElement('div');
+  msg.style.cssText='position:absolute;top:50%;left:50%;background:var(--surface2);border:1px solid var(--success);border-radius:16px;padding:16px 24px;font-size:17px;font-weight:800;color:var(--text);text-align:center;box-shadow:0 8px 40px rgba(0,0,0,0.5);max-width:88vw;animation:celebrate-pop 0.4s ease-out forwards;';
+  msg.textContent='🎉 Paid off — '+name+'!';
+  overlay.appendChild(msg);
+  document.body.appendChild(overlay);
+  setTimeout(()=>overlay.remove(),2600);
 }
 function renderDashboard(){
   const el=document.getElementById('dashboard-content');
@@ -3825,22 +3881,29 @@ function openPayAllDue(){
 async function confirmPayAllDue(){
   const due=getDueBills();
   closeModal('pay-all-due-modal');
+  const flashIds=[];
+  const payoffs=[];
   for(const b of due){
     const remAmt=billRemainingThisMonth(b); // pay only the unpaid shortfall
     if(remAmt<=0.005)continue;
     const{error}=await sb.from('bill_payments').insert({user_id:currentUser.id,bill_id:b.id,amount:remAmt,paid_date:today(),notes:b.name});
     if(error){toast('Error on '+b.name+': '+error.message);continue;}
+    flashIds.push(b.id);
     if(b.debt_id){
       const debt=debts.find(d=>d.id===b.debt_id);
       if(debt){
-        const newBal=Math.max(0,parseFloat(debt.balance||0)-remAmt);
+        const oldBal=parseFloat(debt.balance||0);
+        const newBal=Math.max(0,oldBal-remAmt);
         await sb.from('debts').update(newBal===0?{balance:0,min_payment:0}:{balance:newBal}).eq('id',debt.id);
         await sb.from('payments').insert({user_id:currentUser.id,debt_id:debt.id,amount:remAmt,pay_date:today(),notes:`Min payment via ${b.name}`});
+        if(oldBal>0&&newBal===0)payoffs.push(debt);
       }
     }
   }
   await Promise.all([loadBillPayments(),loadDebts(),loadPayments()]);
   renderBills();renderDebts();renderDashboard();updateBillBadge();
+  flashIds.forEach(id=>flashPaid('.swipe-content[data-del-id="'+id+'"] .bill-row'));
+  payoffs.forEach((d,i)=>setTimeout(()=>celebrateDebtPayoff(d.name,d.id),i*700));
   toast(`${due.length} bill${due.length!==1?'s':''} marked paid ✓`);
 }
 // Opens the Date Paid picker instead of instantly logging with today's date — lets a payment be
@@ -3867,16 +3930,21 @@ async function confirmMarkBillPaid(){
   closeModal('bill-paid-modal');
   // If this bill is linked to a debt, log a payment and decrement the balance
   const bill=bills.find(b=>b.id===billId);
+  let paidOffDebt=null;
   if(bill?.debt_id){
     const debt=debts.find(d=>d.id===bill.debt_id);
     if(debt){
-      const newBal=Math.max(0,parseFloat(debt.balance||0)-parseFloat(amount));
+      const oldBal=parseFloat(debt.balance||0);
+      const newBal=Math.max(0,oldBal-parseFloat(amount));
       await sb.from('debts').update(newBal===0?{balance:0,min_payment:0}:{balance:newBal}).eq('id',debt.id);
       await sb.from('payments').insert({user_id:currentUser.id,debt_id:debt.id,amount:parseFloat(amount),pay_date:paidDate,notes:`Min payment via ${billName}`});
+      if(oldBal>0&&newBal===0)paidOffDebt=debt;
       await Promise.all([loadDebts(),loadPayments()]);
     }
   }
   await loadBillPayments();renderBills();renderDebts();renderDashboard();updateBillBadge();
+  flashPaid('.swipe-content[data-del-id="'+billId+'"] .bill-row');
+  if(paidOffDebt)celebrateDebtPayoff(paidOffDebt.name,paidOffDebt.id);
   toast(`${billName} marked as paid ✓`);
 }
 function openBillHistory(billId,billName){
@@ -4338,7 +4406,7 @@ function renderDebts(){
     const u=lim>0?(bal/lim)*100:null;
     const debtPaid=payments.filter(p=>p.debt_id===d.id).reduce((s,p)=>s+parseFloat(p.amount||0),0);
     const collapsed=debtCollapsed.has(d.id);
-    return`<div class="card" style="padding:8px 12px;margin-bottom:6px;">
+    return`<div class="card" data-debt-id="${d.id}" style="padding:8px 12px;margin-bottom:6px;">
       <div onclick="toggleDebtCard('${d.id}')" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none;">
         <div>
           <div style="font-size:14px;font-weight:800;letter-spacing:-0.02em;">${esc(d.name)}</div>
@@ -4538,11 +4606,12 @@ async function savePayment(){
   const{error}=await sb.from('payments').insert({user_id:currentUser.id,debt_id,amount,pay_date,pay_week_id:weekId||null,notes:document.getElementById('pay-notes').value.trim()||null});
   if(error){toast('Error: '+error.message);return;}
   let debtBillRemoved=false;
+  let debtPaidOff=false;
   if(debt){const newBal=Math.max(0,parseFloat(debt.balance||0)-amount);await sb.from('debts').update(newBal===0?{balance:0,min_payment:0}:{balance:newBal}).eq('id',debt_id);
     const oldBal=parseFloat(debt.balance||0);
     const lim=parseFloat(debt.credit_limit||0);
     const name=myProfile?.display_name||'Someone';
-    if(oldBal>0&&newBal===0){await autoPost(`🎉 ${name} paid off ${debt.name}!`);}
+    if(oldBal>0&&newBal===0){debtPaidOff=true;await autoPost(`🎉 ${name} paid off ${debt.name}!`);}
     else if(lim>0){const oldUtil=(oldBal/lim)*100;const newUtil=(newBal/lim)*100;if(oldUtil>=30&&newUtil<30){await autoPost(`📉 ${name} got ${debt.name} under 30% utilization!`);}}
     const allOthers=debts.filter(d=>d.id!==debt_id);
     if(newBal===0&&allOthers.every(d=>parseFloat(d.balance||0)===0)){await autoPost(`🏆 ${name} is officially DEBT FREE! 🎊`);}
@@ -4553,6 +4622,8 @@ async function savePayment(){
   await Promise.all([loadPayments(),loadDebts(),loadBills(),loadBillPayments()]);
   renderDebts();renderPayments();renderDashboard();renderBills();updateBillBadge();
   if(weekId)renderWeekly();
+  if(debtPaidOff)celebrateDebtPayoff(debt.name,debt_id);
+  else if(debt)flashPaid('[data-debt-id="'+debt_id+'"]');
   toast(debtBillRemoved?'Debt paid off! Minimum payment bill removed ✓':'Payment logged ✓');
 }
 async function deletePayment(id){
@@ -4813,13 +4884,9 @@ function renderBudgetInsights(){
     const status=paceStatus(spent,tgt);
     const bc=status==='over'?'var(--danger)':status==='reached'?'var(--danger)':status==='close'?'var(--warning)':'var(--success)';
     const rc=rem<0?'var(--danger)':(status==='over'||status==='reached')?'var(--danger)':status==='close'?'var(--warning)':'var(--success)';
-    const badge=status==='over'
-      ?'<span style="font-size:9px;font-weight:700;color:var(--danger);margin-left:4px;white-space:nowrap;">✕ Over Budget</span>'
-      :status==='reached'
-        ?'<span style="font-size:9px;font-weight:700;color:var(--danger);margin-left:4px;white-space:nowrap;">⚠ Budget Reached</span>'
-        :status==='close'
-          ?'<span style="font-size:9px;font-weight:700;color:var(--warning);margin-left:4px;white-space:nowrap;">⚠ Getting Close</span>'
-          :'<span style="font-size:9px;font-weight:700;color:var(--success);margin-left:4px;white-space:nowrap;">✓ On Track</span>';
+    const badgeCol=(status==='over'||status==='reached')?'var(--danger)':status==='close'?'var(--warning)':'var(--success)';
+    const badgeTxt=status==='over'?'✕ Over Budget':status==='reached'?'⚠ Budget Reached':status==='close'?'⚠ Getting Close':'✓ On Track';
+    const badge='<span data-badge-key="budget-badge-'+esc(cat)+'" data-badge-color="'+badgeCol+'" style="font-size:9px;font-weight:700;color:'+badgeCol+';margin-left:4px;white-space:nowrap;transition:color 0.4s ease;">'+badgeTxt+'</span>';
     const col=catColorMap[cat]||colorForCategory(cat,0);
     const isEditing=budgetEditingCat===cat;
     const tgtCell=isEditing
@@ -4837,7 +4904,7 @@ function renderBudgetInsights(){
       +tgtCell
       +'<td style="padding:7px 6px;font-size:12px;text-align:right;">'+fmt(spent)+'</td>'
       +'<td style="padding:7px 6px;font-size:12px;font-weight:700;color:'+rc+';text-align:right;"><span>'+(rem<0?'-':'')+fmt(Math.abs(rem))+'</span>'+badge+'</td>'
-      +'<td style="padding:7px 6px;min-width:60px;"><div style="height:5px;background:var(--surface2);border-radius:3px;overflow:hidden;"><div data-bar-key="budget-cat-'+esc(cat)+'" data-bar-target="'+pct+'" style="width:'+pct+'%;height:100%;background:'+bc+';border-radius:3px;transition:width 0.55s cubic-bezier(0.16,1,0.3,1);"></div></div></td>'
+      +'<td style="padding:7px 6px;min-width:60px;"><div style="height:5px;background:var(--surface2);border-radius:3px;overflow:hidden;"><div data-bar-key="budget-cat-'+esc(cat)+'" data-bar-target="'+pct+'" data-bar-color="'+bc+'" style="width:'+pct+'%;height:100%;background:'+bc+';border-radius:3px;transition:width 0.55s cubic-bezier(0.16,1,0.3,1),background-color 0.4s ease;"></div></div></td>'
       +'<td style="padding:7px 6px;text-align:center;" onclick="event.stopPropagation()"><button onclick="deleteCategoryTarget(\''+esc(cat)+'\')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;padding:2px;line-height:1;" title="Delete category"><i class="ti ti-trash"></i></button></td>'
       +'</tr>';
   }).join('');
@@ -5860,6 +5927,7 @@ function openPaycalcModal(){openModal('paycalc-modal');renderPaycalc();}
 //                           place of desc when present (desc is used as a fallback if impact is omitted).
 // Any future fix that touches balance-calculation logic should add affectsBalance:true + an impact string.
 const CHANGELOG=[
+  {date:new Date('2026-07-02T14:00:00').getTime(),icon:'ti-confetti',title:'Little wins now feel like wins',desc:'Marking a bill paid gives a quick green flash on the row, paying a debt down to $0 sets off a small confetti burst with a card glow, and Budget category status colors (On Track → Getting Close → Over Budget) now fade smoothly instead of snapping. All purely visual — nothing about your numbers changed — and everything respects your device\'s reduce-motion setting.'},
   {date:new Date('2026-07-02T13:00:00').getTime(),icon:'ti-wand',title:'Smoother numbers and progress bars',desc:'Your Available Balance now counts up (or down) to its new value instead of snapping, and progress bars — Bills paid, Budget categories, and credit card Utilization — fill smoothly when their values change. Purely visual polish: no numbers are calculated any differently, and animations are skipped if your device is set to reduce motion.'},
   {date:new Date('2026-07-02T12:00:00').getTime(),icon:'ti-edit',title:'Edit Starting Cash right from the Dashboard',desc:'Tap the Starting Cash line on the Available Balance card to update it on the spot — no trip to Settings needed. The line now always shows (even at $0.00) so it\'s easy to find, and your Available Balance recalculates the moment you save. Starting Cash is one baseline number that This Month, This Year, and All Time all build from.'},
   {date:new Date('2026-07-01T12:00:00').getTime(),icon:'ti-checklist',title:'One shared "bill paid" check everywhere',desc:'The Bills tab, notifications, Forecast, and category breakdowns now all use the same logic to decide whether a bill is paid for its current cycle. Fixes the Forecast re-adding a bill you already paid after you edit its amount, and the category drill-down missing payments made a few days early.'},
