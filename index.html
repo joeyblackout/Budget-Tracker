@@ -3166,7 +3166,7 @@ function renderSavings(){
       <button class="btn btn-ghost" style="padding:10px;" onclick="declineInvite('${inv.id}')">Decline</button>
     </div>
   </div>`).join('');
-  const personalPots=pots.length===0?`<div class="empty" style="padding:24px 0;"><div class="icon"><i class="ti ti-piggy-bank"></i></div><p>No pots yet. Tap <strong>+</strong> to create one.</p></div>`:
+  const personalPots=pots.length===0?`<div class="empty" style="padding:24px 0;"><div class="icon"><i class="ti ti-piggy-bank"></i></div><p>No savings pots yet — tap <strong>+</strong> to create your first one.</p><button class="btn btn-primary" style="width:auto;padding:11px 22px;margin-top:12px;" onclick="openPotModal()">Create a Pot</button></div>`:
     pots.map(p=>{
       const bal=Math.max(0,potTotals[p.id]||0);
       const goal=parseFloat(p.goal_amount||0);
@@ -3253,7 +3253,7 @@ function renderSavings(){
     ${sharedPotsHtml}
     <div class="divider" style="margin:20px 0;"></div>
     <div class="card-title">Assets</div>
-    ${assets.length===0?`<div style="text-align:center;padding:20px;color:var(--muted);font-size:14px;">No assets yet. Tap <strong>Asset</strong> to add one.</div>`:
+    ${assets.length===0?`<div class="empty" style="padding:20px 0;"><div class="icon"><i class="ti ti-diamond"></i></div><p>No assets yet — tap <strong>Asset</strong> to add your car, investments, or anything else you own.</p></div>`:
     assets.map(a=>`<div class="savings-pot" style="border-color:rgba(247,201,72,0.3);">
       <div class="savings-pot-header">
         <div style="display:flex;align-items:center;">
@@ -3752,7 +3752,7 @@ function renderBills(){
   const payAllBtn=document.getElementById('pay-all-due-btn');
   if(!appDataReady){if(payAllBtn)payAllBtn.style.display='none';el.innerHTML=skelBillsHtml();return;}
   if(payAllBtn)payAllBtn.style.display=getDueBills().length>0?'':'none';
-  if(bills.length===0){el.innerHTML=`<div class="empty"><div class="icon"><i class="ti ti-home"></i></div><p>No bills yet. Tap <strong>+</strong> to add one.</p></div>`;return;}
+  if(bills.length===0){el.innerHTML=`<div class="empty"><div class="icon"><i class="ti ti-home"></i></div><p>No bills added yet — tap <strong>+</strong> to add your first bill.</p><button class="btn btn-primary" style="width:auto;padding:11px 22px;margin-top:12px;" onclick="openBillModal()">Add Bill</button></div>`;return;}
   const todayDay=new Date().getDate();
   const thisMonth=thisMonthLocal();
   const visibleBills=bills.filter(b=>!isBillExpired(b)); // hide bills past their end_date
@@ -4595,7 +4595,7 @@ function renderDebts(){
   const el=document.getElementById('debts-list');
   if(!appDataReady){if(stratEl)stratEl.innerHTML='';el.innerHTML=skelRows(4,86);return;}
   if(stratEl)stratEl.innerHTML=forecastStrategySection();
-  if(debts.length===0){el.innerHTML=`<div class="empty"><div class="icon"><i class="ti ti-credit-card"></i></div><p>No accounts yet. Tap <strong>+</strong> to add one.</p></div>`;return;}
+  if(debts.length===0){el.innerHTML=`<div class="empty"><div class="icon"><i class="ti ti-credit-card"></i></div><p>No debts added yet — tap <strong>+</strong> to get started.</p><button class="btn btn-primary" style="width:auto;padding:11px 22px;margin-top:12px;" onclick="openDebtModal()">Add Debt</button></div>`;return;}
   el.innerHTML=debts.map(d=>{
     const bal=parseFloat(d.balance||0);
     if(bal<=0)return paidOffDebtCardHtml(d); // signature paid-off state supersedes the normal card
@@ -4659,7 +4659,7 @@ async function deleteDebt(id){
 // PAYMENTS
 function renderPayments(){
   const el=document.getElementById('payments-list');
-  if(payments.length===0){el.innerHTML=`<div class="empty"><div class="icon">✅</div><p>No payments yet. Tap <strong>+</strong> to log one.</p></div>`;return;}
+  if(payments.length===0){el.innerHTML=`<div class="empty"><div class="icon"><i class="ti ti-circle-check"></i></div><p>No payments logged yet — tap <strong>+</strong> to log your first one.</p></div>`;return;}
   const groups={};payments.forEach(p=>{const mo=(p.pay_date||'').slice(0,7);if(!groups[mo])groups[mo]=[];groups[mo].push(p);});
   el.innerHTML=Object.entries(groups).map(([mo,list])=>{const moTotal=list.reduce((s,p)=>s+parseFloat(p.amount||0),0);return`<div class="card-title" style="margin-top:8px;">${fmtMonth(mo)} · ${fmt(moTotal)} paid</div>${list.map(p=>{const debt=debts.find(d=>d.id===p.debt_id);return`<div class="card" style="margin-bottom:8px;"><div style="display:flex;justify-content:space-between;align-items:flex-start;"><div><div style="font-size:15px;font-weight:700;">${debt?esc(debt.name):'Unknown'}</div><div class="text-muted">${fmtDate(p.pay_date)}</div>${p.notes?`<div class="text-muted mt8">${esc(p.notes)}</div>`:''}</div><div style="display:flex;align-items:center;gap:8px;"><div style="font-size:18px;font-weight:800;color:var(--success);">-${fmt(p.amount)}</div><button class="del-btn" onclick="deletePayment('${p.id}')">Delete</button></div></div></div>`;}).join('')}`;}).join('');
 }
@@ -5532,7 +5532,7 @@ function filterExpenses(){
     if(!q)return true;
     return(e.description||'').toLowerCase().includes(q)||(e.category||'').toLowerCase().includes(q)||(e.notes||'').toLowerCase().includes(q);
   });
-  if(expenses.length===0){el.innerHTML=`<div class="empty"><div class="icon"><i class="ti ti-receipt"></i></div><p>No expenses yet. Use the quick buttons above or tap <strong>+</strong> to log one.</p></div>`;return;}
+  if(expenses.length===0){el.innerHTML=`<div class="empty"><div class="icon"><i class="ti ti-receipt"></i></div><p>No expenses logged yet — tap <strong>+</strong> or a quick button above to add your first one.</p><button class="btn btn-primary" style="width:auto;padding:11px 22px;margin-top:12px;" onclick="openExpenseModal()">Add Expense</button></div>`;return;}
   const groups={};filtered.forEach(e=>{const mo=(e.exp_date||'').slice(0,7);if(!groups[mo])groups[mo]=[];groups[mo].push(e);});
   const groupEntries=Object.entries(groups).sort((a,b)=>a[0]<b[0]?1:-1);
   groupEntries.forEach(([mo],i)=>{if(i>0&&!collapsedMonths.has('_opened_'+mo)){collapsedMonths.add(mo);collapsedMonths.add('_opened_'+mo);}});
@@ -6132,6 +6132,7 @@ function openPaycalcModal(){openModal('paycalc-modal');renderPaycalc();}
 //                           place of desc when present (desc is used as a fallback if impact is omitted).
 // Any future fix that touches balance-calculation logic should add affectsBalance:true + an impact string.
 const CHANGELOG=[
+  {date:new Date('2026-07-03T14:00:00').getTime(),icon:'ti-hand-click',title:'Empty screens now point the way',desc:'Brand-new sections (no expenses, debts, bills, savings pots, or assets yet) now show a clear invitation with a one-tap button — like "No bills added yet — tap + to add your first bill" with an Add Bill button right there — instead of just a blank list. Same look everywhere so it always feels like the app, not a dead end.'},
   {date:new Date('2026-07-03T13:00:00').getTime(),icon:'ti-chart-area-line',title:'Easier-to-read trend charts',desc:'Trends sparklines (including One-Off Expenses and the Daily view) now have a soft color fill under each line that fades toward the bottom, making the direction of your spending easier to take in at a glance. The fill fades in with the line draw. Also tidied two icons to match the outline style used everywhere else.'},
   {date:new Date('2026-07-03T12:00:00').getTime(),icon:'ti-trophy',title:'Paid-off debts get their trophy',desc:'When a debt hits $0 it now transforms into a signature "Paid Off" card — a trophy badge, a slowly shimmering green border, and your real numbers: total paid, months of payments, actual interest paid, and the APR you beat. The confetti celebration still fires once at the moment of payoff; after that the card simply wears its earned state. History, Edit, and Delete stay available on the card.'},
   {date:new Date('2026-07-03T11:00:00').getTime(),icon:'ti-palette',title:'Red now means something is actually wrong',desc:'Bill amounts and the "Remaining" bills total no longer show in red just because money is due — red is reserved for genuine problems: overdue, over budget, or a negative balance. Overdue and due-soon badges are unchanged. Also: "On pace" spending now shows green instead of caution yellow, and the due-soon notification icon is yellow to match the badges. Colors only — no numbers changed.'},
