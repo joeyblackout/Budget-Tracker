@@ -24,7 +24,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .auth-title span{background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
 .auth-card{width:100%;max-width:380px;background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:32px 28px;}
 .auth-tabs{display:flex;background:var(--bg);border-radius:var(--radius-sm);padding:3px;margin-bottom:28px;}
-.auth-tab{flex:1;padding:9px;border:none;background:transparent;color:var(--muted);font-size:14px;font-weight:600;border-radius:6px;cursor:pointer;transition:all 0.2s;}
+.auth-tab{flex:1;padding:9px;border:none;background:transparent;color:var(--muted);font-size:14px;font-weight:600;border-radius:6px;cursor:pointer;transition:all 0.2s,transform 0.1s ease-out;}
 .auth-tab.active{background:var(--surface2);color:var(--text);}
 .auth-msg{font-size:13px;text-align:center;margin-top:14px;padding:10px;border-radius:var(--radius-sm);display:none;}
 .auth-msg.error{background:rgba(247,90,90,0.12);color:var(--danger);display:block;}
@@ -35,12 +35,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .field input:focus,.field select:focus,.field textarea:focus{border-color:var(--accent);}
 .field textarea{resize:vertical;min-height:80px;font-family:inherit;}
 select option{background:var(--surface);color:var(--text);}
-.btn{width:100%;padding:15px;border:none;border-radius:var(--radius-sm);font-size:16px;font-weight:700;cursor:pointer;transition:all 0.18s;letter-spacing:0.01em;}
+.btn{width:100%;padding:15px;border:none;border-radius:var(--radius-sm);font-size:16px;font-weight:700;cursor:pointer;transition:all 0.18s,transform 0.1s ease-out;letter-spacing:0.01em;}
 .btn-primary{background:linear-gradient(135deg,var(--success),#0a9e74);color:#fff;}
-.btn-primary:active{transform:scale(0.98);opacity:0.9;}
+.btn-primary:active{opacity:0.9;}
 .btn-primary:disabled{opacity:0.5;cursor:not-allowed;}
 .btn-ghost{background:var(--surface2);color:var(--text);border:1px solid var(--border);}
-.btn-ghost:active{transform:scale(0.98);}
 .btn-danger{background:rgba(247,90,90,0.15);color:var(--danger);border:1px solid rgba(247,90,90,0.3);}
 .btn-success{background:rgba(45,212,160,0.15);color:var(--success);border:1px solid rgba(45,212,160,0.3);}
 #app-screen{display:none;min-height:100dvh;flex-direction:column;}
@@ -58,18 +57,17 @@ select option{background:var(--surface);color:var(--text);}
 .sidebar-title{font-size:18px;font-weight:800;letter-spacing:-0.02em;margin-bottom:4px;}
 .sidebar-email{font-size:12px;color:var(--accent);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .sidebar-nav{flex:1;padding:12px 10px;}
-.side-item{display:flex;align-items:center;gap:12px;width:100%;padding:13px 14px;border:none;background:transparent;color:var(--muted);font-size:15px;font-weight:600;border-radius:var(--radius-sm);cursor:pointer;transition:all 0.15s;text-align:left;margin-bottom:2px;}
-.side-item:active{transform:scale(0.98);}
+.side-item{display:flex;align-items:center;gap:12px;width:100%;padding:13px 14px;border:none;background:transparent;color:var(--muted);font-size:15px;font-weight:600;border-radius:var(--radius-sm);cursor:pointer;transition:all 0.15s,transform 0.1s ease-out;text-align:left;margin-bottom:2px;}
 .side-item.active{background:rgba(45,212,160,0.12);color:var(--success);}
 .side-icon{font-size:20px;line-height:1;width:24px;text-align:center;}
 .sidebar-footer{padding:16px 20px 24px;border-top:1px solid var(--border);}
 .nav{display:flex;background:var(--surface);border-top:1px solid var(--border);position:fixed;bottom:0;left:0;right:0;z-index:100;padding-bottom:calc(env(safe-area-inset-bottom) + 8px);}
-.nav-btn{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:10px 2px 8px;border:none;background:transparent;color:var(--muted);font-size:9px;font-weight:600;letter-spacing:0.02em;text-transform:uppercase;cursor:pointer;transition:color 0.15s;min-width:0;}
+.nav-btn{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:10px 2px 8px;border:none;background:transparent;color:var(--muted);font-size:9px;font-weight:600;letter-spacing:0.02em;text-transform:uppercase;cursor:pointer;transition:color 0.15s,transform 0.1s ease-out;min-width:0;}
 .nav-btn .icon{font-size:20px;line-height:1;}
 .nav-btn.active{color:var(--success);}
 .quick-add-bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;}
 /* INSIGHTS */
-.insights-tab{flex:1;padding:8px 4px;border:none;background:transparent;color:var(--muted);font-size:12px;font-weight:700;border-bottom:2px solid transparent;cursor:pointer;transition:all 0.15s;text-align:center;}
+.insights-tab{flex:1;padding:8px 4px;border:none;background:transparent;color:var(--muted);font-size:12px;font-weight:700;border-bottom:2px solid transparent;cursor:pointer;transition:all 0.15s,transform 0.1s ease-out;text-align:center;}
 .insights-tab.active{color:var(--accent);border-bottom-color:var(--accent);}
 .bar-wrap{margin-bottom:10px;}
 .bar-label-row{display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;}
@@ -79,13 +77,13 @@ select option{background:var(--surface);color:var(--text);}
 .chart-bar{transition:opacity 0.15s;}
 .chart-bar:hover{opacity:0.8;}
 .sparkline{fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
-.quick-btn{display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);cursor:pointer;transition:all 0.15s;min-width:70px;flex:1;}
-.quick-btn:active{border-color:var(--accent);transform:scale(0.96);}
+.quick-btn{display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);cursor:pointer;transition:all 0.15s,transform 0.1s ease-out;min-width:70px;flex:1;}
+.quick-btn:active{border-color:var(--accent);}
 .quick-btn-emoji{font-size:22px;line-height:1;}
 .quick-btn-label{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;text-align:center;}
 .quick-btn-edit{background:none;border:none;color:var(--muted);font-size:11px;cursor:pointer;padding:4px 8px;text-decoration:underline;}
-.more-item{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:20px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-size:13px;font-weight:600;cursor:pointer;transition:all 0.15s;}
-.more-item:active{transform:scale(0.96);border-color:var(--accent);}
+.more-item{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:20px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-size:13px;font-weight:600;cursor:pointer;transition:all 0.15s,transform 0.1s ease-out;}
+.more-item:active{border-color:var(--accent);}
 .tooltip-wrap{position:relative;display:inline-block;}
 .tooltip-box{display:none;position:absolute;top:calc(100% + 8px);right:0;width:220px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;font-size:12px;color:var(--muted);line-height:1.5;z-index:200;box-shadow:0 4px 20px rgba(0,0,0,0.4);}
 .tooltip-wrap:hover .tooltip-box,.tooltip-wrap.open .tooltip-box{display:block;}
@@ -96,7 +94,7 @@ select option{background:var(--surface);color:var(--text);}
 .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px;margin-bottom:14px;}
 .card-title{font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);margin-bottom:14px;}
 .stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;}
-.stat{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px 14px;cursor:pointer;transition:border-color 0.15s;}
+.stat{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px 14px;cursor:pointer;transition:border-color 0.15s,transform 0.1s ease-out;}
 .stat:active{border-color:var(--accent);}
 .stat-label{font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);margin-bottom:6px;}
 .stat-value{font-size:20px;font-weight:800;letter-spacing:-0.03em;line-height:1;}
@@ -112,7 +110,7 @@ select option{background:var(--surface);color:var(--text);}
 .hero-num{font-weight:900;letter-spacing:-0.045em;}
 .balance-amount{font-size:40px;font-weight:900;letter-spacing:-0.045em;line-height:1;margin-bottom:16px;}
 .balance-breakdown{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
-.balance-line{display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:var(--surface2);border-radius:var(--radius-sm);cursor:pointer;transition:background 0.15s;}
+.balance-line{display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:var(--surface2);border-radius:var(--radius-sm);cursor:pointer;transition:background 0.15s,transform 0.1s ease-out;}
 .balance-line:active{background:var(--border);}
 .balance-line-label{font-size:12px;color:var(--muted);font-weight:500;}
 .balance-line-val{font-size:13px;font-weight:700;}
@@ -132,8 +130,7 @@ select option{background:var(--surface);color:var(--text);}
 .util-ok{background:rgba(45,212,160,0.2);color:var(--success);}
 .section-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
 .section-title{font-size:20px;font-weight:800;letter-spacing:-0.02em;}
-.add-btn{background:var(--success);color:#0d0f14;border:none;border-radius:99px;width:36px;height:36px;font-size:20px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:transform 0.15s;flex-shrink:0;}
-.add-btn:active{transform:scale(0.92);}
+.add-btn{background:var(--success);color:#0d0f14;border:none;border-radius:99px;width:36px;height:36px;font-size:20px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:transform 0.1s ease-out;flex-shrink:0;}
 .expense-item{display:flex;justify-content:space-between;align-items:flex-start;padding:12px 0;border-bottom:1px solid var(--border);}
 .expense-item:last-child{border-bottom:none;}
 .expense-cat{font-size:11px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;color:var(--accent);margin-bottom:2px;}
@@ -194,7 +191,7 @@ select option{background:var(--surface);color:var(--text);}
 .pot-txn:last-child{border-bottom:none;}
 /* TOGGLE */
 .toggle-row{display:flex;gap:8px;margin-bottom:14px;}
-.toggle-btn{flex:1;padding:9px;border:1.5px solid var(--border);background:transparent;color:var(--muted);font-size:12px;font-weight:700;border-radius:var(--radius-sm);cursor:pointer;transition:all 0.15s;text-align:center;}
+.toggle-btn{flex:1;padding:9px;border:1.5px solid var(--border);background:transparent;color:var(--muted);font-size:12px;font-weight:700;border-radius:var(--radius-sm);cursor:pointer;transition:all 0.15s,transform 0.1s ease-out;text-align:center;}
 .toggle-btn.active{border-color:var(--accent);color:var(--accent);background:rgba(79,142,247,0.08);}
 /* MODAL */
 .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:200;display:none;align-items:flex-end;justify-content:center;}
@@ -204,7 +201,7 @@ select option{background:var(--surface);color:var(--text);}
 .modal-title{font-size:20px;font-weight:800;letter-spacing:-0.02em;margin-bottom:20px;}
 .modal-actions{display:flex;gap:10px;margin-top:20px;}
 .modal-actions .btn{flex:1;}
-.del-btn{background:var(--surface2);border:1px solid var(--border);color:var(--muted);font-size:11px;font-weight:600;cursor:pointer;padding:5px 10px;border-radius:var(--radius-sm);transition:all 0.15s;letter-spacing:0.02em;}
+.del-btn{background:var(--surface2);border:1px solid var(--border);color:var(--muted);font-size:11px;font-weight:600;cursor:pointer;padding:5px 10px;border-radius:var(--radius-sm);transition:all 0.15s,transform 0.1s ease-out;letter-spacing:0.02em;}
 .del-btn:active{color:var(--danger);border-color:var(--danger);}
 .empty{text-align:center;padding:48px 20px;color:var(--muted);}
 .empty .icon{font-size:40px;margin-bottom:12px;}
@@ -239,6 +236,12 @@ select option{background:var(--surface);color:var(--text);}
 @keyframes skel-sweep{0%{transform:translateX(-100%);}100%{transform:translateX(100%);}}
 @keyframes acc-open{from{opacity:0;transform:translateY(-6px);}to{opacity:1;transform:none;}}
 .acc-body{animation:acc-open 0.26s ease;}
+.chev{display:inline-block;line-height:1;transition:transform 0.2s ease;}
+.chev.open{transform:rotate(180deg);}
+.chev-anim-open{animation:chev-open 0.2s ease;}
+.chev-anim-close{animation:chev-close 0.2s ease;}
+@keyframes chev-open{from{transform:rotate(0deg);}to{transform:rotate(180deg);}}
+@keyframes chev-close{from{transform:rotate(180deg);}to{transform:rotate(0deg);}}
 @keyframes bell-pulse{0%{transform:none;}20%{transform:rotate(12deg) scale(1.15);}40%{transform:rotate(-10deg) scale(1.1);}60%{transform:rotate(6deg) scale(1.05);}80%{transform:rotate(-3deg);}100%{transform:none;}}
 .bell-pulse{display:inline-block;animation:bell-pulse 0.6s ease;}
 /* Onboarding tour sample previews — static illustrative mockups inside the tour card (never real data) */
@@ -260,13 +263,23 @@ select option{background:var(--surface);color:var(--text);}
 @keyframes payoff-glow{0%{box-shadow:0 0 0 0 rgba(45,212,160,0);}15%{border-color:var(--success);box-shadow:0 0 26px 4px rgba(45,212,160,0.4);}75%{border-color:var(--success);box-shadow:0 0 22px 3px rgba(45,212,160,0.3);}100%{box-shadow:0 0 0 0 rgba(45,212,160,0);}}
 .payoff-pop{animation:payoff-pop 0.9s cubic-bezier(0.34,1.56,0.64,1),payoff-glow 2.2s ease-out;}
 .loading-text{font-size:13px;color:#666666;}
-#toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--surface2);border:1px solid var(--border);border-radius:99px;padding:12px 22px;font-size:14px;font-weight:600;z-index:300;opacity:0;transition:all 0.25s;white-space:nowrap;pointer-events:none;}
-#toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+#toast-container{position:fixed;left:16px;right:16px;bottom:calc(90px + env(safe-area-inset-bottom));z-index:300;display:flex;flex-direction:column-reverse;align-items:center;gap:8px;pointer-events:none;}
+.toast{display:flex;align-items:center;gap:10px;max-width:100%;background:var(--surface2);border:1px solid var(--border);border-left:3px solid var(--muted);border-radius:var(--radius-sm);padding:12px 16px;font-size:14px;font-weight:600;opacity:0;transform:translateY(16px);transition:opacity 0.25s,transform 0.25s;}
+.toast.show{opacity:1;transform:translateY(0);}
+.toast .ti{font-size:17px;flex-shrink:0;}
+.toast-success{border-left-color:var(--success);}
+.toast-success .ti{color:var(--success);}
+.toast-error{border-left-color:var(--danger);}
+.toast-error .ti{color:var(--danger);}
+.toast-info{border-left-color:var(--muted);}
+.toast-info .ti{color:var(--muted);}
+button,.week-card-header,.receipt-thumb,.card[onclick]{transition:transform 0.1s ease-out;}
+button:active,.btn:active,.stat:active,.balance-line:active,.week-card-header:active,.receipt-thumb:active,.side-item:active,.nav-btn:active,.auth-tab:active,.quick-btn:active,.more-item:active,.add-btn:active,.del-btn:active,.reaction-btn:active,.reaction-count:active,.toggle-btn:active,.insights-tab:active,.feed-delete-btn:active,.receipt-add-btn:active,.receipt-choice:active,.hamburger-btn:active,.quick-btn-edit:active,.pot-actions button:active,.card[onclick]:active{transform:scale(0.97);}
 /* COMMUNITY */
 .feed-post{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;margin-bottom:12px;}
 .feed-post.milestone{border-color:var(--accent);background:linear-gradient(135deg,rgba(79,142,247,0.06),rgba(124,77,255,0.04));}
 .feed-header{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
-.feed-delete-btn{margin-left:auto;background:none;border:none;color:var(--muted);cursor:pointer;padding:4px 6px;font-size:16px;line-height:1;border-radius:6px;transition:color 0.15s,background 0.15s;}
+.feed-delete-btn{margin-left:auto;background:none;border:none;color:var(--muted);cursor:pointer;padding:4px 6px;font-size:16px;line-height:1;border-radius:6px;transition:color 0.15s,background 0.15s,transform 0.1s ease-out;}
 .feed-delete-btn:hover{color:var(--danger);background:rgba(247,90,90,0.1);}
 .feed-avatar{width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;color:#fff;flex-shrink:0;}
 .feed-name{font-size:14px;font-weight:700;}
@@ -274,12 +287,10 @@ select option{background:var(--surface);color:var(--text);}
 .feed-message{font-size:15px;line-height:1.5;margin-bottom:12px;}
 .feed-milestone-tag{display:inline-block;font-size:10px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;padding:3px 9px;border-radius:99px;background:rgba(79,142,247,0.15);color:var(--accent);margin-bottom:8px;}
 .feed-reactions{display:flex;gap:6px;flex-wrap:wrap;align-items:center;}
-.reaction-btn{background:var(--surface2);border:1px solid var(--border);border-radius:99px;padding:5px 11px;font-size:14px;cursor:pointer;transition:all 0.15s;display:flex;align-items:center;gap:4px;}
-.reaction-btn:active{transform:scale(0.92);}
+.reaction-btn{background:var(--surface2);border:1px solid var(--border);border-radius:99px;padding:5px 11px;font-size:14px;cursor:pointer;transition:all 0.15s,transform 0.1s ease-out;display:flex;align-items:center;gap:4px;}
 .reaction-btn.reacted{border-color:var(--accent);background:rgba(79,142,247,0.12);}
-.reaction-count{font-size:12px;font-weight:700;color:var(--muted);cursor:pointer;padding:1px 6px;border-radius:99px;transition:background 0.15s;}
+.reaction-count{font-size:12px;font-weight:700;color:var(--muted);cursor:pointer;padding:1px 6px;border-radius:99px;transition:background 0.15s,transform 0.1s ease-out;}
 .reaction-count:hover{background:rgba(255,255,255,0.08);}
-.reaction-count:active{transform:scale(0.9);}
 .reaction-btn.reacted .reaction-count{color:var(--accent);}
 .onboarding-highlight{outline:2px solid var(--accent);outline-offset:3px;border-radius:8px;}
 .receipt-strip{display:grid;grid-template-columns:repeat(auto-fill,minmax(72px,1fr));gap:8px;margin-top:8px;}
@@ -504,7 +515,7 @@ select option{background:var(--surface);color:var(--text);}
   </nav>
 </div>
 
-<div id="toast"></div>
+<div id="toast-container"></div>
 <!-- ONBOARDING SPLASH -->
 <div id="onboarding-splash" style="display:none;position:fixed;inset:0;z-index:600;background:var(--bg);flex-direction:column;align-items:center;justify-content:center;padding:32px 24px;text-align:center;">
   <img src="favicon.ico" style="width:64px;height:64px;border-radius:14px;margin-bottom:20px;" alt=""/>
@@ -1303,7 +1314,7 @@ let forecastCustomAmt=parseFloat(localStorage.getItem('forecast_custom_amt')||'0
 let forecastCustomMode=localStorage.getItem('forecast_custom_mode')||'$';
 let forecastStrategyOpen=false; // Debt Payoff Strategies section starts collapsed each session
 let forecastPayoffTarget=localStorage.getItem('forecast_payoff_target')||'debt-free';
-function toggleForecastStrategy(){forecastStrategyOpen=!forecastStrategyOpen;lastAccOpened=forecastStrategyOpen?'strategy':null;renderDebts();}
+function toggleForecastStrategy(){forecastStrategyOpen=!forecastStrategyOpen;lastAccOpened=forecastStrategyOpen?'strategy':null;lastChevToggled='strategy';renderDebts();}
 function setForecastStrategy(s){forecastStrategy=s;localStorage.setItem('forecast_strategy',s);renderDebts();}
 function setForecastDebtMethod(m){forecastDebtMethod=m;localStorage.setItem('forecast_debt_method',m);renderDebts();}
 function setForecastPayoffTarget(t){forecastPayoffTarget=t;localStorage.setItem('forecast_payoff_target',t);renderDebts();}
@@ -1816,7 +1827,7 @@ function forecastStrategySection(){
   let html='<div class="card" style="margin:0 0 14px;background:rgba(168,85,247,0.06);border:1px solid rgba(168,85,247,0.25);border-left:3px solid #a855f7;cursor:pointer;" onclick="toggleForecastStrategy()">'
     +'<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">'
     +'<div><div style="font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:#c084fc;">Debt Payoff Strategy</div><div style="font-size:12px;color:var(--muted);margin-top:2px;">See how different payment strategies affect your payoff timeline</div></div>'
-    +'<span style="font-size:14px;color:var(--muted);flex-shrink:0;">'+(open?'▲':'▼')+'</span></div></div>';
+    +'<span style="font-size:14px;color:var(--muted);flex-shrink:0;">'+chevIcon(open,'strategy')+'</span></div></div>';
   if(open){
     // Strategy simulation ALWAYS runs a fixed 10-year (120-month) horizon, fully independent of the
     // selected forecast window — both the selected strategy and the minimums-only comparison.
@@ -1855,8 +1866,8 @@ function setForecastWindow(w){
 function applyCustomForecast(){
   forecastCustomStart=document.getElementById('forecast-start').value;
   forecastCustomEnd=document.getElementById('forecast-end').value;
-  if(!forecastCustomStart||!forecastCustomEnd){toast('Enter both a start and end date');return;}
-  if(forecastCustomEnd<=forecastCustomStart){toast('End date must be after start date');return;}
+  if(!forecastCustomStart||!forecastCustomEnd){toast('Enter both a start and end date','info');return;}
+  if(forecastCustomEnd<=forecastCustomStart){toast('End date must be after start date','error');return;}
   renderForecast();
 }
 function recentAvgSpendingPerDay(){
@@ -2126,14 +2137,14 @@ function renderForecast(){
         const domId='tl-month-'+mo.replace('-','');
         const startOpen=idx===0;
         return`<div class="card" style="padding:0;margin-bottom:10px;overflow:hidden;">
-          <div onclick="const b=document.getElementById('${domId}');const arr=document.getElementById('arr-${domId}');if(b.style.display==='none'){b.style.display='block';arr.textContent='▼';}else{b.style.display='none';arr.textContent='▶';}" style="display:flex;justify-content:space-between;align-items:center;padding:14px 18px;cursor:pointer;background:var(--surface);">
+          <div onclick="const b=document.getElementById('${domId}');const arr=document.getElementById('arr-${domId}');if(b.style.display==='none'){b.style.display='block';arr.classList.add('open');}else{b.style.display='none';arr.classList.remove('open');}" style="display:flex;justify-content:space-between;align-items:center;padding:14px 18px;cursor:pointer;background:var(--surface);">
             <div>
               <div style="font-size:14px;font-weight:700;">${moLabel}</div>
               <div style="font-size:11px;color:var(--muted);">${events.length} event${events.length!==1?'s':''}</div>
             </div>
             <div style="display:flex;align-items:center;gap:12px;">
               <div style="font-size:15px;font-weight:800;color:${net>=0?'var(--success)':'var(--danger)'};">${net>=0?'+':''}${fmt(net)}</div>
-              <span id="arr-${domId}" style="font-size:12px;color:var(--muted);">${startOpen?'▼':'▶'}</span>
+              <i id="arr-${domId}" class="ti ti-chevron-down chev${startOpen?' open':''}" style="font-size:12px;color:var(--muted);"></i>
             </div>
           </div>
           <div id="${domId}" style="display:${startOpen?'block':'none'};padding:0 18px;">
@@ -2248,13 +2259,13 @@ function showConfirmedIncomeModal(){
 async function unconfirmPaycheckFromDash(id){
   if(!confirm("Unconfirm this paycheck? It will return to Pending and be removed from your balance."))return;
   const{error}=await sb.from('paychecks').delete().eq('id',id);
-  if(error){toast('Error: '+error.message);return;}
+  if(error){toast('Error: '+error.message,'error');return;}
   await loadPaychecks();closeModal('dash-detail-modal');renderWeekly();renderDashboard();toast('Income unconfirmed');
 }
 async function deletePaycheckFromConfirmed(id){
   if(!confirm('Remove this confirmed paycheck?'))return;
   const{error}=await sb.from('paychecks').delete().eq('id',id);
-  if(error){toast('Error: '+error.message);return;}
+  if(error){toast('Error: '+error.message,'error');return;}
   await loadPaychecks();
   renderWeekly();renderDashboard();
   toast('Paycheck removed');
@@ -2507,7 +2518,7 @@ async function routineStep1Next(){
     let amount;
     if(mode==='exp'){amount=parseFloat(w.expected_amount||0);}
     else{const inp=document.getElementById('routine-custom-'+weekId);amount=parseFloat(inp?.value||0);}
-    if(!amount||amount<=0){toast('Enter a valid amount for '+esc(w.source_name||'Pay Period'));if(btn){btn.disabled=false;btn.textContent='Next →';}return;}
+    if(!amount||amount<=0){toast('Enter a valid amount for '+(w.source_name||'Pay Period'),'info');if(btn){btn.disabled=false;btn.textContent='Next →';}return;}
     await sb.from('paychecks').insert({user_id:currentUser.id,pay_week_id:weekId,amount,pay_date:w.pay_date,notes:mode==='exp'?'Recurring income':null});
     routinePaychecks[weekId]=amount;
   }
@@ -2904,6 +2915,15 @@ function skelSparkHtml(){
 let lastAccOpened=null;
 function accClass(key){if(lastAccOpened===key){lastAccOpened=null;return' acc-body';}return'';}
 function replayAccOpen(el){if(!el||prefersReducedMotion())return;el.classList.remove('acc-body');void el.offsetWidth;el.classList.add('acc-body');}
+// Chevron for collapsible headers. Sections that re-render on toggle can't use a CSS
+// transition (the icon element is replaced), so the toggle stamps lastChevToggled and the
+// next render consumes it exactly once, replaying the rotation as a keyframe animation.
+let lastChevToggled=null;
+function chevIcon(open,key){
+  let cls='ti ti-chevron-down chev'+(open?' open':'');
+  if(key&&lastChevToggled===key){cls+=(open?' chev-anim-open':' chev-anim-close');lastChevToggled=null;}
+  return'<i class="'+cls+'"></i>';
+}
 // Draws Trends sparklines left-to-right (stroke-dash technique) with dots popping in as the
 // line reaches them. Keyed on tab+window so only an initial render or a time-frame switch
 // animates — unrelated re-renders while sitting on the Trends tab don't replay it.
@@ -3339,11 +3359,11 @@ function editPot(id){openPotModal(id);}
 async function savePot(){
   const id=document.getElementById('pot-edit-id').value;
   const name=document.getElementById('pot-name').value.trim();
-  if(!name){toast('Enter a pot name');return;}
+  if(!name){toast('Enter a pot name','info');return;}
   const payload={user_id:currentUser.id,name,emoji:document.getElementById('pot-emoji').value,goal_amount:parseFloat(document.getElementById('pot-goal').value)||null,notes:document.getElementById('pot-notes').value.trim()||null};
   if(id){
     const res=await sb.from('savings_pots').update(payload).eq('id',id);
-    if(res.error){toast('Error: '+res.error.message);return;}
+    if(res.error){toast('Error: '+res.error.message,'error');return;}
     // Update or create starting balance transaction
     const newStarting=parseFloat(document.getElementById('pot-starting').value)||0;
     const existing=savingsTxns.find(t=>t.pot_id===id&&t.notes==='__starting_balance__');
@@ -3352,7 +3372,7 @@ async function savePot(){
     else if(!existing&&newStarting>0){await sb.from('savings_transactions').insert({user_id:currentUser.id,pot_id:id,type:'deposit',amount:newStarting,txn_date:today(),notes:'__starting_balance__'});}
   }else{
     const res=await sb.from('savings_pots').insert(payload).select().single();
-    if(res.error){toast('Error: '+res.error.message);return;}
+    if(res.error){toast('Error: '+res.error.message,'error');return;}
     const starting=parseFloat(document.getElementById('pot-starting').value)||0;
     if(starting>0){await sb.from('savings_transactions').insert({user_id:currentUser.id,pot_id:res.data.id,type:'deposit',amount:starting,txn_date:today(),notes:'__starting_balance__'});}
   }
@@ -3394,9 +3414,9 @@ async function saveSavingsTxn(){
   const potId=document.getElementById('savings-txn-pot-id').value;
   const type=document.getElementById('savings-txn-type').value;
   const amount=parseFloat(document.getElementById('savings-txn-amount').value);
-  if(!amount||amount<=0){toast('Enter a valid amount');return;}
+  if(!amount||amount<=0){toast('Enter a valid amount','info');return;}
   const {error}=await sb.from('savings_transactions').insert({user_id:currentUser.id,pot_id:potId,type,amount,txn_date:document.getElementById('savings-txn-date').value,notes:document.getElementById('savings-txn-notes').value.trim()||null});
-  if(error){toast('Error: '+error.message);return;}
+  if(error){toast('Error: '+error.message,'error');return;}
   closeModal('savings-txn-modal');
   await loadSavingsTxns();
   // Check if goal reached on a deposit
@@ -3426,15 +3446,15 @@ async function doTransfer(){
   const toId=document.getElementById('transfer-to-id').value;
   const amount=parseFloat(document.getElementById('transfer-amount').value);
   const notes=document.getElementById('transfer-notes').value.trim();
-  if(!amount||amount<=0){toast('Enter a valid amount');return;}
-  if(!toId){toast('Select a destination pot');return;}
+  if(!amount||amount<=0){toast('Enter a valid amount','info');return;}
+  if(!toId){toast('Select a destination pot','info');return;}
   const fromPot=pots.find(p=>p.id===fromId);
   const toPot=pots.find(p=>p.id===toId);
   const {error}=await sb.from('savings_transactions').insert([
     {user_id:currentUser.id,pot_id:fromId,type:'withdraw',amount,txn_date:today(),notes:`Transfer to ${toPot?.name||'pot'}${notes?' · '+notes:''}`},
     {user_id:currentUser.id,pot_id:toId,type:'deposit',amount,txn_date:today(),notes:`Transfer from ${fromPot?.name||'pot'}${notes?' · '+notes:''}`}
   ]);
-  if(error){toast('Error: '+error.message);return;}
+  if(error){toast('Error: '+error.message,'error');return;}
   closeModal('savings-transfer-modal');
   await loadSavingsTxns();renderSavings();renderDashboard();
   toast(`Transferred ${fmt(amount)} ✓`);
@@ -3523,7 +3543,7 @@ function renderShared(){
 }
 
 function openSharedPotModal(){
-  if(!myProfile?.display_name){toast('Set your name in Settings first');return;}
+  if(!myProfile?.display_name){toast('Set your name in Settings first','info');return;}
   document.getElementById('shared-pot-title').textContent='New Shared Pot';
   ['shared-pot-name','shared-pot-goal','shared-pot-invite'].forEach(i=>document.getElementById(i).value='');
   document.getElementById('shared-pot-emoji').value='🏠';
@@ -3531,10 +3551,10 @@ function openSharedPotModal(){
 }
 async function saveSharedPot(){
   const name=document.getElementById('shared-pot-name').value.trim();
-  if(!name){toast('Enter a pot name');return;}
+  if(!name){toast('Enter a pot name','info');return;}
   const inviteName=document.getElementById('shared-pot-invite').value.trim();
   const{data:pot,error}=await sb.from('shared_pots').insert({owner_id:currentUser.id,name,emoji:document.getElementById('shared-pot-emoji').value,goal_amount:parseFloat(document.getElementById('shared-pot-goal').value)||null}).select().single();
-  if(error){toast('Error: '+error.message);return;}
+  if(error){toast('Error: '+error.message,'error');return;}
   await sb.from('shared_members').insert({pot_id:pot.id,user_id:currentUser.id});
   if(inviteName){await tryInvite(pot.id,name,inviteName);}
   closeModal('shared-pot-modal');
@@ -3549,7 +3569,7 @@ async function deleteSharedPot(id){
 async function leaveSharedPot(potId){
   if(!confirm("Leave this shared pot? You'll lose access to the history and can't rejoin unless re-invited."))return;
   const{error}=await sb.from('shared_members').delete().eq('pot_id',potId).eq('user_id',currentUser.id);
-  if(error){toast('Error leaving pot: '+error.message);return;}
+  if(error){toast('Error leaving pot: '+error.message,'error');return;}
   await loadShared();
   renderSavings();
   if(typeof renderShared==='function')renderShared();
@@ -3565,19 +3585,19 @@ function openInviteModal(potId){
 async function sendInvite(){
   const potId=document.getElementById('invite-pot-id').value;
   const name=document.getElementById('invite-name').value.trim();
-  if(!name){toast('Enter a display name');return;}
+  if(!name){toast('Enter a display name','info');return;}
   const pot=sharedPots.find(p=>p.id===potId);
   const ok=await tryInvite(potId,pot?.name||'pot',name);
   if(ok){closeModal('shared-invite-modal');toast('Invite sent ✓');}
 }
 async function tryInvite(potId,potName,inviteName){
   const target=profiles.find(p=>(p.display_name||'').toLowerCase()===inviteName.toLowerCase());
-  if(!target){toast(`No user named "${inviteName}" found`);return false;}
-  if(target.user_id===currentUser.id){toast("That's you!");return false;}
+  if(!target){toast(`No user named "${inviteName}" found`,'error');return false;}
+  if(target.user_id===currentUser.id){toast("That's you!",'error');return false;}
   const existingMember=sharedMembers.find(m=>m.pot_id===potId&&m.user_id===target.user_id);
-  if(existingMember){toast('Already a member');return false;}
+  if(existingMember){toast('Already a member','error');return false;}
   const{error}=await sb.from('shared_invites').insert({pot_id:potId,pot_name:potName,inviter_id:currentUser.id,invitee_id:target.user_id,status:'pending'});
-  if(error){toast('Error: '+error.message);return false;}
+  if(error){toast('Error: '+error.message,'error');return false;}
   return true;
 }
 async function acceptInvite(inviteId,potId){
@@ -3606,13 +3626,13 @@ async function saveSharedTxn(){
   const potId=document.getElementById('shared-txn-pot-id').value;
   const type=document.getElementById('shared-txn-type').value;
   const amount=parseFloat(document.getElementById('shared-txn-amount').value);
-  if(!amount||amount<=0){toast('Enter a valid amount');return;}
+  if(!amount||amount<=0){toast('Enter a valid amount','info');return;}
   if(type==='withdraw'){
     const mine=Math.max(0,myContribution(potId));
-    if(amount>mine){toast(`You can only withdraw up to ${fmt(mine)}`);return;}
+    if(amount>mine){toast(`You can only withdraw up to ${fmt(mine)}`,'error');return;}
   }
   const{error}=await sb.from('shared_transactions').insert({user_id:currentUser.id,pot_id:potId,type,amount,txn_date:document.getElementById('shared-txn-date').value,notes:document.getElementById('shared-txn-notes').value.trim()||null});
-  if(error){toast('Error: '+error.message);return;}
+  if(error){toast('Error: '+error.message,'error');return;}
   closeModal('shared-txn-modal');
   await loadShared();renderSavings();renderDashboard();
   toast(type==='deposit'?'Deposit saved ✓':'Withdrawal saved ✓');
@@ -3662,15 +3682,15 @@ function renderCommunity(){
   }).join('');
 }
 function openPostModal(){
-  if(!myProfile?.display_name){toast('Set your name in Settings first');switchView('setup',null);return;}
+  if(!myProfile?.display_name){toast('Set your name in Settings first','info');switchView('setup',null);return;}
   document.getElementById('post-message').value='';
   openModal('post-modal');
 }
 async function savePost(){
   const message=document.getElementById('post-message').value.trim();
-  if(!message){toast('Write something first');return;}
+  if(!message){toast('Write something first','info');return;}
   const{error}=await sb.from('community_posts').insert({user_id:currentUser.id,message,is_milestone:false});
-  if(error){toast('Error: '+error.message);return;}
+  if(error){toast('Error: '+error.message,'error');return;}
   closeModal('post-modal');await loadPosts();renderCommunity();toast('Posted ✓');
 }
 async function toggleReaction(postId,emoji){
@@ -3682,7 +3702,7 @@ async function toggleReaction(postId,emoji){
 async function deletePost(postId){
   if(!confirm('Delete this post permanently? This cannot be undone.'))return;
   const{error}=await sb.from('community_posts').delete().eq('id',postId);
-  if(error){toast('Error: '+error.message);return;}
+  if(error){toast('Error: '+error.message,'error');return;}
   await loadPosts();renderCommunity();toast('Post deleted');
 }
 function showReactors(postId,emoji){
@@ -3842,7 +3862,7 @@ function renderBills(){
           <div style="font-size:13px;font-weight:700;">${esc(cat)}</div>
           <div style="font-size:11px;color:var(--muted);margin-top:2px;">${paidCount}/${group.length} paid · ${fmt(catTotal)}</div>
         </div>
-        <span style="font-size:16px;color:var(--muted);">${isOpen?'▲':'▼'}</span>
+        <span style="font-size:16px;color:var(--muted);">${chevIcon(isOpen,'billscat:'+cat)}</span>
       </div>
       ${isOpen?`<div class="card${accClass('billscat:'+cat)}" style="padding:0 18px;margin-top:2px;border-top-left-radius:0;border-top-right-radius:0;">${sortBills(group).map(billCard).join('')}</div>`:''}`;
     }).join('');
@@ -3922,7 +3942,7 @@ function renderBills(){
   animateBars();
   animateDonut();
 }
-function toggleBillsCat(cat){billsCatOpen[cat]=!billsCatOpen[cat];lastAccOpened=billsCatOpen[cat]?('billscat:'+cat):null;renderBills();}
+function toggleBillsCat(cat){billsCatOpen[cat]=!billsCatOpen[cat];lastAccOpened=billsCatOpen[cat]?('billscat:'+cat):null;lastChevToggled='billscat:'+cat;renderBills();}
 function showBillCatDetail(idx){
   const cat=_billPieCats[idx];
   if(!cat)return;
@@ -3997,7 +4017,7 @@ function editBill(id){openBillModal(id);}
 async function saveBill(){
   const id=document.getElementById('bill-edit-id').value;
   const name=document.getElementById('bill-name').value.trim();
-  if(!name){toast('Enter a bill name');return;}
+  if(!name){toast('Enter a bill name','info');return;}
   const _rec=document.getElementById('bill-recurring').value;
   const _needsMonth=['quarterly','semi-annual','annually','once'].includes(_rec);
   const _dueMonth=_needsMonth?parseInt(document.getElementById('bill-due-month').value):null;
@@ -4011,7 +4031,7 @@ async function saveBill(){
   }
   const payload={user_id:currentUser.id,name,amount:parseFloat(document.getElementById('bill-amount').value)||0,due_day:parseInt(document.getElementById('bill-due-day').value)||null,category:document.getElementById('bill-category').value,recurring:_rec,due_month:_dueMonth,end_date:_endDate,notes:document.getElementById('bill-notes').value.trim()||null};
   const res=id?await sb.from('bills').update(payload).eq('id',id):await sb.from('bills').insert(payload);
-  if(res.error){toast('Error: '+res.error.message);return;}
+  if(res.error){toast('Error: '+res.error.message,'error');return;}
   closeModal('bill-modal');await loadBills();renderBills();renderDashboard();toast(id?'Bill updated ✓':'Bill added ✓');
 }
 async function deleteBill(id){if(!confirm('Delete this bill?'))return;await sb.from('bills').delete().eq('id',id);await loadBills();renderBills();renderDashboard();toast('Bill deleted');}
@@ -4048,7 +4068,7 @@ async function confirmPayAllDue(){
     const remAmt=billRemainingThisMonth(b); // pay only the unpaid shortfall
     if(remAmt<=0.005)continue;
     const{error}=await sb.from('bill_payments').insert({user_id:currentUser.id,bill_id:b.id,amount:remAmt,paid_date:today(),notes:b.name});
-    if(error){toast('Error on '+b.name+': '+error.message);continue;}
+    if(error){toast('Error on '+b.name+': '+error.message,'error');continue;}
     flashIds.push(b.id);
     if(b.debt_id){
       const debt=debts.find(d=>d.id===b.debt_id);
@@ -4084,10 +4104,10 @@ async function confirmMarkBillPaid(){
   const billName=document.getElementById('bill-paid-name').value;
   const amount=parseFloat(document.getElementById('bill-paid-amount').value);
   const paidDate=document.getElementById('bill-paid-date').value;
-  if(!paidDate){toast('Select a date');return;}
-  if(paidDate>today()){toast("Date paid can't be in the future");return;}
+  if(!paidDate){toast('Select a date','info');return;}
+  if(paidDate>today()){toast("Date paid can't be in the future",'error');return;}
   const{error}=await sb.from('bill_payments').insert({user_id:currentUser.id,bill_id:billId,amount:parseFloat(amount),paid_date:paidDate,notes:billName});
-  if(error){toast('Error: '+error.message);return;}
+  if(error){toast('Error: '+error.message,'error');return;}
   closeModal('bill-paid-modal');
   // If this bill is linked to a debt, log a payment and decrement the balance
   const bill=bills.find(b=>b.id===billId);
@@ -4126,7 +4146,7 @@ async function deleteBillPaymentEntry(paymentId){
   if(!confirm('Delete this payment record?'))return;
   const billId=document.getElementById('bill-history-modal').dataset.billId;
   const{error}=await sb.from('bill_payments').delete().eq('id',paymentId);
-  if(error){toast('Error: '+error.message);return;}
+  if(error){toast('Error: '+error.message,'error');return;}
   await loadBillPayments();
   renderBillHistoryList(billId); // refresh the open modal's list
   renderBills();renderDashboard();updateBillBadge(); // "Paid This Month"/progress/status derive from billPayments live, so this reflects the removal immediately
@@ -4159,7 +4179,7 @@ async function undoBillPayment(billId){
 }
 async function syncDebtMinimums(){
   const debtsWithMin=debts.filter(d=>parseFloat(d.min_payment||0)>0);
-  if(debtsWithMin.length===0){toast('No debts with minimum payments set');return;}
+  if(debtsWithMin.length===0){toast('No debts with minimum payments set','info');return;}
   let added=0,updated=0,removed=0;
   for(const b of bills.filter(b=>b.debt_id)){
     const d=debts.find(d=>d.id===b.debt_id);
@@ -4287,7 +4307,7 @@ function renderWeekly(){
             <div style="font-size:15px;font-weight:800;color:var(--text);">${moLabel}</div>
             <div style="font-size:11px;color:var(--accent);">${mw.length} period${mw.length!==1?'s':''}${confirmed>0?` · ${fmt(confirmed)} confirmed`:''}${expected>0?` · ${fmt(expected)} expected`:''}</div>
           </div>
-          <span id="a-${domId}" style="font-size:13px;color:var(--accent);">${open?'▼':'▶'}</span>
+          <i id="a-${domId}" class="ti ti-chevron-down chev${open?' open':''}" style="font-size:13px;color:var(--accent);"></i>
         </div>
         <div id="${domId}" style="display:${open?'block':'none'};margin-top:4px;">${mw.map(buildCard).join('')}</div>
       </div>`;
@@ -4341,7 +4361,7 @@ function renderWeekly(){
     html+=`<div style="margin-bottom:8px;">
       <button onclick="toggleWeek('archived-periods')" style="width:100%;display:flex;justify-content:space-between;align-items:center;padding:14px 18px;background:var(--surface2);border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:var(--radius);cursor:pointer;color:var(--text);">
         <span style="font-size:15px;font-weight:800;color:var(--text);">Past Periods</span>
-        <span style="font-size:11px;color:var(--accent);">${archived.length} period${archived.length!==1?'s':''} · tap to expand</span>
+        <span style="display:flex;align-items:center;gap:8px;font-size:11px;color:var(--accent);">${archived.length} period${archived.length!==1?'s':''} · tap to expand<i id="chev-archived-periods" class="ti ti-chevron-down chev" style="font-size:14px;"></i></span>
       </button>
       <div id="archived-periods" style="display:none;">${buildMonthGroups(archived,false)}</div>
     </div>`;
@@ -4353,8 +4373,8 @@ async function confirmExpected(weekId,amount,payDate){
   await sb.from('paychecks').insert({user_id:currentUser.id,pay_week_id:weekId,amount,pay_date:payDate,notes:'Recurring income'});
   await loadPaychecks();renderWeekly();renderDashboard();toast('Paycheck confirmed ✓');
 }
-function toggleWeek(id){const el=document.getElementById(id);if(!el)return;const opening=el.style.display==='none';el.style.display=opening?'block':'none';if(opening)replayAccOpen(el);}
-function toggleIncomeMonth(domId){const b=document.getElementById(domId);if(!b)return;const a=document.getElementById('a-'+domId);const opening=b.style.display==='none';b.style.display=opening?'block':'none';if(a)a.textContent=opening?'▼':'▶';if(opening)replayAccOpen(b);}
+function toggleWeek(id){const el=document.getElementById(id);if(!el)return;const opening=el.style.display==='none';el.style.display=opening?'block':'none';const c=document.getElementById('chev-'+id);if(c)c.classList.toggle('open',opening);if(opening)replayAccOpen(el);}
+function toggleIncomeMonth(domId){const b=document.getElementById(domId);if(!b)return;const a=document.getElementById('a-'+domId);const opening=b.style.display==='none';b.style.display=opening?'block':'none';if(a)a.classList.toggle('open',opening);if(opening)replayAccOpen(b);}
 function onWeekIncomeTypeChange(){
   const type=document.getElementById('week-income-type').value;
   document.getElementById('week-paycheck-field').style.display=type==='known'?'block':'none';
@@ -4362,12 +4382,12 @@ function onWeekIncomeTypeChange(){
 function openWeekModal(){document.getElementById('week-date').value=today();document.getElementById('week-paycheck').value='';document.getElementById('week-notes').value='';document.getElementById('week-income-type').value='known';onWeekIncomeTypeChange();openModal('week-modal');}
 async function saveWeek(){
   const pay_date=document.getElementById('week-date').value;
-  if(!pay_date){toast('Enter a pay date');return;}
+  if(!pay_date){toast('Enter a pay date','info');return;}
   const type=document.getElementById('week-income-type').value;
   const paycheck_amount=type==='known'?(parseFloat(document.getElementById('week-paycheck').value)||0):0;
   const notes=document.getElementById('week-notes').value.trim();
   const{data:weekData,error}=await sb.from('pay_weeks').insert({user_id:currentUser.id,pay_date,bills_amount:0,notes:notes||null}).select().single();
-  if(error){toast('Error: '+error.message);return;}
+  if(error){toast('Error: '+error.message,'error');return;}
   if(paycheck_amount>0)await sb.from('paychecks').insert({user_id:currentUser.id,pay_week_id:weekData.id,amount:paycheck_amount,pay_date});
   closeModal('week-modal');await Promise.all([loadWeeks(),loadPaychecks()]);renderWeekly();renderDashboard();toast('Pay period added ✓');
 }
@@ -4428,17 +4448,17 @@ async function saveRecurring(){
   const frequency=document.getElementById('rec-frequency').value;
   const start=document.getElementById('rec-start').value;
   const end=document.getElementById('rec-end').value||null;
-  if(!name){toast('Enter a source name');return;}
-  if(!amount||amount<=0){toast('Enter a valid amount');return;}
-  if(!start){toast('Enter a start date');return;}
-  if(end&&end<=start){toast('End date must be after start date');return;}
+  if(!name){toast('Enter a source name','info');return;}
+  if(!amount||amount<=0){toast('Enter a valid amount','info');return;}
+  if(!start){toast('Enter a start date','info');return;}
+  if(end&&end<=start){toast('End date must be after start date','error');return;}
   // Only include monthly_allowance in the DB payload when set, so a missing column
   // (schema cache not yet refreshed) doesn't break the save.
   if(editId){
     const payload={name,amount,frequency,next_date:start,end_date:end};
     if(monthly_allowance>0)payload.monthly_allowance=monthly_allowance;
     const{error}=await sb.from('recurring_income').update(payload).eq('id',editId);
-    if(error){toast('Error: '+error.message);return;}
+    if(error){toast('Error: '+error.message,'error');return;}
     const oldRec=recurringSources.find(r=>r.id===editId);
     if(oldRec){
       const todayStr=today();
@@ -4453,7 +4473,7 @@ async function saveRecurring(){
     const payload={user_id:currentUser.id,name,amount,frequency,next_date:start,end_date:end};
     if(monthly_allowance>0)payload.monthly_allowance=monthly_allowance;
     const{data:rec,error}=await sb.from('recurring_income').insert(payload).select().single();
-    if(error){toast('Error: '+error.message);return;}
+    if(error){toast('Error: '+error.message,'error');return;}
     await loadWeeks();
     await generatePeriods({...rec,monthly_allowance});
     toast('Recurring source added ✓');
@@ -4493,7 +4513,7 @@ async function deleteRecurring(id){
   if(!confirm('Delete this recurring source? Future unconfirmed periods from it will be removed.'))return;
   const rec=recurringSources.find(r=>r.id===id);
   const{error}=await sb.from('recurring_income').delete().eq('id',id);
-  if(error){toast('Error deleting: '+error.message);return;}
+  if(error){toast('Error deleting: '+error.message,'error');return;}
   if(rec){
     const todayStr=today();
     const confirmedIds=new Set(paychecks.map(p=>p.pay_week_id));
@@ -4514,13 +4534,13 @@ async function savePaycheck(){
   const weekId=document.getElementById('paycheck-week-id').value;
   const amount=parseFloat(document.getElementById('paycheck-amount').value);
   const pay_date=document.getElementById('paycheck-date').value;
-  if(!amount||amount<=0){toast('Enter a valid amount');return;}
+  if(!amount||amount<=0){toast('Enter a valid amount','info');return;}
   const{error}=await sb.from('paychecks').insert({user_id:currentUser.id,pay_week_id:weekId,amount,pay_date,notes:document.getElementById('paycheck-notes').value.trim()||null});
-  if(error){toast('Error: '+error.message);return;}
+  if(error){toast('Error: '+error.message,'error');return;}
   closeModal('paycheck-modal');await loadPaychecks();renderWeekly();renderDashboard();toast('Paycheck logged ✓');
 }
 async function deletePaycheck(id){if(!confirm('Delete this paycheck?'))return;await sb.from('paychecks').delete().eq('id',id);await loadPaychecks();renderWeekly();renderDashboard();toast('Paycheck deleted');}
-async function unconfirmPaycheck(id){if(!confirm("Unconfirm this paycheck? It will return to Pending and be removed from your balance."))return;const{error}=await sb.from('paychecks').delete().eq('id',id);if(error){toast('Error: '+error.message);return;}await loadPaychecks();renderWeekly();renderDashboard();toast('Income unconfirmed');}
+async function unconfirmPaycheck(id){if(!confirm("Unconfirm this paycheck? It will return to Pending and be removed from your balance."))return;const{error}=await sb.from('paychecks').delete().eq('id',id);if(error){toast('Error: '+error.message,'error');return;}await loadPaychecks();renderWeekly();renderDashboard();toast('Income unconfirmed');}
 function editPaycheck(id,amount,date,notes){
   document.getElementById('edit-paycheck-id').value=id;
   document.getElementById('edit-paycheck-amount').value=amount;
@@ -4533,9 +4553,9 @@ async function saveEditPaycheck(){
   const amount=parseFloat(document.getElementById('edit-paycheck-amount').value);
   const pay_date=document.getElementById('edit-paycheck-date').value;
   const notes=document.getElementById('edit-paycheck-notes').value.trim()||null;
-  if(!amount||amount<=0){toast('Enter a valid amount');return;}
+  if(!amount||amount<=0){toast('Enter a valid amount','info');return;}
   const{error}=await sb.from('paychecks').update({amount,pay_date,notes}).eq('id',id);
-  if(error){toast('Error: '+error.message);return;}
+  if(error){toast('Error: '+error.message,'error');return;}
   closeModal('edit-paycheck-modal');
   await loadPaychecks();renderWeekly();renderDashboard();toast('Paycheck updated ✓');
   if(document.getElementById('dash-detail-modal').classList.contains('open'))showConfirmedIncomeModal();
@@ -4545,7 +4565,7 @@ function openExpenseModalForWeek(weekId){injectCustomCategoryOptions('exp-catego
 
 // DEBTS
 const debtCollapsed=new Set();
-function toggleDebtCard(id){const opening=debtCollapsed.has(id);opening?debtCollapsed.delete(id):debtCollapsed.add(id);lastAccOpened=opening?('debt:'+id):null;renderDebts();}
+function toggleDebtCard(id){const opening=debtCollapsed.has(id);opening?debtCollapsed.delete(id):debtCollapsed.add(id);lastAccOpened=opening?('debt:'+id):null;lastChevToggled='debt:'+id;renderDebts();}
 function debtPayoffLine(debtId,bal){
   if(bal<=0)return '';
   const ps=payments.filter(p=>p.debt_id===debtId);
@@ -4620,7 +4640,7 @@ function renderDebts(){
           <div style="color:var(--muted);font-size:11px;margin-top:2px;">${esc(d.type)} · ${fmt(bal)}</div>
         </div>
         <div style="display:flex;align-items:center;gap:8px;">
-          <span style="font-size:13px;color:var(--muted);">${collapsed?'▼':'▲'}</span>
+          <span style="font-size:13px;color:var(--muted);">${chevIcon(!collapsed,'debt:'+d.id)}</span>
         </div>
       </div>
       ${collapsed?'':`<div class="${accClass('debt:'+d.id)}">
@@ -4655,7 +4675,7 @@ function renderDebts(){
 function toggleDebtOriginalField(){const t=document.getElementById('debt-type').value;document.getElementById('debt-original-field').style.display=t==='Credit Card'?'none':'';}
 function openDebtModal(id=null){document.getElementById('debt-modal-title').textContent=id?'Edit Account':'Add Debt Account';document.getElementById('debt-edit-id').value=id||'';if(id){const d=debts.find(x=>x.id===id);if(d){document.getElementById('debt-name').value=d.name||'';document.getElementById('debt-type').value=d.type||'Credit Card';document.getElementById('debt-balance').value=d.balance||'';document.getElementById('debt-original').value=d.original_amount||'';document.getElementById('debt-limit').value=d.credit_limit||'';document.getElementById('debt-apr').value=d.apr||'';document.getElementById('debt-minpay').value=d.min_payment||'';document.getElementById('debt-due').value=d.due_date||'';}}else{['debt-name','debt-balance','debt-original','debt-limit','debt-apr','debt-minpay','debt-due'].forEach(i=>document.getElementById(i).value='');document.getElementById('debt-type').value='Credit Card';}toggleDebtOriginalField();openModal('debt-modal');}
 function editDebt(id){openDebtModal(id);}
-async function saveDebt(){const id=document.getElementById('debt-edit-id').value;const payload={user_id:currentUser.id,name:document.getElementById('debt-name').value.trim(),type:document.getElementById('debt-type').value,balance:parseFloat(document.getElementById('debt-balance').value)||0,original_amount:parseFloat(document.getElementById('debt-original').value)||null,credit_limit:parseFloat(document.getElementById('debt-limit').value)||null,apr:parseFloat(document.getElementById('debt-apr').value)||0,min_payment:parseFloat(document.getElementById('debt-minpay').value)||0,due_date:parseInt(document.getElementById('debt-due').value)||null};if(!payload.name){toast('Enter an account name');return;}const res=id?await sb.from('debts').update(payload).eq('id',id):await sb.from('debts').insert(payload);if(res.error){toast('Error: '+res.error.message);return;}closeModal('debt-modal');await loadDebts();renderDebts();renderDashboard();toast(id?'Account updated ✓':'Account added ✓');}
+async function saveDebt(){const id=document.getElementById('debt-edit-id').value;const payload={user_id:currentUser.id,name:document.getElementById('debt-name').value.trim(),type:document.getElementById('debt-type').value,balance:parseFloat(document.getElementById('debt-balance').value)||0,original_amount:parseFloat(document.getElementById('debt-original').value)||null,credit_limit:parseFloat(document.getElementById('debt-limit').value)||null,apr:parseFloat(document.getElementById('debt-apr').value)||0,min_payment:parseFloat(document.getElementById('debt-minpay').value)||0,due_date:parseInt(document.getElementById('debt-due').value)||null};if(!payload.name){toast('Enter an account name','info');return;}const res=id?await sb.from('debts').update(payload).eq('id',id):await sb.from('debts').insert(payload);if(res.error){toast('Error: '+res.error.message,'error');return;}closeModal('debt-modal');await loadDebts();renderDebts();renderDashboard();toast(id?'Account updated ✓':'Account added ✓');}
 async function deleteDebt(id){
   if(!confirm('Delete this account? Any linked bills will also be removed.'))return;
   // Remove any bills linked to this debt
@@ -4737,11 +4757,11 @@ async function saveDebtInterest(){
   const logId=document.getElementById('interest-log-id').value;
   const chargedDate=document.getElementById('interest-date').value;
   const amount=parseFloat(document.getElementById('interest-amount').value);
-  if(!chargedDate){toast('Select a date');return;}
-  if(chargedDate>today()){toast("Date can't be in the future");return;}
-  if(!amount||amount<=0){toast('Enter a valid amount');return;}
+  if(!chargedDate){toast('Select a date','info');return;}
+  if(chargedDate>today()){toast("Date can't be in the future",'error');return;}
+  if(!amount||amount<=0){toast('Enter a valid amount','info');return;}
   const debt=debts.find(d=>d.id===debtId);
-  if(!debt){toast('Debt not found');return;}
+  if(!debt){toast('Debt not found','error');return;}
   // Interest accrues onto the balance, same as real-world statements — without this, tracked balance would
   // silently drift below the real balance since only payments (not accrued interest) touch it otherwise.
   if(logId){
@@ -4749,12 +4769,12 @@ async function saveDebtInterest(){
     const oldEntry=debtInterestLog.find(l=>l.id===logId);
     const oldAmount=parseFloat(oldEntry?.amount||0);
     const{error}=await sb.from('debt_interest_log').update({amount,charged_date:chargedDate,updated_at:new Date().toISOString()}).eq('id',logId);
-    if(error){toast('Error: '+error.message);return;}
+    if(error){toast('Error: '+error.message,'error');return;}
     const newBalance=parseFloat(debt.balance||0)-oldAmount+amount;
     await sb.from('debts').update({balance:newBalance}).eq('id',debtId);
   }else{
     const{error}=await sb.from('debt_interest_log').insert({user_id:currentUser.id,debt_id:debtId,amount,charged_date:chargedDate});
-    if(error){toast('Error: '+error.message);return;}
+    if(error){toast('Error: '+error.message,'error');return;}
     const newBalance=parseFloat(debt.balance||0)+amount;
     await sb.from('debts').update({balance:newBalance}).eq('id',debtId);
   }
@@ -4772,7 +4792,7 @@ async function deleteDebtInterestEntry(logId){
   if(!entry)return;
   const debt=debts.find(d=>d.id===entry.debt_id);
   const{error}=await sb.from('debt_interest_log').delete().eq('id',logId);
-  if(error){toast('Error: '+error.message);return;}
+  if(error){toast('Error: '+error.message,'error');return;}
   if(debt){
     const newBalance=parseFloat(debt.balance||0)-parseFloat(entry.amount||0);
     await sb.from('debts').update({balance:newBalance}).eq('id',debt.id);
@@ -4806,12 +4826,12 @@ async function savePayment(){
   const debt_id=prefilledId||document.getElementById('pay-account').value;
   const amount=parseFloat(document.getElementById('pay-amount').value);
   const pay_date=document.getElementById('pay-date').value;
-  if(!debt_id){toast('Select an account');return;}
-  if(!amount||amount<=0){toast('Enter a valid amount');return;}
+  if(!debt_id){toast('Select an account','info');return;}
+  if(!amount||amount<=0){toast('Enter a valid amount','info');return;}
   const weekId=document.getElementById('payment-modal').dataset.weekId||null;
   const debt=debts.find(d=>d.id===debt_id);
   const{error}=await sb.from('payments').insert({user_id:currentUser.id,debt_id,amount,pay_date,pay_week_id:weekId||null,notes:document.getElementById('pay-notes').value.trim()||null});
-  if(error){toast('Error: '+error.message);return;}
+  if(error){toast('Error: '+error.message,'error');return;}
   let debtBillRemoved=false;
   let debtPaidOff=false;
   if(debt){const newBal=Math.max(0,parseFloat(debt.balance||0)-amount);await sb.from('debts').update(newBal===0?{balance:0,min_payment:0}:{balance:newBal}).eq('id',debt_id);
@@ -4877,7 +4897,7 @@ function injectCustomCategoryOptions(selectId){
 
 function toggleInsights(){insightsOpen=!insightsOpen;lastAccOpened=insightsOpen?'insights':null;localStorage.setItem('bt-insights-open',insightsOpen);renderExpenses();}
 function setInsightsTab(t){insightsTab=t;renderInsights();}
-function toggleMonth(mo){if(collapsedMonths.has(mo)){collapsedMonths.delete(mo);lastAccOpened='expmo:'+mo;}else{collapsedMonths.add(mo);lastAccOpened=null;}renderExpenses();}
+function toggleMonth(mo){if(collapsedMonths.has(mo)){collapsedMonths.delete(mo);lastAccOpened='expmo:'+mo;}else{collapsedMonths.add(mo);lastAccOpened=null;}lastChevToggled='expmo:'+mo;renderExpenses();}
 function setExpenseFilter(cat){activeFilter=activeFilter===cat?null:cat;renderExpenses();}
 
 function getWeekKey(dateStr){
@@ -5424,9 +5444,9 @@ function openQuickExpense(category,desc,label,emoji){
 }
 async function saveQuickExpense(){
   const amount=parseFloat(document.getElementById('quick-exp-amount').value);
-  if(!amount||amount<=0){toast('Enter a valid amount');return;}
+  if(!amount||amount<=0){toast('Enter a valid amount','info');return;}
   const{data,error}=await sb.from('expenses').insert({user_id:currentUser.id,exp_date:document.getElementById('quick-exp-date').value,category:document.getElementById('quick-exp-category').value,description:document.getElementById('quick-exp-desc').value||null,amount,notes:document.getElementById('quick-exp-notes').value.trim()||null,is_one_off:document.getElementById('quick-exp-one-off').checked}).select().single();
-  if(error){toast('Error: '+error.message);return;}
+  if(error){toast('Error: '+error.message,'error');return;}
   if(pendingReceiptFiles.quick.length&&data)await uploadReceiptFiles(data.id,pendingReceiptFiles.quick);
   pendingReceiptFiles.quick=[];
   closeModal('quick-expense-modal');await Promise.all([loadExpenses(),loadReceipts()]);renderExpenses();renderDashboard();toast('Logged ✓');
@@ -5435,7 +5455,7 @@ async function repeatExpense(id){
   const e=expenses.find(x=>x.id===id);
   if(!e)return;
   const{error}=await sb.from('expenses').insert({user_id:currentUser.id,exp_date:today(),category:e.category,description:e.description,amount:e.amount,notes:e.notes,is_one_off:e.is_one_off||false,pay_week_id:null});
-  if(error){toast('Error: '+error.message);return;}
+  if(error){toast('Error: '+error.message,'error');return;}
   await loadExpenses();renderExpenses();renderDashboard();toast('Expense repeated ✓');
 }
 function toggleEmojiPicker(i){
@@ -5552,7 +5572,7 @@ function filterExpenses(){
     const isCollapsed=collapsedMonths.has(mo);
     return`<div onclick="toggleMonth('${mo}')" style="display:flex;justify-content:space-between;align-items:center;padding:10px 4px;cursor:pointer;user-select:none;">
       <div class="card-title" style="margin:0;">${fmtMonth(mo)} · ${fmt(moTotal)} spent</div>
-      <span style="font-size:14px;color:var(--muted);font-weight:700;">${isCollapsed?'▶':'▼'}</span>
+      <span style="font-size:14px;color:var(--muted);font-weight:700;">${chevIcon(!isCollapsed,'expmo:'+mo)}</span>
     </div>
     ${isCollapsed?'':`<div class="card${accClass('expmo:'+mo)}" style="padding:0 18px;margin-bottom:8px;">${list.map(expenseRowHtml).join('')}</div>`}`;
   }).join(''));
@@ -5616,7 +5636,7 @@ async function bulkDeleteExpenses(){
   const _bp=ids.flatMap(id=>receiptsForExpense(id).map(r=>r.storage_path));
   if(_bp.length)await sb.storage.from('receipts').remove(_bp);
   const{error}=await sb.from('expenses').delete().in('id',ids);
-  if(error){toast('Error: '+error.message);return;}
+  if(error){toast('Error: '+error.message,'error');return;}
   await Promise.all([loadExpenses(),loadReceipts()]);
   expenseSelectMode=false;selectedExpenseIds=new Set();
   renderExpenseHeaderControls();renderExpenseSelectBar();renderExpenses();renderDashboard();
@@ -5625,10 +5645,10 @@ async function bulkDeleteExpenses(){
 function openExpenseModal(){injectCustomCategoryOptions('exp-category');document.getElementById('exp-date').value=today();document.getElementById('exp-amount').value='';document.getElementById('exp-desc').value='';document.getElementById('exp-notes').value='';document.getElementById('exp-one-off').checked=false;delete document.getElementById('expense-modal').dataset.weekId;pendingReceiptFiles.full=[];renderPendingStrip('full');openModal('expense-modal');}
 async function saveExpense(){
   const amount=parseFloat(document.getElementById('exp-amount').value);
-  if(!amount||amount<=0){toast('Enter a valid amount');return;}
+  if(!amount||amount<=0){toast('Enter a valid amount','info');return;}
   const weekId=document.getElementById('expense-modal').dataset.weekId||null;
   const{data,error}=await sb.from('expenses').insert({user_id:currentUser.id,exp_date:document.getElementById('exp-date').value,category:document.getElementById('exp-category').value,description:document.getElementById('exp-desc').value.trim()||null,amount,notes:document.getElementById('exp-notes').value.trim()||null,is_one_off:document.getElementById('exp-one-off').checked,pay_week_id:weekId||null}).select().single();
-  if(error){toast('Error: '+error.message);return;}
+  if(error){toast('Error: '+error.message,'error');return;}
   if(pendingReceiptFiles.full.length&&data)await uploadReceiptFiles(data.id,pendingReceiptFiles.full);
   pendingReceiptFiles.full=[];
   closeModal('expense-modal');await Promise.all([loadExpenses(),loadReceipts()]);renderExpenses();if(weekId)renderWeekly();toast('Expense logged ✓');
@@ -5651,9 +5671,9 @@ function editExpense(id){
 async function saveEditExpense(){
   const id=document.getElementById('edit-exp-id').value;
   const amount=parseFloat(document.getElementById('edit-exp-amount').value);
-  if(!amount||amount<=0){toast('Enter a valid amount');return;}
+  if(!amount||amount<=0){toast('Enter a valid amount','info');return;}
   const{error}=await sb.from('expenses').update({exp_date:document.getElementById('edit-exp-date').value,category:document.getElementById('edit-exp-category').value,description:document.getElementById('edit-exp-desc').value.trim()||null,amount,notes:document.getElementById('edit-exp-notes').value.trim()||null,is_one_off:document.getElementById('edit-exp-one-off').checked}).eq('id',id);
-  if(error){toast('Error: '+error.message);return;}
+  if(error){toast('Error: '+error.message,'error');return;}
   closeModal('edit-expense-modal');await loadExpenses();renderExpenses();renderDashboard();toast('Expense updated ✓');
 }
 // ===== RECEIPTS (Supabase Storage: private 'receipts' bucket + signed URLs) =====
@@ -5680,9 +5700,9 @@ async function signedReceiptUrl(path){
 function validateReceiptFiles(files,existingBytes){
   let total=existingBytes||0;const ok=[];
   for(const f of files){
-    if(!RECEIPT_OK_TYPES.includes(f.type)){toast(f.name+': only JPG, PNG, or PDF');continue;}
-    if(f.size>RECEIPT_MAX_FILE){toast(f.name+': over 5 MB');continue;}
-    if(total+f.size>RECEIPT_MAX_TOTAL){toast('Receipts would exceed 10 MB total');break;}
+    if(!RECEIPT_OK_TYPES.includes(f.type)){toast(f.name+': only JPG, PNG, or PDF','error');continue;}
+    if(f.size>RECEIPT_MAX_FILE){toast(f.name+': over 5 MB','error');continue;}
+    if(total+f.size>RECEIPT_MAX_TOTAL){toast('Receipts would exceed 10 MB total','error');break;}
     total+=f.size;ok.push(f);
   }
   return ok;
@@ -5695,9 +5715,9 @@ async function uploadReceiptFiles(expenseId,files){
     const ext=(f.name.split('.').pop()||'bin').toLowerCase();
     const path=currentUser.id+'/'+expenseId+'/'+crypto.randomUUID()+'.'+ext;
     const up=await sb.storage.from('receipts').upload(path,f,{contentType:f.type,upsert:false});
-    if(up.error){toast('Upload failed: '+up.error.message);continue;}
+    if(up.error){toast('Upload failed: '+up.error.message,'error');continue;}
     const ins=await sb.from('receipts').insert({expense_id:expenseId,user_id:currentUser.id,storage_path:path,file_name:f.name,mime_type:f.type,size_bytes:f.size});
-    if(ins.error){toast('Save failed: '+ins.error.message);await sb.storage.from('receipts').remove([path]);continue;}
+    if(ins.error){toast('Save failed: '+ins.error.message,'error');await sb.storage.from('receipts').remove([path]);continue;}
     n++;
   }
   return n;
@@ -5944,17 +5964,17 @@ function renderSetup(){
 }
 async function saveDisplayName(){
   const name=document.getElementById('setting-display-name').value.trim();
-  if(!name){toast('Enter a name');return;}
+  if(!name){toast('Enter a name','info');return;}
   const payload={user_id:currentUser.id,display_name:name,auto_post:myProfile?myProfile.auto_post:true,starting_cash:myProfile?.starting_cash||0};
   const{error}=await sb.from('profiles').upsert(payload,{onConflict:'user_id'});
-  if(error){toast('Error: '+error.message);return;}
+  if(error){toast('Error: '+error.message,'error');return;}
   await loadProfiles();renderSetup();renderDashboard();toast('Name saved ✓');
 }
 async function saveStartingCash(){
   const cash=parseFloat(document.getElementById('setting-starting-cash').value)||0;
   const payload={user_id:currentUser.id,display_name:myProfile?.display_name||null,auto_post:myProfile?myProfile.auto_post:true,starting_cash:cash};
   const{error}=await sb.from('profiles').upsert(payload,{onConflict:'user_id'});
-  if(error){toast('Error: '+error.message);return;}
+  if(error){toast('Error: '+error.message,'error');return;}
   await loadProfiles();renderSetup();renderDashboard();toast('Starting cash saved ✓');
 }
 function openStartingCashModal(){
@@ -5965,7 +5985,7 @@ async function saveStartingCashFromDash(){
   const cash=parseFloat(document.getElementById('dash-starting-cash').value)||0;
   const payload={user_id:currentUser.id,display_name:myProfile?.display_name||null,auto_post:myProfile?myProfile.auto_post:true,starting_cash:cash};
   const{error}=await sb.from('profiles').upsert(payload,{onConflict:'user_id'});
-  if(error){toast('Error: '+error.message);return;}
+  if(error){toast('Error: '+error.message,'error');return;}
   await loadProfiles();
   closeModal('starting-cash-modal');
   renderSetup();renderDashboard();
@@ -5975,7 +5995,7 @@ async function toggleAutoPost(){
   const newVal=!(myProfile?myProfile.auto_post!==false:true);
   const payload={user_id:currentUser.id,display_name:myProfile?.display_name||null,auto_post:newVal,starting_cash:myProfile?.starting_cash||0};
   const{error}=await sb.from('profiles').upsert(payload,{onConflict:'user_id'});
-  if(error){toast('Error: '+error.message);return;}
+  if(error){toast('Error: '+error.message,'error');return;}
   await loadProfiles();renderSetup();toast(newVal?'Auto-posts on':'Auto-posts off');
 }
 
@@ -5995,7 +6015,7 @@ function normIncomeFreq(v){const s=importStr(v).toLowerCase();if(s.startsWith('w
 function normBillFreq(v){const s=importStr(v).toLowerCase();if(s.startsWith('quart'))return 'quarterly';if(s.startsWith('semi'))return 'semi-annual';if(s.startsWith('ann'))return 'annually';return 'monthly';}
 function importRowBlank(row){return !Object.values(row).some(v=>importStr(v)!=='');}
 function downloadImportTemplate(){
-  if(typeof XLSX==='undefined'){toast('Spreadsheet library not loaded yet — try again');return;}
+  if(typeof XLSX==='undefined'){toast('Spreadsheet library not loaded yet — try again','error');return;}
   const wb=XLSX.utils.book_new();
   const readme=[
     ['Budget Tracker — Import Template'],
@@ -6060,7 +6080,7 @@ function handleImportFile(event){
   reader.readAsArrayBuffer(file);
 }
 async function confirmImport(){
-  if(!importParsed){toast('Choose a file first');return;}
+  if(!importParsed){toast('Choose a file first','info');return;}
   const btn=document.getElementById('import-confirm-btn');
   btn.disabled=true;btn.textContent='Importing…';
   const skipped=[];
@@ -6126,7 +6146,7 @@ async function confirmImport(){
   const preview=document.getElementById('import-preview');preview.style.display='none';preview.innerHTML='';
   importParsed=null;
   switchView('dashboard',null);
-  if(skipped.length){alert('Import complete, but some rows were skipped:\n\n'+skipped.join('\n'));}
+  if(skipped.length){showToast(skipped.length+' row'+(skipped.length!==1?'s':'')+' skipped during import','error');}
   toast('Import complete ✓');
 }
 
@@ -6404,8 +6424,24 @@ function renderNotifications(){
       <div style="font-size:18px;color:var(--muted);flex-shrink:0;">›</div>
     </div>`).join('');
 }
-let toastTimer;
-function toast(msg){const el=document.getElementById('toast');el.textContent=msg;el.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.classList.remove('show'),2500);}
+const TOAST_ICONS={success:'ti-check',error:'ti-alert-circle',info:'ti-info-circle'};
+function showToast(message,type='success'){
+  if(!TOAST_ICONS[type])type='success';
+  const container=document.getElementById('toast-container');
+  if(!container)return;
+  const el=document.createElement('div');
+  el.className='toast toast-'+type;
+  const icon=document.createElement('i');
+  icon.className='ti '+TOAST_ICONS[type];
+  const msgEl=document.createElement('span');
+  msgEl.textContent=message;
+  el.append(icon,msgEl);
+  container.appendChild(el);
+  void el.offsetWidth;
+  el.classList.add('show');
+  setTimeout(()=>{el.classList.remove('show');setTimeout(()=>el.remove(),300);},2500);
+}
+function toast(msg,type){showToast(msg,type);}
 
 // ASSETS (#B)
 const ASSET_EMOJIS={'Vehicle':'🚗','Real Estate':'🏠','Checking / Savings':'🏦','Investment':'📈','Electronics':'💻','Jewelry':'💍','Other':'📦'};
@@ -6424,12 +6460,12 @@ function openAssetModal(id=null){
 async function saveAsset(){
   const id=document.getElementById('asset-edit-id').value;
   const name=document.getElementById('asset-name').value.trim();
-  if(!name){toast('Enter an asset name');return;}
+  if(!name){toast('Enter an asset name','info');return;}
   const value=parseFloat(document.getElementById('asset-value').value)||0;
-  if(!value||value<=0){toast('Enter a valid value');return;}
+  if(!value||value<=0){toast('Enter a valid value','info');return;}
   const payload={user_id:currentUser.id,name,category:document.getElementById('asset-category').value,value,notes:document.getElementById('asset-notes').value.trim()||null};
   const res=id?await sb.from('user_assets').update(payload).eq('id',id):await sb.from('user_assets').insert(payload);
-  if(res.error){toast('Error: '+res.error.message);return;}
+  if(res.error){toast('Error: '+res.error.message,'error');return;}
   closeModal('asset-modal');await loadAssets();renderSavings();renderDashboard();toast(id?'Asset updated ✓':'Asset added ✓');
 }
 async function deleteAsset(id){
@@ -6687,7 +6723,7 @@ async function reverseDebtPayment(id){
   const payment=payments.find(p=>p.id===id);
   const debt=payment?debts.find(d=>d.id===payment.debt_id):null;
   const{error}=await sb.from('payments').delete().eq('id',id);
-  if(error){toast('Error: '+error.message);return false;}
+  if(error){toast('Error: '+error.message,'error');return false;}
   if(debt&&payment){
     const restored=parseFloat(debt.balance||0)+parseFloat(payment.amount||0);
     await sb.from('debts').update({balance:restored}).eq('id',debt.id);
@@ -6756,9 +6792,9 @@ async function saveNewCategory(){
   const name=document.getElementById('add-cat-name').value.trim();
   const target=parseFloat(document.getElementById('add-cat-target').value);
   const color=document.getElementById('add-cat-color').value||CAT_COLORS[0];
-  if(!name){toast('Enter a category name');return;}
-  if(budgetTargets.hasOwnProperty(name)){toast('That category already exists');return;}
-  if(!target||target<=0){toast('Enter a valid target amount');return;}
+  if(!name){toast('Enter a category name','info');return;}
+  if(budgetTargets.hasOwnProperty(name)){toast('That category already exists','error');return;}
+  if(!target||target<=0){toast('Enter a valid target amount','info');return;}
   await saveBudgetTarget(name,target,color);
   closeModal('add-category-modal');
   renderInsights();
@@ -7037,14 +7073,14 @@ async function confirmUseAmount(){
   const amount=useAmountValue;
   const payDate=document.getElementById('ua-date').value;
   const source=document.getElementById('ua-source').value.trim();
-  if(!payDate){toast('Pick a pay date');return;}
-  if(!amount||amount<=0){toast('Invalid amount');return;}
+  if(!payDate){toast('Pick a pay date','info');return;}
+  if(!amount||amount<=0){toast('Invalid amount','error');return;}
   if(useAmountMode==='once'){
     // Insert only the pay period with an expected amount — no paychecks row.
     // That leaves it PENDING so the Income tab shows the normal
     // "✓ Received" / "Different amount" options instead of a confirmed entry.
     const{error}=await sb.from('pay_weeks').insert({user_id:currentUser.id,pay_date:payDate,bills_amount:0,expected_amount:amount,source_name:source||null});
-    if(error){toast('Error: '+error.message);return;}
+    if(error){toast('Error: '+error.message,'error');return;}
     await Promise.all([loadWeeks(),loadPaychecks()]);
     closeModal('use-amount-modal');
     switchView('weekly',null);renderDashboard();
@@ -7053,13 +7089,13 @@ async function confirmUseAmount(){
     const frequency=document.getElementById('ua-frequency').value;
     const end=document.getElementById('ua-end').value||null;
     const monthly_allowance=parseFloat(document.getElementById('ua-allowance').value)||0;
-    if(!source){toast('Enter a source name');return;}
-    if(end&&end<=payDate){toast('End date must be after start date');return;}
+    if(!source){toast('Enter a source name','info');return;}
+    if(end&&end<=payDate){toast('End date must be after start date','error');return;}
     // Only include monthly_allowance when set, so a missing column doesn't break the save.
     const payload={user_id:currentUser.id,name:source,amount,frequency,next_date:payDate,end_date:end};
     if(monthly_allowance>0)payload.monthly_allowance=monthly_allowance;
     const{error}=await sb.from('recurring_income').insert(payload);
-    if(error){toast('Error: '+error.message);return;}
+    if(error){toast('Error: '+error.message,'error');return;}
     await Promise.all([loadRecurring(),loadWeeks(),loadPaychecks()]);
     await topUpPeriods();
     await Promise.all([loadRecurring(),loadWeeks(),loadPaychecks()]);
