@@ -62,6 +62,10 @@ select option{background:var(--surface);color:var(--text);}
 .side-icon{font-size:20px;line-height:1;width:24px;text-align:center;}
 .sidebar-footer{padding:16px 20px 24px;border-top:1px solid var(--border);}
 .nav{display:flex;background:var(--surface);border-top:1px solid var(--border);position:fixed;bottom:0;left:0;right:0;z-index:100;padding-bottom:calc(env(safe-area-inset-bottom) + 8px);}
+#nav-indicator{position:absolute;top:0;left:0;width:40px;height:3px;border-radius:99px;background:var(--accent);opacity:0;transform:translateX(-100px);transition:transform 0.25s ease,opacity 0.2s;pointer-events:none;}
+@supports ((backdrop-filter:blur(12px)) or (-webkit-backdrop-filter:blur(12px))){
+.topbar,.nav{background:rgba(17,17,17,0.75);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);}
+}
 .nav-btn{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:10px 2px 8px;border:none;background:transparent;color:var(--muted);font-size:9px;font-weight:600;letter-spacing:0.02em;text-transform:uppercase;cursor:pointer;transition:color 0.15s,transform 0.1s ease-out;min-width:0;}
 .nav-btn .icon{font-size:20px;line-height:1;}
 .nav-btn.active{color:var(--success);}
@@ -91,6 +95,8 @@ select option{background:var(--surface);color:var(--text);}
 .view{display:none;}
 .view.active{display:block;animation:view-in 0.22s ease-out;}
 @keyframes view-in{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:none;}}
+.card-enter{animation:card-in 0.3s ease-out both;animation-delay:var(--stagger,0ms);}
+@keyframes card-in{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
 .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px;margin-bottom:14px;}
 .card-title{font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);margin-bottom:14px;}
 .stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;}
@@ -118,7 +124,7 @@ select option{background:var(--surface);color:var(--text);}
 .progress-label{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-bottom:6px;}
 .progress-bar{height:6px;background:var(--border);border-radius:99px;overflow:hidden;}
 .progress-fill{height:100%;background:linear-gradient(90deg,var(--success),#0a9e74);border-radius:99px;transition:width 0.55s cubic-bezier(0.16,1,0.3,1);}
-@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:0.01ms!important;transition-duration:0.01ms!important;}.progress-fill,[data-bar-key],[data-badge-key]{transition:none!important;}.paid-flash,.payoff-pop,.view.active,.acc-body,.bell-pulse{animation:none!important;}.skel{animation:none!important;opacity:1;}.skel::after{animation:none!important;display:none;}.paid-off-card{animation:none!important;}}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:0.01ms!important;transition-duration:0.01ms!important;}.progress-fill,[data-bar-key],[data-badge-key]{transition:none!important;}.paid-flash,.payoff-pop,.view.active,.acc-body,.bell-pulse,.card-enter{animation:none!important;}.skel{animation:none!important;opacity:1;}.skel::after{animation:none!important;display:none;}.paid-off-card{animation:none!important;}}
 .account-row{display:flex;align-items:center;justify-content:space-between;padding:13px 0;border-bottom:1px solid var(--border);}
 .account-row:last-child{border-bottom:none;}
 .account-name{font-size:15px;font-weight:600;}
@@ -506,6 +512,7 @@ button:active,.btn:active,.stat:active,.balance-line:active,.week-card-header:ac
     <div id="view-paycalc" class="view"></div>
   </div>
   <nav class="nav">
+    <span id="nav-indicator"></span>
     <button class="nav-btn" data-view="forecast" onclick="switchView('forecast',this)"><span class="icon"><i class="ti ti-chart-line"></i></span>Forecast</button>
     <button class="nav-btn" data-view="debts" onclick="switchView('debts',this)"><span class="icon"><i class="ti ti-credit-card"></i></span>Debts</button>
     <button class="nav-btn" data-view="weekly" onclick="switchView('weekly',this)"><span class="icon"><i class="ti ti-calendar"></i></span>Income</button>
@@ -1192,6 +1199,7 @@ function switchView(name,btn){
   else{const direct=document.querySelector(`.nav-btn[data-view="${name}"]`);if(direct)direct.classList.add('active');}
   // sync sidebar active state
   document.querySelectorAll('.side-item').forEach(s=>s.classList.toggle('active',s.dataset.sview===name));
+  positionNavIndicator();
   resetViewAnimations(name); // entering a tab re-arms its count-up/bar animations
   if(name==='dashboard')renderDashboard();
   if(name==='forecast')renderForecast();
@@ -1205,6 +1213,7 @@ function switchView(name,btn){
   if(name==='setup')renderSetup();
   if(name==='instructions')renderInstructions();
   if(name==='paycalc'){openPaycalcModal();return;}
+  applyCardEntrance(name);
 }
 function openSidebar(){document.getElementById('sidebar').classList.add('open');document.getElementById('sidebar-overlay').classList.add('open');}
 function closeSidebar(){document.getElementById('sidebar').classList.remove('open');document.getElementById('sidebar-overlay').classList.remove('open');}
@@ -2818,6 +2827,34 @@ function animateCountUpTo(elId,memoKey,target){
 // Re-arm a view's animations when the user navigates TO it (called from switchView), so
 // count-ups and bar fills replay on every tab entry — while re-renders within the same
 // tab stay memoized and don't replay.
+// Staggered card entrance, applied only on tab switch (switchView). Data-change re-renders
+// replace the card nodes without re-adding .card-enter, so they never replay the entrance.
+// Skipped while skeletons are up (!appDataReady) — the post-load switchView in loadAll
+// applies it to the real cards once they exist.
+function applyCardEntrance(name){
+  if(!appDataReady||prefersReducedMotion())return;
+  const view=document.getElementById('view-'+name);
+  if(!view)return;
+  view.querySelectorAll('.card').forEach((c,i)=>{
+    c.style.setProperty('--stagger',(Math.min(i,7)*35)+'ms');
+    c.classList.add('card-enter');
+  });
+}
+// Sliding bottom-nav indicator: one absolutely-positioned pill moved via transform to the
+// active tab's center. First placement skips the transition so it doesn't slide in from offscreen.
+function positionNavIndicator(){
+  const ind=document.getElementById('nav-indicator');
+  if(!ind)return;
+  const active=document.querySelector('.nav-btn.active');
+  if(!active){ind.style.opacity='0';return;}
+  const first=!ind.dataset.placed;
+  if(first)ind.style.transition='none';
+  ind.style.opacity='1';
+  ind.style.transform='translateX('+(active.offsetLeft+(active.offsetWidth-ind.offsetWidth)/2)+'px)';
+  if(first){void ind.offsetWidth;ind.style.transition='';ind.dataset.placed='1';}
+}
+window.addEventListener('resize',positionNavIndicator);
+window.addEventListener('orientationchange',positionNavIndicator);
 function resetViewAnimations(name){
   if(name==='dashboard'){countUpPrev['dashboard-balance']=null;}
   else if(name==='forecast'){countUpPrev['forecast-cash']=null;}
@@ -6386,7 +6423,7 @@ function getNotifications(){
   }
   return notifs;
 }
-let lastNotifCount=0;
+let lastNotifCount=null; // null = badge not yet rendered; the first render after load never pulses
 function updateNotifBadge(){
   const notifs=getNotifications();
   const badge=document.getElementById('notif-badge');
@@ -6394,7 +6431,7 @@ function updateNotifBadge(){
   if(notifs.length>0){badge.textContent=notifs.length;badge.style.display='inline-block';}
   else{badge.style.display='none';}
   // Single pulse only when the count goes UP — polling re-checks with an unchanged count stay still
-  if(notifs.length>lastNotifCount&&!prefersReducedMotion()){
+  if(lastNotifCount!==null&&notifs.length>lastNotifCount&&!prefersReducedMotion()){
     const bell=badge.parentElement?badge.parentElement.querySelector('.ti-bell'):null;
     if(bell){bell.classList.remove('bell-pulse');void bell.offsetWidth;bell.classList.add('bell-pulse');setTimeout(()=>bell.classList.remove('bell-pulse'),700);}
   }
