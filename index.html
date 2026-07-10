@@ -1233,6 +1233,14 @@ async function deleteBillWithPayments(billId){
   await sb.from('bill_payments').delete().eq('bill_id',billId);
   await sb.from('bills').delete().eq('id',billId);
 }
+// One real cash outflow on a debt-linked bill produces TWO ledger rows: a payments row (debt ledger)
+// plus a bill_payments row (savePayment auto-logs the linked bill; Mark Paid / Pay All Due auto-log
+// the debt payment). Balance math counts only the payments side — bill_payments on a linked bill are
+// excluded here, the same rule the dashboard drill-down and Bills Paid modal already use.
+function nonLinkedBillPaymentsTotal(){
+  const linkedIds=new Set(bills.filter(b=>b.debt_id).map(b=>b.id));
+  return billPayments.filter(p=>!linkedIds.has(p.bill_id)).reduce((s,p)=>s+parseFloat(p.amount||0),0);
+}
 async function cleanupPaidOffDebtBills(){
   const phantom=bills.filter(b=>b.debt_id&&parseFloat((debts.find(d=>d.id===b.debt_id)||{}).balance||0)<=0);
   if(phantom.length===0)return false;
@@ -1962,7 +1970,7 @@ function renderForecast(){
   const totalIncome=paychecks.filter(p=>(p.pay_date||'')<=today()).reduce((s,p)=>s+parseFloat(p.amount||0),0);
   const totalPaid=payments.reduce((s,p)=>s+parseFloat(p.amount||0),0);
   const totalExpenses=expenses.reduce((s,e)=>s+parseFloat(e.amount||0),0);
-  const totalBillsPaid=billPayments.reduce((s,b)=>s+parseFloat(b.amount||0),0);
+  const totalBillsPaid=nonLinkedBillPaymentsTotal();
   const totalSaved=savingsTxns.filter(t=>t.type==='deposit'&&t.notes!=='__starting_balance__').reduce((s,t)=>s+parseFloat(t.amount||0),0)-savingsTxns.filter(t=>t.type==='withdraw').reduce((s,t)=>s+parseFloat(t.amount||0),0);
   const startingCash=myProfile?.starting_cash?parseFloat(myProfile.starting_cash):0;
   const mySharedNet=sharedTxns.filter(t=>t.user_id===currentUser.id).reduce((s,t)=>s+(t.type==='deposit'?parseFloat(t.amount||0):-(parseFloat(t.amount||0))),0);
@@ -3057,7 +3065,7 @@ function renderDashboard(){
   const todayStr=today();
   const totalIncome=paychecks.reduce((s,p)=>s+parseFloat(p.amount||0),0);
   const totalExpenses=expenses.reduce((s,e)=>s+parseFloat(e.amount||0),0);
-  const totalBillsPaid=billPayments.reduce((s,b)=>s+parseFloat(b.amount||0),0);
+  const totalBillsPaid=nonLinkedBillPaymentsTotal();
   const totalSaved=savingsTxns.filter(t=>t.type==='deposit'&&t.notes!=='__starting_balance__').reduce((s,t)=>s+parseFloat(t.amount||0),0)-savingsTxns.filter(t=>t.type==='withdraw').reduce((s,t)=>s+parseFloat(t.amount||0),0);
   const startingCash=myProfile?.starting_cash?parseFloat(myProfile.starting_cash):0;
   const mySharedNet=sharedTxns.filter(t=>t.user_id===currentUser.id).reduce((s,t)=>s+(t.type==='deposit'?parseFloat(t.amount||0):-(parseFloat(t.amount||0))),0);
@@ -6218,6 +6226,7 @@ function openPaycalcModal(){openModal('paycalc-modal');renderPaycalc();}
 //                           place of desc when present (desc is used as a fallback if impact is omitted).
 // Any future fix that touches balance-calculation logic should add affectsBalance:true + an impact string.
 const CHANGELOG=[
+  {date:new Date('2026-07-10T12:00:00').getTime(),icon:'ti-cash',title:'Debt payments no longer count twice against your balance',desc:'When a debt payment went through its linked minimum-payment bill — marking the bill paid, using Pay All Due, paying in the Payday Routine, or logging the payment on the debt itself — the app recorded it in both the debt ledger and the bill ledger, and your Available Balance subtracted it twice. Balance math now counts each of those payments once. Bill history, paid badges, and debt payoff progress are unchanged.',affectsBalance:true,impact:'Your Available Balance (and Net Worth) likely went UP. Every past debt payment made through a linked minimum-payment bill was being subtracted twice; it now counts once, so the higher number is the correct one.'},
   {date:new Date('2026-07-10T09:00:00').getTime(),icon:'ti-checkbox',title:'Payday Routine payments check off linked bills',desc:'Paying a debt minimum in the Payday Routine now marks the linked minimum-payment bill as paid, just like paying from the Debts tab — so the Bills tab, the bills badge, and due-soon/overdue notifications stop nagging about a minimum you already covered. Routine payoffs also trigger the same celebrations and remove the debt\'s minimum-payment bill automatically.'},
   {date:new Date('2026-07-07T12:00:00').getTime(),icon:'ti-typography',title:'A quieter, more consistent look',desc:'A design tune-up pass: text sizes now come from a small shared scale, bold is reserved for numbers and headers (labels and buttons are a step lighter), spacing snaps to a consistent grid, and corner rounding follows a few shared values. Everything is a pixel or two of polish — no features, numbers, or layouts changed.'},
   {date:new Date('2026-07-03T16:00:00').getTime(),icon:'ti-presentation',title:'The welcome tour now shows you the goods',desc:'The first-time walkthrough no longer points at empty screens — each step includes a small example preview with realistic sample data (a Visa balance, rent and electric bills, a paycheck, an emergency fund) so new users can see what each tab looks like in real use. The samples are purely illustrative and never touch your actual data.'},
@@ -6560,7 +6569,7 @@ function computeNetWorth(){
   const totalIncome=paychecks.reduce((s,p)=>s+parseFloat(p.amount||0),0);
   const totalPaid=payments.reduce((s,p)=>s+parseFloat(p.amount||0),0);
   const totalExpenses=expenses.reduce((s,e)=>s+parseFloat(e.amount||0),0);
-  const totalBillsPaid=billPayments.reduce((s,b)=>s+parseFloat(b.amount||0),0);
+  const totalBillsPaid=nonLinkedBillPaymentsTotal();
   const totalSavedNet=savingsTxns.filter(t=>t.type==='deposit'&&t.notes!=='__starting_balance__').reduce((s,t)=>s+parseFloat(t.amount||0),0)-savingsTxns.filter(t=>t.type==='withdraw').reduce((s,t)=>s+parseFloat(t.amount||0),0);
   const mySharedNet=sharedTxns.filter(t=>t.user_id===currentUser.id).reduce((s,t)=>s+(t.type==='deposit'?parseFloat(t.amount||0):-(parseFloat(t.amount||0))),0);
   const availableBalance=startingCash+totalIncome-totalPaid-totalExpenses-totalBillsPaid-totalSavedNet-mySharedNet;
@@ -6650,7 +6659,7 @@ function renderNetWorth(){
   const totalIncome=paychecks.reduce((s,p)=>s+parseFloat(p.amount||0),0);
   const totalPaid=payments.reduce((s,p)=>s+parseFloat(p.amount||0),0);
   const totalExpenses=expenses.reduce((s,e)=>s+parseFloat(e.amount||0),0);
-  const totalBillsPaid=billPayments.reduce((s,b)=>s+parseFloat(b.amount||0),0);
+  const totalBillsPaid=nonLinkedBillPaymentsTotal();
   const totalSavedNet=savingsTxns.filter(t=>t.type==='deposit'&&t.notes!=='__starting_balance__').reduce((s,t)=>s+parseFloat(t.amount||0),0)-savingsTxns.filter(t=>t.type==='withdraw').reduce((s,t)=>s+parseFloat(t.amount||0),0);
   const mySharedNet=sharedTxns.filter(t=>t.user_id===currentUser.id).reduce((s,t)=>s+(t.type==='deposit'?parseFloat(t.amount||0):-(parseFloat(t.amount||0))),0);
   const availableBalance=startingCash+totalIncome-totalPaid-totalExpenses-totalBillsPaid-totalSavedNet-mySharedNet;

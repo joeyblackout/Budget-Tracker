@@ -99,7 +99,7 @@ A mobile-first personal finance web app. Single `index.html` file, no build step
 Running Balance = Starting Cash
   + paychecks where pay_date <= today
   - debt payments (all time)
-  - bill payments (all time)
+  - bill payments (all time, EXCLUDING bill_payments on debt-linked bills — those mirror a payments row for the same cash outflow; see nonLinkedBillPaymentsTotal())
   - expenses (all time)
   - savings deposits (excluding __starting_balance__ transactions)
   - shared pot deposits by this user
