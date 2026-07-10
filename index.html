@@ -2652,17 +2652,21 @@ async function routineStep3Next(){
     const inp=document.getElementById('routine-debt-'+d.id);
     const amount=parseFloat(inp?.value||0)||0;
     if(amount<=0)continue;
-    const oldBal=parseFloat(d.balance||0);
-    const newBal=Math.max(0,oldBal-amount);
-    await sb.from('debts').update({balance:newBal}).eq('id',d.id);
     await sb.from('payments').insert({user_id:currentUser.id,debt_id:d.id,amount,pay_date:today(),notes:'Payday payment'});
-    if(oldBal>0&&newBal===0)routinePayoffs.push(d);
+    // Same post-payment side effects as the Debts tab path (applyDebtPaymentEffects) — previously the
+    // routine only updated the balance, so the linked min-payment bill never got its bill_payments record
+    // and stayed "unpaid" on the Bills tab / badges until paid a second time elsewhere.
+    const{debtPaidOff}=await applyDebtPaymentEffects(d,amount,today());
+    if(debtPaidOff)routinePayoffs.push(d);
     routineDebtPayments[d.id]={name:d.name,amount};
     total+=amount;
   }
   routineDebtsTotal=total;
-  await Promise.all([loadDebts(),loadPayments()]);
+  // Bills/billPayments may have changed too (bill sync, payoff bill removal) — reload and refresh both
+  // badges immediately, matching the Debts tab path.
+  await Promise.all([loadDebts(),loadPayments(),loadBills(),loadBillPayments()]);
   if(typeof renderDebts==='function')renderDebts();
+  updateBillBadge();updateNotifBadge();
   routinePayoffs.forEach((d,i)=>setTimeout(()=>celebrateDebtPayoff(d.name,d.id),i*700));
   routineSubmittedStep=3;routineStep=4;renderRoutine();
 }
@@ -4858,6 +4862,31 @@ function openPaymentModal(){
   delete document.getElementById('payment-modal').dataset.weekId;
   openModal('payment-modal');
 }
+// Post-payment side effects shared by the Debts tab payment modal (savePayment) and the Payday Routine
+// (routineStep3Next). The payments-table insert itself stays in each caller — they use different notes and
+// week links. Here: debt balance update (zeroing min_payment at payoff), payoff / under-30%-utilization /
+// debt-free auto-posts, linked min-payment bill removal at payoff, and syncing a bill_payments record onto
+// the linked bill (dedupe via isBillCoveredForCurrentCycle) so the Bills tab, badges, and notifications see
+// the debt's minimum as paid. Mutates the in-memory debt object so a multi-debt loop (the routine) sees
+// fresh balances — the debt-free check must not read stale pre-loop data. Returns {debtPaidOff,debtBillRemoved}.
+async function applyDebtPaymentEffects(debt,amount,pay_date){
+  const debt_id=debt.id;
+  const oldBal=parseFloat(debt.balance||0);
+  const newBal=Math.max(0,oldBal-amount);
+  const minPay=parseFloat(debt.min_payment||0); // captured before payoff zeroes it below
+  await sb.from('debts').update(newBal===0?{balance:0,min_payment:0}:{balance:newBal}).eq('id',debt_id);
+  debt.balance=newBal;if(newBal===0)debt.min_payment=0;
+  const lim=parseFloat(debt.credit_limit||0);
+  const name=myProfile?.display_name||'Someone';
+  let debtPaidOff=false,debtBillRemoved=false;
+  if(oldBal>0&&newBal===0){debtPaidOff=true;await autoPost(`🎉 ${name} paid off ${debt.name}!`);}
+  else if(lim>0){const oldUtil=(oldBal/lim)*100;const newUtil=(newBal/lim)*100;if(oldUtil>=30&&newUtil<30){await autoPost(`📉 ${name} got ${debt.name} under 30% utilization!`);}}
+  const allOthers=debts.filter(d=>d.id!==debt_id);
+  if(newBal===0&&allOthers.every(d=>parseFloat(d.balance||0)===0)){await autoPost(`🏆 ${name} is officially DEBT FREE! 🎊`);}
+  if(newBal===0){const lb=bills.find(b=>b.debt_id===debt_id);if(lb){await deleteBillWithPayments(lb.id);debtBillRemoved=true;}}
+  if(!debtBillRemoved&&minPay>0&&amount>=minPay){const linkedBill=bills.find(b=>b.debt_id===debt_id);if(linkedBill&&!isBillCoveredForCurrentCycle(linkedBill)){await sb.from('bill_payments').insert({user_id:currentUser.id,bill_id:linkedBill.id,amount,paid_date:pay_date,notes:`Auto: ${debt.name} payment`});}}
+  return{debtPaidOff,debtBillRemoved};
+}
 async function savePayment(){
   // Support both pre-filled (from debt card) and dropdown (from week/general)
   const prefilledId=document.getElementById('pay-debt-id').value;
@@ -4870,19 +4899,8 @@ async function savePayment(){
   const debt=debts.find(d=>d.id===debt_id);
   const{error}=await sb.from('payments').insert({user_id:currentUser.id,debt_id,amount,pay_date,pay_week_id:weekId||null,notes:document.getElementById('pay-notes').value.trim()||null});
   if(error){toast('Error: '+error.message,'error');return;}
-  let debtBillRemoved=false;
-  let debtPaidOff=false;
-  if(debt){const newBal=Math.max(0,parseFloat(debt.balance||0)-amount);await sb.from('debts').update(newBal===0?{balance:0,min_payment:0}:{balance:newBal}).eq('id',debt_id);
-    const oldBal=parseFloat(debt.balance||0);
-    const lim=parseFloat(debt.credit_limit||0);
-    const name=myProfile?.display_name||'Someone';
-    if(oldBal>0&&newBal===0){debtPaidOff=true;await autoPost(`🎉 ${name} paid off ${debt.name}!`);}
-    else if(lim>0){const oldUtil=(oldBal/lim)*100;const newUtil=(newBal/lim)*100;if(oldUtil>=30&&newUtil<30){await autoPost(`📉 ${name} got ${debt.name} under 30% utilization!`);}}
-    const allOthers=debts.filter(d=>d.id!==debt_id);
-    if(newBal===0&&allOthers.every(d=>parseFloat(d.balance||0)===0)){await autoPost(`🏆 ${name} is officially DEBT FREE! 🎊`);}
-    if(newBal===0){const lb=bills.find(b=>b.debt_id===debt_id);if(lb){await deleteBillWithPayments(lb.id);debtBillRemoved=true;}}
-  }
-  if(!debtBillRemoved&&debt&&parseFloat(debt.min_payment||0)>0&&amount>=parseFloat(debt.min_payment||0)){const linkedBill=bills.find(b=>b.debt_id===debt_id);if(linkedBill&&!isBillCoveredForCurrentCycle(linkedBill)){await sb.from('bill_payments').insert({user_id:currentUser.id,bill_id:linkedBill.id,amount,paid_date:pay_date,notes:`Auto: ${debt.name} payment`});}}
+  let debtPaidOff=false,debtBillRemoved=false;
+  if(debt)({debtPaidOff,debtBillRemoved}=await applyDebtPaymentEffects(debt,amount,pay_date));
   closeModal('payment-modal');
   await Promise.all([loadPayments(),loadDebts(),loadBills(),loadBillPayments()]);
   renderDebts();renderPayments();renderDashboard();renderBills();updateBillBadge();
@@ -6200,6 +6218,7 @@ function openPaycalcModal(){openModal('paycalc-modal');renderPaycalc();}
 //                           place of desc when present (desc is used as a fallback if impact is omitted).
 // Any future fix that touches balance-calculation logic should add affectsBalance:true + an impact string.
 const CHANGELOG=[
+  {date:new Date('2026-07-10T09:00:00').getTime(),icon:'ti-checkbox',title:'Payday Routine payments check off linked bills',desc:'Paying a debt minimum in the Payday Routine now marks the linked minimum-payment bill as paid, just like paying from the Debts tab — so the Bills tab, the bills badge, and due-soon/overdue notifications stop nagging about a minimum you already covered. Routine payoffs also trigger the same celebrations and remove the debt\'s minimum-payment bill automatically.'},
   {date:new Date('2026-07-07T12:00:00').getTime(),icon:'ti-typography',title:'A quieter, more consistent look',desc:'A design tune-up pass: text sizes now come from a small shared scale, bold is reserved for numbers and headers (labels and buttons are a step lighter), spacing snaps to a consistent grid, and corner rounding follows a few shared values. Everything is a pixel or two of polish — no features, numbers, or layouts changed.'},
   {date:new Date('2026-07-03T16:00:00').getTime(),icon:'ti-presentation',title:'The welcome tour now shows you the goods',desc:'The first-time walkthrough no longer points at empty screens — each step includes a small example preview with realistic sample data (a Visa balance, rent and electric bills, a paycheck, an emergency fund) so new users can see what each tab looks like in real use. The samples are purely illustrative and never touch your actual data.'},
   {date:new Date('2026-07-03T15:00:00').getTime(),icon:'ti-book',title:'How to Use catches up with the app',desc:'The guide now covers logging actual interest on a debt (% Log Interest), each bill\'s History button, picking the real payment date when marking bills or debts paid, and creating or deleting your own budget categories. Also removed a stale entry describing insight views that no longer exist.'},
