@@ -4341,7 +4341,7 @@ function renderWeekly(){
     </div>`;
   };
   // Build month-grouped collapsible sections
-  const buildMonthGroups=(list,startFirstOpen=true)=>{
+  const buildMonthGroups=(list,startFirstOpen=true,idPrefix='')=>{
     if(list.length===0)return'';
     const monthGroups={};
     list.forEach(w=>{const mo=w.pay_date.slice(0,7);if(!monthGroups[mo])monthGroups[mo]=[];monthGroups[mo].push(w);});
@@ -4349,7 +4349,7 @@ function renderWeekly(){
       const moLabel=new Date(mo+'-02').toLocaleString('en-US',{month:'long',year:'numeric'});
       const confirmed=mw.reduce((s,w)=>s+paychecks.filter(p=>p.pay_week_id===w.id).reduce((ss,p)=>ss+parseFloat(p.amount||0),0),0);
       const expected=mw.reduce((s,w)=>s+parseFloat(w.expected_amount||0),0);
-      const domId='wk-mo-'+mo.replace('-','');
+      const domId='wk-mo-'+idPrefix+mo.replace('-','');
       const open=startFirstOpen&&idx===0;
       return`<div style="margin-bottom:8px;">
         <div onclick="toggleIncomeMonth('${domId}')" style="display:flex;justify-content:space-between;align-items:center;padding:12px 20px;background:var(--surface2);border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:var(--radius);cursor:pointer;">
@@ -4413,7 +4413,7 @@ function renderWeekly(){
         <span style="font-size:var(--fs-md);font-weight:700;color:var(--text);">Past Periods</span>
         <span style="display:flex;align-items:center;gap:8px;font-size:var(--fs-xs);color:var(--accent);">${archived.length} period${archived.length!==1?'s':''} · tap to expand<i id="chev-archived-periods" class="ti ti-chevron-down chev" style="font-size:var(--fs-md);"></i></span>
       </button>
-      <div id="archived-periods" style="display:none;">${buildMonthGroups(archived,false)}</div>
+      <div id="archived-periods" style="display:none;">${buildMonthGroups(archived,false,'arch-')}</div>
     </div>`;
   }
   html+=buildMonthGroups(active,true);
@@ -6226,6 +6226,7 @@ function openPaycalcModal(){openModal('paycalc-modal');renderPaycalc();}
 //                           place of desc when present (desc is used as a fallback if impact is omitted).
 // Any future fix that touches balance-calculation logic should add affectsBalance:true + an impact string.
 const CHANGELOG=[
+  {date:new Date('2026-07-24T12:00:00').getTime(),icon:'ti-chevron-down',title:'You can now collapse the current month on the Income tab',desc:'The month group holding your current pay period can now be collapsed and expanded by tapping its header, just like the other months and Past Periods. It still opens by default since it\'s the most relevant, but you can tuck it away to tidy the view. (Previously it wouldn\'t respond to taps when that same month also had older periods filed under Past Periods.)'},
   {date:new Date('2026-07-10T12:00:00').getTime(),icon:'ti-cash',title:'Debt payments no longer count twice against your balance',desc:'When a debt payment went through its linked minimum-payment bill — marking the bill paid, using Pay All Due, paying in the Payday Routine, or logging the payment on the debt itself — the app recorded it in both the debt ledger and the bill ledger, and your Available Balance subtracted it twice. Balance math now counts each of those payments once. Bill history, paid badges, and debt payoff progress are unchanged.',affectsBalance:true,impact:'Your Available Balance (and Net Worth) likely went UP. Every past debt payment made through a linked minimum-payment bill was being subtracted twice; it now counts once, so the higher number is the correct one.'},
   {date:new Date('2026-07-10T09:00:00').getTime(),icon:'ti-checkbox',title:'Payday Routine payments check off linked bills',desc:'Paying a debt minimum in the Payday Routine now marks the linked minimum-payment bill as paid, just like paying from the Debts tab — so the Bills tab, the bills badge, and due-soon/overdue notifications stop nagging about a minimum you already covered. Routine payoffs also trigger the same celebrations and remove the debt\'s minimum-payment bill automatically.'},
   {date:new Date('2026-07-07T12:00:00').getTime(),icon:'ti-typography',title:'A quieter, more consistent look',desc:'A design tune-up pass: text sizes now come from a small shared scale, bold is reserved for numbers and headers (labels and buttons are a step lighter), spacing snaps to a consistent grid, and corner rounding follows a few shared values. Everything is a pixel or two of polish — no features, numbers, or layouts changed.'},
