@@ -2839,14 +2839,14 @@ async function routineFinish(){
   }
 }
 // CATCH UP (soft reset) — replaces the Payday Routine after an extended absence so a returning user
-// isn't buried in months of pending paychecks and stale bills. Steps: Paychecks → Income → Debts → Bills → Cash → Done.
+// isn't buried in months of pending paychecks and stale bills. Steps: Paychecks → Income → Debts → Bills → Savings → Cash → Done.
 // Order matters: debts first (so linked minimum-payment bills pick up new minimums before the Bills step),
 // and cash LAST so the Starting Cash adjustment absorbs every ledger change made in the earlier steps.
 const CATCHUP_GAP_DAYS=7;
 let catchupStep=1;
 let catchupWeeks=[];
 let catchupPayMode='skip'; // 'skip' | 'confirm'
-let catchupLog={paychecks:0,paycheckTotal:0,skipped:0,income:[],debts:[],bills:[],billsPaid:[],cash:null,warn:''};
+let catchupLog={paychecks:0,paycheckTotal:0,skipped:0,income:[],debts:[],bills:[],billsPaid:[],savings:[],cash:null,warn:''};
 
 // A past pay period with no paycheck that the user chose to skip during Catch Up. Skipped periods are
 // never counted as income and never prompt again — but logging a paycheck on one later still works.
@@ -2877,14 +2877,14 @@ function catchupDaysAway(){
 async function openCatchUp(){
   if(typeof closeSidebar==='function')closeSidebar();
   catchupStep=1;catchupPayMode='skip';
-  catchupLog={paychecks:0,paycheckTotal:0,skipped:0,income:[],debts:[],bills:[],billsPaid:[],cash:null,warn:''};
-  await Promise.all([loadBills(),loadBillPayments(),loadDebts(),loadPaychecks(),loadWeeks(),loadRecurring()]);
+  catchupLog={paychecks:0,paycheckTotal:0,skipped:0,income:[],debts:[],bills:[],billsPaid:[],savings:[],cash:null,warn:''};
+  await Promise.all([loadBills(),loadBillPayments(),loadDebts(),loadPaychecks(),loadWeeks(),loadRecurring(),loadPots(),loadSavingsTxns()]);
   catchupWeeks=getPendingPaydays().sort((a,b)=>(a.pay_date||'').localeCompare(b.pay_date||''));
   document.getElementById('catchup-overlay').style.display='flex';
   renderCatchUp();
 }
 function catchupClose(){
-  if(catchupStep<6&&!confirm('Exit Catch Up? Steps you already finished are saved.'))return;
+  if(catchupStep<7&&!confirm('Exit Catch Up? Steps you already finished are saved.'))return;
   catchupFinish(true);
 }
 function catchupBack(){
@@ -2900,7 +2900,8 @@ async function catchupNext(){
     else if(catchupStep===2)await catchupSaveIncome();
     else if(catchupStep===3)await catchupSaveDebts();
     else if(catchupStep===4)await catchupSaveBills();
-    else if(catchupStep===5)await catchupSaveCash();
+    else if(catchupStep===5)await catchupSaveSavings();
+    else if(catchupStep===6)await catchupSaveCash();
     catchupStep++;
   }catch(e){
     console.error('[catchup] step save failed',e);
@@ -2909,7 +2910,7 @@ async function catchupNext(){
   renderCatchUp();
 }
 function renderCatchUp(){
-  const STEPS=['Paychecks','Income','Debts','Bills','Cash','Done'];
+  const STEPS=['Paychecks','Income','Debts','Bills','Savings','Cash','Done'];
   const segs=STEPS.map((_,i)=>'<div style="flex:1;height:6px;border-radius:3px;background:'+(i<catchupStep?'var(--accent)':'var(--surface2)')+'"></div>').join('<div style="width:4px;"></div>');
   const prog=document.getElementById('catchup-progress');
   if(prog)prog.innerHTML='<div style="padding:12px 20px 0;">'
@@ -2924,7 +2925,8 @@ function renderCatchUp(){
     else if(catchupStep===2)html=renderCatchUpIncome();
     else if(catchupStep===3)html=renderCatchUpStep2();
     else if(catchupStep===4)html=renderCatchUpStep3();
-    else if(catchupStep===5)html=renderCatchUpStep4();
+    else if(catchupStep===5)html=renderCatchUpSavings();
+    else if(catchupStep===6)html=renderCatchUpStep4();
     else html=renderCatchUpStep5();
     el.innerHTML='<div style="max-width:600px;margin:0 auto;">'+html+'</div>';
     el.scrollTop=0;
@@ -2936,7 +2938,7 @@ function renderCatchUp(){
   if(back){back.style.display=catchupStep===last?'none':'';back.textContent=catchupStep===1?'Exit':'← Back';}
   if(skip)skip.style.display=catchupStep===last?'none':'';
   if(next){next.style.display=catchupStep===last?'none':'';next.disabled=false;next.textContent=catchupStep===last-1?'Finish →':'Save & Next →';}
-  if(catchupStep===5)catchupUpdateCashPreview();
+  if(catchupStep===6)catchupUpdateCashPreview();
 }
 function catchupCard(inner,extraStyle){
   return '<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:16px;margin-bottom:12px;'+(extraStyle||'')+'">'+inner+'</div>';
@@ -3199,7 +3201,54 @@ async function catchupSaveBills(){
   await Promise.all([loadBills(),loadBillPayments()]);
 }
 
-// STEP 5 — cash: set Available Balance to the real bank balance by adjusting Starting Cash
+// STEP 5 — savings: set each personal pot to what the account actually holds. The difference goes into
+// the pot's hidden __starting_balance__ row (the same row the pot edit screen manages), which pot totals
+// include but Available Balance excludes — so correcting a pot never moves cash. Shared pots are left
+// alone: their balances are other people's contributions too.
+function catchupPotBalance(potId){
+  return savingsTxns.filter(t=>t.pot_id===potId).reduce((s,t)=>s+((t.type==='deposit'||t.type==='transfer_in')?parseFloat(t.amount||0):-(parseFloat(t.amount||0))),0);
+}
+function renderCatchUpSavings(){
+  let html='<div style="font-size:var(--fs-lg);font-weight:700;margin-bottom:4px;">Update your savings</div>'
+    +'<div style="font-size:var(--fs-sm);color:var(--muted);margin-bottom:16px;">Enter what each savings account actually holds today. This corrects the pot without counting as a deposit or withdrawal, so your Available Balance doesn\'t change.</div>';
+  if(pots.length===0)return html+catchupAllClear('No savings pots','');
+  pots.forEach(p=>{
+    const bal=catchupPotBalance(p.id);
+    html+=catchupCard(
+      '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-bottom:12px;">'
+      +'<div style="font-size:var(--fs-md);font-weight:700;min-width:0;">'+esc(p.name)+'</div>'
+      +'<div style="font-size:var(--fs-xs);color:var(--muted);white-space:nowrap;">App shows '+fmt(bal)+'</div></div>'
+      +'<label style="'+CATCHUP_LABEL_STYLE+'">Actual balance</label>'
+      +'<input id="catchup-pot-'+p.id+'" type="number" min="0" step="0.01" placeholder="'+bal.toFixed(2)+'" style="'+CATCHUP_INPUT_STYLE+'">');
+  });
+  html+='<div style="font-size:var(--fs-xs);color:var(--muted);">Leave a pot blank to keep it as is.</div>';
+  return html;
+}
+async function catchupSaveSavings(){
+  for(const p of pots){
+    const el=document.getElementById('catchup-pot-'+p.id);
+    if(!el||el.value==='')continue;
+    const actual=Math.max(0,parseFloat(el.value)||0);
+    const before=catchupPotBalance(p.id);
+    const diff=Math.round((actual-before)*100)/100;
+    if(Math.abs(diff)<0.005)continue;
+    const existing=savingsTxns.find(t=>t.pot_id===p.id&&t.notes==='__starting_balance__');
+    if(existing){
+      const newAmt=Math.round((parseFloat(existing.amount||0)+diff)*100)/100;
+      const{error}=await sb.from('savings_transactions').update({amount:newAmt}).eq('id',existing.id);
+      if(error)throw error;
+      existing.amount=newAmt;
+    }else{
+      const{data,error}=await sb.from('savings_transactions').insert({user_id:currentUser.id,pot_id:p.id,type:'deposit',amount:diff,txn_date:today(),notes:'__starting_balance__'}).select().single();
+      if(error)throw error;
+      if(data)savingsTxns.push(data);
+    }
+    catchupLog.savings.push({name:p.name,before,after:actual});
+  }
+  await loadSavingsTxns();
+}
+
+// STEP 6 — cash: set Available Balance to the real bank balance by adjusting Starting Cash
 function renderCatchUpStep4(){
   const bal=catchupCurrentBalance();
   let html='<div style="font-size:var(--fs-lg);font-weight:700;margin-bottom:4px;">Match your bank balance</div>'
@@ -3237,7 +3286,7 @@ async function catchupSaveCash(){
   catchupLog.cash={before,after:actual,diff};
 }
 
-// STEP 6 — summary
+// STEP 7 — summary
 function renderCatchUpStep5(){
   const L=catchupLog;
   const row=(l,r,col)=>'<div style="display:flex;justify-content:space-between;gap:12px;font-size:var(--fs-sm);padding:4px 0;"><span>'+l+'</span><span style="font-weight:700;color:'+(col||'var(--text)')+';white-space:nowrap;">'+r+'</span></div>';
@@ -3274,6 +3323,12 @@ function renderCatchUpStep5(){
     let inner=head('Bills');
     L.bills.forEach(b=>{inner+=row(esc(b.name),fmt(b.oldAmt)+' → '+fmt(b.newAmt));});
     L.billsPaid.forEach(b=>{inner+=row(esc(b.name)+' <span style="color:var(--muted);">· marked paid</span>',fmt(b.amount),'var(--muted)');});
+    html+=catchupCard(inner);
+  }
+  if(L.savings.length){
+    any=true;
+    let inner=head('Savings');
+    L.savings.forEach(p=>{inner+=row(esc(p.name),fmt(p.before)+' → '+fmt(p.after));});
     html+=catchupCard(inner);
   }
   if(L.cash){
@@ -5800,6 +5855,26 @@ function renderBarChart(data,type,targetAmount){
 }
 
 function setTrendsWindow(w){trendsWindow=w;renderInsights();}
+// Sparkline pieces that skip periods with no logged expenses (time away), instead of drawing them as $0.
+// hasData[i]===false → no line through that point and a faint hollow marker on the baseline.
+function trendSparkParts(vals,hasData,ptSpacing,maxV,col,gradId){
+  const y=v=>30-(v/maxV)*28;
+  const segs=[];let cur=[];
+  vals.forEach((v,i)=>{if(hasData[i])cur.push(i);else{if(cur.length)segs.push(cur);cur=[];}});
+  if(cur.length)segs.push(cur);
+  let fill='',line='';
+  segs.forEach(seg=>{
+    const pts=seg.map(i=>(i*ptSpacing)+','+y(vals[i])).join(' ');
+    if(seg.length>1){
+      fill+='<polygon class="spark-fill" points="'+pts+' '+(seg[seg.length-1]*ptSpacing)+',32 '+(seg[0]*ptSpacing)+',32" fill="url(#'+gradId+')"/>';
+      line+='<polyline points="'+pts+'" class="sparkline" stroke="'+col+'" fill="none"/>';
+    }
+  });
+  const dots=vals.map((v,i)=>hasData[i]
+    ?'<circle class="spark-dot" cx="'+(i*ptSpacing)+'" cy="'+y(v)+'" r="2.5" fill="'+col+'"/>'
+    :'<circle cx="'+(i*ptSpacing)+'" cy="30" r="2" fill="none" stroke="var(--muted)" stroke-width="1" opacity="0.6"/>').join('');
+  return{fill,line,dots};
+}
 function renderTrendsInsights(){
   const now=new Date();
   const cats=[...new Set(expenses.map(e=>e.category))];
@@ -5847,6 +5922,14 @@ function renderTrendsInsights(){
   const oneOffVal=(p)=>p.start
     ?expenses.filter(e=>e.is_one_off&&(e.exp_date||'')>=p.start&&(e.exp_date||'')<=p.end).reduce((s,e)=>s+parseFloat(e.amount||0),0)
     :expenses.filter(e=>e.is_one_off&&(e.exp_date||'').startsWith(p.month)).reduce((s,e)=>s+parseFloat(e.amount||0),0);
+  const periodHasData=p=>p.start
+    ?expenses.some(e=>(e.exp_date||'')>=p.start&&(e.exp_date||'')<=p.end)
+    :expenses.some(e=>(e.exp_date||'').startsWith(p.month));
+  const hasData=periods.map(p=>trendsWindow==='daily'?true:periodHasData(p));
+  const dataCount=hasData.filter(Boolean).length;
+  const gapCount=periods.length-dataCount;
+  // Month windows budget only the months that have data, so time away doesn't read as money left over.
+  const monthsBudgeted=trendsWindow==='3mo'?(gapCount?dataCount:3):trendsWindow==='yearly'?(gapCount?dataCount:12):1;
   let projCard='';
   if(trendsWindow==='3mo'){
     const dayOfMonth=now.getDate();
@@ -5855,12 +5938,13 @@ function renderTrendsInsights(){
     const projected=(thisMonthSpend/dayOfMonth)*daysInMonth;
     const lastMonthSpend=expenses.filter(e=>(e.exp_date||'').startsWith(periods[periods.length-2].month)&&!e.is_one_off).reduce((s,e)=>s+parseFloat(e.amount||0),0);
     const pctChange=lastMonthSpend>0?((projected-lastMonthSpend)/lastMonthSpend)*100:0;
-    const paceColor=pctChange>10?'var(--danger)':'var(--success)'; // On/Under pace are both good states — green, not caution yellow
+    const lastMoHasData=hasData[periods.length-2];
+    const paceColor=!lastMoHasData?'var(--muted)':pctChange>10?'var(--danger)':'var(--success)'; // On/Under pace are both good states — green, not caution yellow
     const paceLabel=pctChange>10?'Over pace':pctChange<-10?'Under pace':'On pace';
     projCard=`<div style="background:rgba(79,142,247,0.08);border:1px solid rgba(79,142,247,0.2);border-radius:var(--radius-sm);padding:16px;margin-bottom:16px;">
       <div style="font-size:var(--fs-sm);color:var(--muted);margin-bottom:4px;">Projected spend this month</div>
       <div style="font-size:var(--fs-xl);font-weight:700;">${fmt(projected)}</div>
-      <div style="font-size:var(--fs-sm);font-weight:700;color:${paceColor};margin-top:4px;">${paceLabel} vs last month (${pctChange>=0?'+':''}${pctChange.toFixed(0)}%)</div>
+      <div style="font-size:var(--fs-sm);font-weight:700;color:${paceColor};margin-top:4px;">${lastMoHasData?`${paceLabel} vs last month (${pctChange>=0?'+':''}${pctChange.toFixed(0)}%)`:'No spending logged last month to compare'}</div>
     </div>`;
   }
   const catRows=cats.map((cat,ci)=>({cat,ci,vals:periods.map(p=>getVal(cat,p,true))})) // one-off excluded from all Trends math
@@ -5870,12 +5954,12 @@ function renderTrendsInsights(){
     const monthlyTarget=budgetTargets[cat]||0;
     const periodTarget=trendsWindow==='daily'?monthlyTarget/30:trendsWindow==='weekly'?monthlyTarget/4:monthlyTarget;
     const maxV=Math.max(...vals,periodTarget,1);
-    const pts=vals.map((v,i)=>`${i*ptSpacing},${30-(v/maxV)*28}`).join(' ');
-    const lastTwo=vals.slice(-2);
-    const trend=lastTwo[1]-lastTwo[0];
+    const col=colorForCategory(cat,ci);
+    const spark=trendSparkParts(vals,hasData,ptSpacing,maxV,col,'sg-'+ci);
+    const dataIdx=vals.map((_,i)=>i).filter(i=>hasData[i]);
+    const trend=dataIdx.length>=2?vals[dataIdx[dataIdx.length-1]]-vals[dataIdx[dataIdx.length-2]]:0;
     const trendIcon=trend>5?'↑':trend<-5?'↓':'→';
     const trendColor=trend>5?'var(--danger)':trend<-5?'var(--success)':'var(--muted)';
-    const col=colorForCategory(cat,ci);
     const latestVal=(trendsWindow==='yearly'||trendsWindow==='daily')?vals.reduce((s,v)=>s+v,0):vals[vals.length-1];
     const latestLabel=(trendsWindow==='weekly'||trendsWindow==='daily')?'this wk':trendsWindow==='yearly'?'this yr':trendsWindow==='3mo'?'this period':'this mo';
     const lineWidth=(periods.length-1)*ptSpacing;
@@ -5899,10 +5983,7 @@ function renderTrendsInsights(){
       // For completed periods: under target = green (no pace to check), already checked >target above
       return'var(--success)';
     })();
-    const windowMultiplier=(trendsWindow==='weekly'||trendsWindow==='daily')?0.25
-      :trendsWindow==='3mo'?3
-      :trendsWindow==='yearly'?12
-      :1;
+    const windowMultiplier=(trendsWindow==='weekly'||trendsWindow==='daily')?0.25:monthsBudgeted;
     const displayTarget=monthlyTarget*windowMultiplier;
     const subtitleText=displayTarget>0
       ?`${fmt(latestVal)} <span style="color:var(--muted);">/ ${fmt(displayTarget)}</span> ${latestLabel}`
@@ -5912,10 +5993,10 @@ function renderTrendsInsights(){
       <div style="flex:1;min-width:0;"><div style="font-size:var(--fs-sm);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(cat)}</div><div style="font-size:var(--fs-xs);color:${latestLabelColor};font-weight:${periodTarget>0?'600':'400'};">${subtitleText}</div></div>
       <svg width="${svgWidth}" height="32" style="flex-shrink:0;overflow:visible;">
         <defs><linearGradient id="sg-${ci}" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" style="stop-color:${col};stop-opacity:0.18"/><stop offset="100%" style="stop-color:${col};stop-opacity:0"/></linearGradient></defs>
-        <polygon class="spark-fill" points="${pts} ${(vals.length-1)*ptSpacing},32 0,32" fill="url(#sg-${ci})"/>
+        ${spark.fill}
         ${targetLine}
-        <polyline points="${pts}" class="sparkline" stroke="${col}" fill="none"/>
-        ${vals.map((v,i)=>`<circle class="spark-dot" cx="${i*ptSpacing}" cy="${30-(v/maxV)*28}" r="2.5" fill="${col}"/>`).join('')}
+        ${spark.line}
+        ${spark.dots}
       </svg>
       <span style="font-size:var(--fs-lg);font-weight:700;color:${trendColor};width:16px;text-align:center;">${trendIcon}</span>
     </div>`;
@@ -5924,29 +6005,29 @@ function renderTrendsInsights(){
   if(periods.some(p=>oneOffVal(p)>0)){
     const ooVals=periods.map(p=>oneOffVal(p));
     const ooMax=Math.max(...ooVals,1);
-    const ooPts=ooVals.map((v,i)=>`${i*ptSpacing},${30-(v/ooMax)*28}`).join(' ');
+    const ooCol='var(--warning)';
+    const ooSpark=trendSparkParts(ooVals,hasData,ptSpacing,ooMax,ooCol,'sg-oo');
     const ooLatest=(trendsWindow==='yearly'||trendsWindow==='daily')?ooVals.reduce((s,v)=>s+v,0):ooVals[ooVals.length-1];
     const ooLabel=(trendsWindow==='weekly'||trendsWindow==='daily')?'this wk':trendsWindow==='yearly'?'this yr':trendsWindow==='3mo'?'this period':'this mo';
-    const ooLastTwo=ooVals.slice(-2);
-    const ooTrend=ooLastTwo[1]-ooLastTwo[0];
+    const ooIdx=ooVals.map((_,i)=>i).filter(i=>hasData[i]);
+    const ooTrend=ooIdx.length>=2?ooVals[ooIdx[ooIdx.length-1]]-ooVals[ooIdx[ooIdx.length-2]]:0;
     const ooTrendIcon=ooTrend>5?'↑':ooTrend<-5?'↓':'→';
     const ooTrendColor=ooTrend>5?'var(--danger)':ooTrend<-5?'var(--success)':'var(--muted)';
-    const ooCol='var(--warning)';
     oneOffRow=`<div onclick="showOneOffHistory()" style="display:flex;align-items:center;gap:12px;padding:12px 0;border-top:2px solid var(--border);margin-top:8px;cursor:pointer;" onmousedown="this.style.background='var(--surface2)'" onmouseup="this.style.background=''" onmouseleave="this.style.background=''" ontouchstart="this.style.background='var(--surface2)'" ontouchend="this.style.background=''">
       <div style="width:8px;height:8px;border-radius:50%;background:${ooCol};flex-shrink:0;"></div>
       <div style="flex:1;min-width:0;"><div style="font-size:var(--fs-sm);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">One-Off Expenses</div><div style="font-size:var(--fs-xs);color:var(--muted);font-weight:400;">${fmt(ooLatest)} ${ooLabel}</div></div>
       <svg width="${svgWidth}" height="32" style="flex-shrink:0;overflow:visible;">
         <defs><linearGradient id="sg-oo" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" style="stop-color:${ooCol};stop-opacity:0.18"/><stop offset="100%" style="stop-color:${ooCol};stop-opacity:0"/></linearGradient></defs>
-        <polygon class="spark-fill" points="${ooPts} ${(ooVals.length-1)*ptSpacing},32 0,32" fill="url(#sg-oo)"/>
-        <polyline points="${ooPts}" class="sparkline" stroke="${ooCol}" fill="none"/>
-        ${ooVals.map((v,i)=>`<circle class="spark-dot" cx="${i*ptSpacing}" cy="${30-(v/ooMax)*28}" r="2.5" fill="${ooCol}"/>`).join('')}
+        ${ooSpark.fill}
+        ${ooSpark.line}
+        ${ooSpark.dots}
       </svg>
       <span style="font-size:var(--fs-lg);font-weight:700;color:${ooTrendColor};width:16px;text-align:center;">${ooTrendIcon}</span>
     </div>`;
   }
   const titleMap={daily:'Daily',weekly:'Weekly','3mo':'3 Months',yearly:'Yearly'};
   const totalMonthlyBudget=Object.values(budgetTargets).reduce((s,v)=>s+v,0);
-  const totalWindowBudget=totalMonthlyBudget*((trendsWindow==='weekly'||trendsWindow==='daily')?0.25:trendsWindow==='3mo'?3:12);
+  const totalWindowBudget=totalMonthlyBudget*((trendsWindow==='weekly'||trendsWindow==='daily')?0.25:monthsBudgeted);
   const totalSpent=(()=>{
     if(trendsWindow==='weekly'){const p=periods[periods.length-1];return expenses.filter(e=>(e.exp_date||'')>=p.start&&(e.exp_date||'')<=p.end&&!e.is_one_off).reduce((s,e)=>s+parseFloat(e.amount||0),0);}
     if(trendsWindow==='daily'){const a=periods[0].start,b=periods[periods.length-1].end;return expenses.filter(e=>(e.exp_date||'')>=a&&(e.exp_date||'')<=b&&!e.is_one_off).reduce((s,e)=>s+parseFloat(e.amount||0),0);}
@@ -5967,10 +6048,15 @@ function renderTrendsInsights(){
       ${labels.map(l=>`<span>${l}</span>`).join('')}
     </div>
     ${catRows}${oneOffRow}`;
+  const unit=trendsWindow==='weekly'?'week':'month';
+  const gapNote=gapCount>0
+    ?`<div style="font-size:var(--fs-xs);color:var(--muted);margin:-4px 0 8px;">${gapCount} ${unit}${gapCount===1?'':'s'} with nothing logged ${gapCount===1?'is':'are'} shown as hollow dots and left out of trends${trendsWindow==='3mo'||trendsWindow==='yearly'?' and the budget total':''}.</div>`
+    :'';
   return`
     ${projCard}
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;">${windowBtns}</div>
     <div style="margin-bottom:8px;"><div style="font-size:var(--fs-xs);font-weight:600;letter-spacing:var(--ls-wide);color:var(--muted);text-transform:uppercase;">Category Trends — ${titleMap[trendsWindow]}</div>${budgetBadge}</div>
+    ${gapNote}
     ${trendsBody}`;
 }
 
@@ -6737,6 +6823,8 @@ function openPaycalcModal(){openModal('paycalc-modal');renderPaycalc();}
 //                           place of desc when present (desc is used as a fallback if impact is omitted).
 // Any future fix that touches balance-calculation logic should add affectsBalance:true + an impact string.
 const CHANGELOG=[
+  {date:new Date('2026-10-04T17:00:00').getTime(),icon:'ti-chart-dots',title:'Trends skip time you weren\'t logging',desc:'Weeks or months with no expenses logged are no longer drawn as $0 in Spending Insights → Trends. They show as hollow dots, the trend arrows compare only periods that have data, and the 3-month and yearly budget totals count only months you were logging, so time away doesn\'t look like money left in the budget.'},
+  {date:new Date('2026-10-04T16:00:00').getTime(),icon:'ti-pig-money',title:'Catch Up now updates your savings',desc:'Catch Up has a new Savings step: type what each savings account actually holds and the pot is corrected to match. It\'s recorded as an adjustment, not a deposit or withdrawal, so your Available Balance doesn\'t move.'},
   {date:new Date('2026-10-04T15:00:00').getTime(),icon:'ti-chart-line',title:'Forecast spending stays realistic after a break',desc:'The Forecast estimates your daily spending from the last 60 days of expenses. After time away that window was empty, so it assumed $0 a day and your projected balance looked too good, then jumped too high once you logged a single purchase. Until you have two weeks of new expenses, it now uses your average from before the break, and the Forecast tells you which average it\'s using.'},
   {date:new Date('2026-10-04T14:00:00').getTime(),icon:'ti-cash',title:'Catch Up now checks your income',desc:'Catch Up has a new Income step: confirm each paycheck source\'s amount, how often you\'re paid, and your next payday, or mark one you don\'t get anymore. Your upcoming pay periods are rebuilt to match, so the Forecast and Income Less Bills use your current pay. Confirmed paychecks aren\'t touched.'},
   {date:new Date('2026-10-04T12:00:00').getTime(),icon:'ti-refresh',title:'Catch Up after time away',desc:'If it\'s been more than a week since your last visit, a Catch Up flow now opens instead of the Payday Routine. In a few steps you can skip (or bulk-confirm) the paychecks you missed, update debt balances and minimums from your statements, fix bill amounts and mark this month\'s bills you already paid, and set your Available Balance to match your bank. Skipped paychecks show a Skipped badge on the Income tab and stop prompting. You can also run it any time from Settings.'},
@@ -7758,7 +7846,7 @@ function renderInstructions(){
       ['What do the cards show?','Each card is tappable for more detail. You will see your debt total and payoff progress, your net worth (what you own minus what you owe) with green shading once it crosses above $0, how many bills you have paid this month, and your savings totals. Tap the savings total to split it across your personal pots, shared pots, and physical assets.'],
       ['What is the Debt Payoff Calculator?','A tool on the Dashboard that compares two payoff strategies — Avalanche (highest interest first) and Snowball (smallest balance first) — so you can see which clears your debt sooner and saves the most interest.'],
       ['What is the Payday Routine?','When you have a paycheck waiting to be confirmed, a guided helper appears on the Dashboard. It walks you through it in a few steps: confirm your paycheck, pay your bills, make debt payments, and move money to savings — all in one sitting. You can skip any step or exit anytime.'],
-      ['I haven\'t used the app in a while. How do I get current?','If it\'s been more than a week since you last opened the app, a Catch Up helper opens instead of the Payday Routine. It walks you through it: skip (or confirm) the paychecks you missed, check that your paycheck amounts and schedule are still right, update your debt balances and minimums, fix bill amounts and check off bills you already paid this month, then type in your real bank balance so the app matches it. You don\'t have to log everything you missed. You can also run it any time from Settings → Catch Up.'],
+      ['I haven\'t used the app in a while. How do I get current?','If it\'s been more than a week since you last opened the app, a Catch Up helper opens instead of the Payday Routine. It walks you through it: skip (or confirm) the paychecks you missed, check that your paycheck amounts and schedule are still right, update your debt balances and minimums, fix bill amounts and check off bills you already paid this month, correct your savings pot balances, then type in your real bank balance so the app matches it. You don\'t have to log everything you missed. You can also run it any time from Settings → Catch Up.'],
       ['How do I get back here?','Tap the Budget Tracker logo at the top from anywhere to return to the Dashboard.'],
     ])}
     ${section('🔮','Understanding the Forecast',[
