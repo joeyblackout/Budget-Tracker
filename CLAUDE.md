@@ -180,3 +180,8 @@ Running Balance = Starting Cash
 - `shared_members` infinite recursion — fixed with `my_pot_ids()` SECURITY DEFINER function
 - Future paychecks leaking into running balance — filter by `pay_date <= today()`
 - Starting balance deposits double-counting — exclude `notes='__starting_balance__'`
+
+## Extended-absence handling
+- **Catch Up** (`openCatchUp`): opens instead of the Payday Routine when the prior login (`whatsNewPrevLogin`) is >7 days old; also in Settings. Steps: Paychecks (skip/confirm missed) → Income (amount/frequency/next payday per recurring source, or end it; rebuilds future unconfirmed periods) → Debts (set balance/min directly; min change updates linked bill) → Bills (amounts; mark this cycle's overdue as paid) → Cash (adjust starting_cash so Available Balance = real bank balance) → Summary
+- **Forecast daily spend** (`recentAvgSpendingPerDay`): last 60 days of non-one-off expenses; with <14 days of new data it falls back to the 60 days ending at the last expense before the gap. `spendAvgBasis` holds the label shown under the projection
+- **Supabase keepalive**: `.github/workflows/supabase-keepalive.yml` pings the REST API daily with the publishable key so the free-tier project isn't paused; re-enables itself each run so GitHub's 60-day scheduled-workflow cutoff doesn't stop it

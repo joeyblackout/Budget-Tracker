@@ -1,0 +1,45 @@
+# Keeps the Supabase free-tier project from being paused for inactivity.
+# Supabase pauses Free Plan projects with little database activity over a 7-day window;
+# one small read a day is enough to count as activity.
+#
+# Uses the PUBLISHABLE key, which is already public in index.html. Never put the secret key here.
+#
+# GitHub also turns off scheduled workflows in public repos after 60 days with no commits.
+# The second step re-enables this workflow on every run so the schedule doesn't lapse while
+# nobody is pushing. If it ever does get disabled, GitHub emails a warning and you can turn it
+# back on from the repo's Actions tab.
+
+name: Supabase keepalive
+
+on:
+  schedule:
+    - cron: "17 13 * * *" # daily, ~9:17 AM Eastern
+  workflow_dispatch: # lets you run it by hand from the Actions tab
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase
+        env:
+          SUPABASE_URL: https://edhsytkmmltzhgxxhpqy.supabase.co
+          SUPABASE_KEY: sb_publishable_tAn5TF5Cuear3qJMzZdN5Q_4G_mUVUh
+        run: |
+          code=$(curl -s -o /tmp/resp.txt -w "%{http_code}" \
+            "$SUPABASE_URL/rest/v1/profiles?select=user_id&limit=1" \
+            -H "apikey: $SUPABASE_KEY")
+          echo "Supabase responded HTTP $code"
+          cat /tmp/resp.txt; echo
+          if [ "$code" -ge 400 ]; then
+            echo "::error::Supabase ping failed (HTTP $code). The project may already be paused — restore it from the Supabase dashboard."
+            exit 1
+          fi
+
+      - name: Keep this schedule from expiring
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api -X PUT "repos/${{ github.repository }}/actions/workflows/supabase-keepalive.yml/enable"
