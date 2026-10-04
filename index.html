@@ -840,6 +840,23 @@ button:active,.btn:active,.stat:active,.balance-line:active,.week-card-header:ac
     <button id="routine-next-btn" onclick="routineNext()" class="btn btn-primary" style="flex:1;">Next →</button>
   </div>
 </div>
+<!-- CATCH UP (soft reset) MODAL -->
+<div id="catchup-overlay" style="display:none;position:fixed;inset:0;z-index:500;background:var(--bg);flex-direction:column;">
+  <div style="display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid var(--border);flex-shrink:0;">
+    <div style="display:flex;align-items:center;gap:12px;">
+      <img src="favicon.ico" style="width:28px;height:28px;border-radius:var(--radius-sm);" alt="">
+      <span style="font-size:var(--fs-lg);font-weight:700;letter-spacing:var(--ls-tight);"><span style="color:var(--text);">Budget</span> <span style="color:var(--success);">Tracker</span></span>
+    </div>
+    <button onclick="catchupClose()" style="background:none;border:none;color:var(--muted);font-size:var(--fs-xl);cursor:pointer;padding:4px 8px;line-height:1;" aria-label="Close"><i class="ti ti-x"></i></button>
+  </div>
+  <div id="catchup-progress" style="flex-shrink:0;"></div>
+  <div id="catchup-content" style="flex:1;overflow-y:auto;padding:20px;"></div>
+  <div style="display:flex;gap:8px;padding:16px 20px;border-top:1px solid var(--border);flex-shrink:0;background:var(--bg);">
+    <button id="catchup-back-btn" onclick="catchupBack()" class="btn btn-ghost" style="flex:1;">Exit</button>
+    <button id="catchup-skip-btn" onclick="catchupSkipStep()" class="btn btn-ghost" style="flex:1;">Skip</button>
+    <button id="catchup-next-btn" onclick="catchupNext()" class="btn btn-primary" style="flex:1.4;">Save &amp; Next →</button>
+  </div>
+</div>
 <!-- PAY ALL DUE MODAL -->
 <div class="modal-overlay" id="pay-all-due-modal"><div class="modal">
   <div class="modal-handle"></div>
@@ -1248,7 +1265,7 @@ async function cleanupPaidOffDebtBills(){
   await loadBills();
   return true;
 }
-async function loadAll(){await Promise.all([loadDebts(),loadPayments(),loadExpenses(),loadWeeks(),loadPaychecks(),loadBills(),loadBillPayments(),loadPots(),loadSavingsTxns(),loadProfiles(),loadPosts(),loadReactions(),loadShared(),loadRecurring(),loadAssets(),loadBudgetTargets(),loadNetWorthHistory(),loadReceipts(),loadDebtInterestLog()]);appDataReady=true;await topUpPeriods();await migrateDiningCategory();await cleanupPaidOffDebtBills();await snapshotNetWorth();const _activeV=document.querySelector('.view.active');switchView(_activeV?_activeV.id.replace('view-',''):'dashboard',null);updateBillBadge();updateNotifBadge();startPolling();await openPaydayRoutine();checkWhatsNew(whatsNewPrevLogin);checkBalanceChangeNotice();}
+async function loadAll(){await Promise.all([loadDebts(),loadPayments(),loadExpenses(),loadWeeks(),loadPaychecks(),loadBills(),loadBillPayments(),loadPots(),loadSavingsTxns(),loadProfiles(),loadPosts(),loadReactions(),loadShared(),loadRecurring(),loadAssets(),loadBudgetTargets(),loadNetWorthHistory(),loadReceipts(),loadDebtInterestLog()]);appDataReady=true;await topUpPeriods();await migrateDiningCategory();await cleanupPaidOffDebtBills();await snapshotNetWorth();const _activeV=document.querySelector('.view.active');switchView(_activeV?_activeV.id.replace('view-',''):'dashboard',null);updateBillBadge();updateNotifBadge();startPolling();if(shouldShowCatchUp())await openCatchUp();else await openPaydayRoutine();checkWhatsNew(whatsNewPrevLogin);checkBalanceChangeNotice();}
 async function topUpPeriods(){
   // Only extend recurring sources if the furthest period is within 10 months out
   if(recurringSources.length===0)return;
@@ -2419,7 +2436,7 @@ let routinePendingWhatsNew=false;
 
 function getPendingPaydays(){
   const todayStr=today();
-  return weeks.filter(w=>w.pay_date<=todayStr&&!paychecks.some(p=>p.pay_week_id===w.id));
+  return weeks.filter(w=>w.pay_date<=todayStr&&!paychecks.some(p=>p.pay_week_id===w.id)&&!isWeekSkipped(w));
 }
 
 async function openPaydayRoutine(){
@@ -2790,6 +2807,369 @@ async function routineFinish(){
     routinePendingWhatsNew=false;
     setTimeout(()=>showWhatsNew(whatsNewPrevLogin),600);
   }
+}
+// CATCH UP (soft reset) — replaces the Payday Routine after an extended absence so a returning user
+// isn't buried in months of pending paychecks and stale bills. Steps: Paychecks → Debts → Bills → Cash → Done.
+// Order matters: debts first (so linked minimum-payment bills pick up new minimums before the Bills step),
+// and cash LAST so the Starting Cash adjustment absorbs every ledger change made in the earlier steps.
+const CATCHUP_GAP_DAYS=7;
+let catchupStep=1;
+let catchupWeeks=[];
+let catchupPayMode='skip'; // 'skip' | 'confirm'
+let catchupLog={paychecks:0,paycheckTotal:0,skipped:0,debts:[],bills:[],billsPaid:[],cash:null,warn:''};
+
+// A past pay period with no paycheck that the user chose to skip during Catch Up. Skipped periods are
+// never counted as income and never prompt again — but logging a paycheck on one later still works.
+function isWeekSkipped(w){
+  const cut=myProfile&&myProfile.caught_up_through;
+  if(!cut||!w||!w.pay_date)return false;
+  return w.pay_date<=cut&&!paychecks.some(p=>p.pay_week_id===w.id);
+}
+function shouldShowCatchUp(){
+  if(!whatsNewPrevLogin)return false; // brand-new user — nothing to catch up on
+  return Date.now()-whatsNewPrevLogin>CATCHUP_GAP_DAYS*24*60*60*1000;
+}
+// Same formula as the Dashboard's Available Balance (renderDashboard).
+function catchupCurrentBalance(){
+  const totalIncome=paychecks.reduce((s,p)=>s+parseFloat(p.amount||0),0);
+  const totalPaid=payments.reduce((s,p)=>s+parseFloat(p.amount||0),0);
+  const totalExpenses=expenses.reduce((s,e)=>s+parseFloat(e.amount||0),0);
+  const totalBillsPaid=nonLinkedBillPaymentsTotal();
+  const totalSaved=savingsTxns.filter(t=>t.type==='deposit'&&t.notes!=='__starting_balance__').reduce((s,t)=>s+parseFloat(t.amount||0),0)-savingsTxns.filter(t=>t.type==='withdraw').reduce((s,t)=>s+parseFloat(t.amount||0),0);
+  const startingCash=myProfile?.starting_cash?parseFloat(myProfile.starting_cash):0;
+  const mySharedNet=sharedTxns.filter(t=>t.user_id===currentUser.id).reduce((s,t)=>s+(t.type==='deposit'?parseFloat(t.amount||0):-(parseFloat(t.amount||0))),0);
+  return startingCash+totalIncome-totalPaid-totalExpenses-totalBillsPaid-totalSaved-mySharedNet;
+}
+function catchupDaysAway(){
+  if(!whatsNewPrevLogin)return 0;
+  return Math.max(0,Math.floor((Date.now()-whatsNewPrevLogin)/(24*60*60*1000)));
+}
+async function openCatchUp(){
+  if(typeof closeSidebar==='function')closeSidebar();
+  catchupStep=1;catchupPayMode='skip';
+  catchupLog={paychecks:0,paycheckTotal:0,skipped:0,debts:[],bills:[],billsPaid:[],cash:null,warn:''};
+  await Promise.all([loadBills(),loadBillPayments(),loadDebts(),loadPaychecks()]);
+  catchupWeeks=getPendingPaydays().sort((a,b)=>(a.pay_date||'').localeCompare(b.pay_date||''));
+  document.getElementById('catchup-overlay').style.display='flex';
+  renderCatchUp();
+}
+function catchupClose(){
+  if(catchupStep<5&&!confirm('Exit Catch Up? Steps you already finished are saved.'))return;
+  catchupFinish(true);
+}
+function catchupBack(){
+  if(catchupStep===1){catchupClose();return;}
+  catchupStep--;renderCatchUp();
+}
+function catchupSkipStep(){catchupStep++;renderCatchUp();}
+async function catchupNext(){
+  const btn=document.getElementById('catchup-next-btn');
+  if(btn){btn.disabled=true;btn.textContent='Saving…';}
+  try{
+    if(catchupStep===1)await catchupSavePaychecks();
+    else if(catchupStep===2)await catchupSaveDebts();
+    else if(catchupStep===3)await catchupSaveBills();
+    else if(catchupStep===4)await catchupSaveCash();
+    catchupStep++;
+  }catch(e){
+    console.error('[catchup] step save failed',e);
+    toast('Something went wrong saving this step — '+(e&&e.message?e.message:'try again'),'error');
+  }
+  renderCatchUp();
+}
+function renderCatchUp(){
+  const STEPS=['Paychecks','Debts','Bills','Cash','Done'];
+  const segs=STEPS.map((_,i)=>'<div style="flex:1;height:6px;border-radius:3px;background:'+(i<catchupStep?'var(--accent)':'var(--surface2)')+'"></div>').join('<div style="width:4px;"></div>');
+  const prog=document.getElementById('catchup-progress');
+  if(prog)prog.innerHTML='<div style="padding:12px 20px 0;">'
+    +'<div style="font-size:var(--fs-xs);font-weight:600;text-transform:uppercase;letter-spacing:var(--ls-wide);color:var(--muted);margin-bottom:8px;">Catch Up · Step '+catchupStep+' of 5</div>'
+    +'<div style="display:flex;align-items:center;gap:4px;margin-bottom:8px;">'+segs+'</div>'
+    +'<div style="font-size:var(--fs-md);font-weight:700;padding-bottom:12px;border-bottom:1px solid var(--border);">'+STEPS[catchupStep-1]+'</div>'
+    +'</div>';
+  const el=document.getElementById('catchup-content');
+  if(el){
+    let html='';
+    if(catchupStep===1)html=renderCatchUpStep1();
+    else if(catchupStep===2)html=renderCatchUpStep2();
+    else if(catchupStep===3)html=renderCatchUpStep3();
+    else if(catchupStep===4)html=renderCatchUpStep4();
+    else html=renderCatchUpStep5();
+    el.innerHTML='<div style="max-width:600px;margin:0 auto;">'+html+'</div>';
+    el.scrollTop=0;
+  }
+  const back=document.getElementById('catchup-back-btn');
+  const skip=document.getElementById('catchup-skip-btn');
+  const next=document.getElementById('catchup-next-btn');
+  if(back){back.style.display=catchupStep===5?'none':'';back.textContent=catchupStep===1?'Exit':'← Back';}
+  if(skip)skip.style.display=catchupStep===5?'none':'';
+  if(next){next.style.display=catchupStep===5?'none':'';next.disabled=false;next.textContent=catchupStep===4?'Finish →':'Save & Next →';}
+  if(catchupStep===4)catchupUpdateCashPreview();
+}
+function catchupCard(inner,extraStyle){
+  return '<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:16px;margin-bottom:12px;'+(extraStyle||'')+'">'+inner+'</div>';
+}
+function catchupAllClear(title,sub){
+  return '<div style="background:rgba(45,212,160,0.08);border:1px solid rgba(45,212,160,0.3);border-radius:var(--radius-sm);padding:16px;text-align:center;">'
+    +'<div style="font-size:var(--fs-xl);margin-bottom:8px;color:var(--accent);"><i class="ti ti-circle-check"></i></div>'
+    +'<div style="font-weight:700;margin-bottom:4px;">'+title+'</div>'
+    +(sub?'<div style="font-size:var(--fs-sm);color:var(--muted);">'+sub+'</div>':'')+'</div>';
+}
+const CATCHUP_INPUT_STYLE='width:100%;box-sizing:border-box;padding:8px 12px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:var(--fs-md);';
+const CATCHUP_LABEL_STYLE='font-size:var(--fs-xs);color:var(--muted);margin-bottom:4px;display:block;';
+
+// STEP 1 — missed paychecks
+function renderCatchUpStep1(){
+  const days=catchupDaysAway();
+  let html='<div style="font-size:var(--fs-lg);font-weight:700;margin-bottom:4px;">Welcome back'+(myProfile&&myProfile.display_name?', '+esc(myProfile.display_name):'')+'</div>'
+    +'<div style="font-size:var(--fs-sm);color:var(--muted);margin-bottom:16px;">'
+    +(days>0?'It\'s been '+days+' day'+(days===1?'':'s')+' since your last visit. ':'')
+    +'Let\'s get your numbers current in a few quick steps instead of logging everything you missed. Skip any step you don\'t need.</div>';
+  if(catchupWeeks.length===0)return html+catchupAllClear('No missed paychecks','Every past pay period is already confirmed.');
+  const expTotal=catchupWeeks.reduce((s,w)=>s+parseFloat(w.expected_amount||0),0);
+  const first=catchupWeeks[0].pay_date,last=catchupWeeks[catchupWeeks.length-1].pay_date;
+  let list='';
+  catchupWeeks.forEach(w=>{
+    list+='<div style="display:flex;justify-content:space-between;font-size:var(--fs-sm);padding:6px 0;border-bottom:1px solid var(--border);">'
+      +'<span>'+esc(w.source_name||'Pay Period')+' · '+fmtDate(w.pay_date)+'</span>'
+      +'<span style="color:var(--muted);">'+(parseFloat(w.expected_amount||0)>0?fmt(w.expected_amount):'—')+'</span></div>';
+  });
+  html+=catchupCard(
+    '<div style="font-size:var(--fs-md);font-weight:700;margin-bottom:2px;">'+catchupWeeks.length+' unconfirmed paycheck'+(catchupWeeks.length===1?'':'s')+'</div>'
+    +'<div style="font-size:var(--fs-xs);color:var(--muted);margin-bottom:12px;">'+fmtDate(first)+(first!==last?' – '+fmtDate(last):'')+' · '+fmt(expTotal)+' expected</div>'
+    +'<details><summary style="font-size:var(--fs-sm);color:var(--accent);cursor:pointer;margin-bottom:4px;">Show pay periods</summary><div style="max-height:220px;overflow-y:auto;">'+list+'</div></details>');
+  const pill=(mode,label,sub)=>{
+    const on=catchupPayMode===mode;
+    return '<button id="catchup-pill-'+mode+'" onclick="catchupSelectPayMode(\''+mode+'\')" style="display:block;width:100%;text-align:left;padding:12px;margin-bottom:8px;border-radius:var(--radius-sm);border:1.5px solid '+(on?'var(--accent)':'var(--border)')+';background:'+(on?'rgba(45,212,160,0.12)':'var(--surface2)')+';color:var(--text);cursor:pointer;">'
+      +'<div style="font-size:var(--fs-sm);font-weight:700;color:'+(on?'var(--accent)':'var(--text)')+';">'+label+'</div>'
+      +'<div style="font-size:var(--fs-xs);color:var(--muted);margin-top:2px;">'+sub+'</div></button>';
+  };
+  html+=pill('skip','Skip them (recommended)','They won\'t count as income or prompt you again. Step 4 sets your balance to match your bank, so nothing is lost.');
+  html+=pill('confirm','Confirm all at expected amounts','Logs each one as received. Use this if you want your income history complete.');
+  return html;
+}
+function catchupSelectPayMode(mode){
+  catchupPayMode=mode;
+  ['skip','confirm'].forEach(m=>{
+    const b=document.getElementById('catchup-pill-'+m);if(!b)return;
+    const on=m===mode;
+    b.style.borderColor=on?'var(--accent)':'var(--border)';
+    b.style.background=on?'rgba(45,212,160,0.12)':'var(--surface2)';
+    const t=b.firstElementChild;if(t)t.style.color=on?'var(--accent)':'var(--text)';
+  });
+}
+async function catchupSavePaychecks(){
+  if(catchupWeeks.length===0)return;
+  if(catchupPayMode==='confirm'){
+    const rows=catchupWeeks.filter(w=>parseFloat(w.expected_amount||0)>0)
+      .map(w=>({user_id:currentUser.id,pay_week_id:w.id,amount:parseFloat(w.expected_amount),pay_date:w.pay_date,notes:'Catch-up'}));
+    if(rows.length){
+      const{error}=await sb.from('paychecks').insert(rows);
+      if(error)throw error;
+    }
+    catchupLog.paychecks=rows.length;
+    catchupLog.paycheckTotal=rows.reduce((s,r)=>s+r.amount,0);
+    catchupLog.skipped=catchupWeeks.length-rows.length; // $0-expected periods have nothing to confirm
+  }else{
+    catchupLog.skipped=catchupWeeks.length;
+  }
+  // Record the cutoff so remaining past periods (skipped, or $0-expected) stop prompting on every device.
+  const cut=catchupWeeks[catchupWeeks.length-1].pay_date;
+  const{error:cutErr}=await sb.from('profiles').update({caught_up_through:cut}).eq('user_id',currentUser.id);
+  if(cutErr){
+    catchupLog.warn='Skipped paychecks couldn\'t be saved — the caught_up_through column is missing in Supabase. Run: ALTER TABLE profiles ADD COLUMN IF NOT EXISTS caught_up_through date;';
+    console.error('[catchup] caught_up_through update failed',cutErr);
+  }else if(myProfile){myProfile.caught_up_through=cut;}
+  catchupWeeks=[];
+  await loadPaychecks();
+}
+
+// STEP 2 — debts: true balances and minimums from current statements
+function catchupActiveDebts(){return debts.filter(d=>parseFloat(d.balance||0)>0);}
+function renderCatchUpStep2(){
+  let html='<div style="font-size:var(--fs-lg);font-weight:700;margin-bottom:4px;">Update your debts</div>'
+    +'<div style="font-size:var(--fs-sm);color:var(--muted);margin-bottom:16px;">Enter what each statement shows today. This sets the balance directly — it doesn\'t log a payment.</div>';
+  const list=catchupActiveDebts();
+  if(list.length===0)return html+catchupAllClear('No active debts','');
+  list.forEach(d=>{
+    html+=catchupCard(
+      '<div style="font-size:var(--fs-md);font-weight:700;margin-bottom:12px;">'+esc(d.name)+'<span style="font-size:var(--fs-xs);color:var(--muted);font-weight:500;"> · '+esc(d.type||'')+'</span></div>'
+      +'<div style="display:flex;gap:12px;">'
+      +'<div style="flex:1;"><label style="'+CATCHUP_LABEL_STYLE+'">Balance</label><input id="catchup-debt-bal-'+d.id+'" type="number" min="0" step="0.01" value="'+parseFloat(d.balance||0)+'" style="'+CATCHUP_INPUT_STYLE+'"></div>'
+      +'<div style="flex:1;"><label style="'+CATCHUP_LABEL_STYLE+'">Min payment</label><input id="catchup-debt-min-'+d.id+'" type="number" min="0" step="0.01" value="'+parseFloat(d.min_payment||0)+'" style="'+CATCHUP_INPUT_STYLE+'"></div>'
+      +'</div>');
+  });
+  return html;
+}
+async function catchupSaveDebts(){
+  let changedMin=false;
+  for(const d of catchupActiveDebts()){
+    const balEl=document.getElementById('catchup-debt-bal-'+d.id);
+    const minEl=document.getElementById('catchup-debt-min-'+d.id);
+    if(!balEl||!minEl)continue;
+    const oldBal=parseFloat(d.balance||0),oldMin=parseFloat(d.min_payment||0);
+    const newBal=balEl.value===''?oldBal:Math.max(0,parseFloat(balEl.value)||0);
+    const newMin=minEl.value===''?oldMin:Math.max(0,parseFloat(minEl.value)||0);
+    if(Math.abs(newBal-oldBal)<0.005&&Math.abs(newMin-oldMin)<0.005)continue;
+    const{error}=await sb.from('debts').update({balance:newBal,min_payment:newMin}).eq('id',d.id);
+    if(error)throw error;
+    // Keep the linked minimum-payment bill in step with the new minimum (same rule as Sync Debts).
+    if(Math.abs(newMin-oldMin)>=0.005){
+      changedMin=true;
+      for(const b of bills.filter(x=>x.debt_id===d.id)){
+        const{error:bErr}=await sb.from('bills').update({amount:newMin}).eq('id',b.id);
+        if(bErr)throw bErr;
+      }
+    }
+    catchupLog.debts.push({name:d.name,oldBal,newBal,oldMin,newMin});
+  }
+  await loadDebts();
+  if(changedMin)await loadBills();
+  if(await cleanupPaidOffDebtBills())await loadBillPayments(); // a debt entered as $0 drops its minimum-payment bill
+}
+
+// STEP 3 — bills: current amounts, and mark this cycle's overdue bills as already paid
+function catchupBillList(){
+  return bills.filter(b=>!isBillExpired(b)).sort((a,b)=>(parseInt(a.due_day||0)-parseInt(b.due_day||0)));
+}
+function renderCatchUpStep3(){
+  let html='<div style="font-size:var(--fs-lg);font-weight:700;margin-bottom:4px;">Update your bills</div>'
+    +'<div style="font-size:var(--fs-sm);color:var(--muted);margin-bottom:16px;">Fix any amounts that changed. For bills already due this month, check the ones you\'ve paid outside the app so they stop showing as overdue.</div>';
+  const list=catchupBillList();
+  if(list.length===0)return html+catchupAllClear('No bills set up','');
+  const dueIds=new Set(getDueBills().map(b=>b.id));
+  list.forEach(b=>{
+    const linked=!!b.debt_id;
+    const freq=b.recurring&&b.recurring!=='Monthly'?' · '+esc(b.recurring):'';
+    let inner='<div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-bottom:'+(linked&&!dueIds.has(b.id)?'0':'12px')+';">'
+      +'<div style="font-size:var(--fs-md);font-weight:700;min-width:0;">'+esc(b.name)+'</div>'
+      +'<div style="font-size:var(--fs-xs);color:var(--muted);white-space:nowrap;">'+(b.due_day?'Day '+parseInt(b.due_day):'')+freq+'</div></div>';
+    if(linked){
+      inner+='<div style="font-size:var(--fs-xs);color:var(--muted);margin-bottom:'+(dueIds.has(b.id)?'12px':'0')+';">'+fmt(b.amount)+' · set by the debt\'s minimum payment</div>';
+    }else{
+      inner+='<label style="'+CATCHUP_LABEL_STYLE+'">Amount</label><input id="catchup-bill-amt-'+b.id+'" type="number" min="0" step="0.01" value="'+parseFloat(b.amount||0)+'" style="'+CATCHUP_INPUT_STYLE+'">';
+    }
+    if(dueIds.has(b.id)){
+      inner+='<label style="display:flex;align-items:center;gap:12px;margin-top:'+(linked?'0':'12px')+';font-size:var(--fs-sm);cursor:pointer;">'
+        +'<input type="checkbox" id="catchup-bill-paid-'+b.id+'" style="width:18px;height:18px;flex-shrink:0;accent-color:var(--accent);">'
+        +'<span>Already paid this month <span style="color:var(--danger);font-weight:600;">· Overdue</span></span></label>';
+    }
+    html+=catchupCard(inner);
+  });
+  return html;
+}
+async function catchupSaveBills(){
+  const list=catchupBillList();
+  const dueIds=new Set(getDueBills().map(b=>b.id));
+  for(const b of list){
+    if(b.debt_id)continue;
+    const el=document.getElementById('catchup-bill-amt-'+b.id);
+    if(!el||el.value==='')continue;
+    const oldAmt=parseFloat(b.amount||0),newAmt=Math.max(0,parseFloat(el.value)||0);
+    if(Math.abs(newAmt-oldAmt)<0.005)continue;
+    const{error}=await sb.from('bills').update({amount:newAmt}).eq('id',b.id);
+    if(error)throw error;
+    b.amount=newAmt;
+    catchupLog.bills.push({name:b.name,oldAmt,newAmt});
+  }
+  // Bill payments are recorded on their own — no linked debt payment, because Step 2 already set the
+  // true debt balance. Any cash effect is absorbed by the Step 4 balance adjustment.
+  for(const b of list){
+    if(!dueIds.has(b.id))continue;
+    const cb=document.getElementById('catchup-bill-paid-'+b.id);
+    if(!cb||!cb.checked)continue;
+    const amt=parseFloat(b.amount||0);
+    const{error}=await sb.from('bill_payments').insert({user_id:currentUser.id,bill_id:b.id,amount:amt,paid_date:today(),notes:'Catch-up'});
+    if(error)throw error;
+    catchupLog.billsPaid.push({name:b.name,amount:amt});
+  }
+  await Promise.all([loadBills(),loadBillPayments()]);
+}
+
+// STEP 4 — cash: set Available Balance to the real bank balance by adjusting Starting Cash
+function renderCatchUpStep4(){
+  const bal=catchupCurrentBalance();
+  let html='<div style="font-size:var(--fs-lg);font-weight:700;margin-bottom:4px;">Match your bank balance</div>'
+    +'<div style="font-size:var(--fs-sm);color:var(--muted);margin-bottom:16px;">Enter what\'s actually in your checking/cash right now. The app adjusts your Starting Cash so your Available Balance matches — anything you didn\'t log while away is accounted for here.</div>';
+  html+=catchupCard(
+    '<div style="display:flex;justify-content:space-between;font-size:var(--fs-sm);margin-bottom:12px;"><span style="color:var(--muted);">App\'s Available Balance</span><span style="font-weight:700;">'+fmt(bal)+'</span></div>'
+    +'<label style="'+CATCHUP_LABEL_STYLE+'">Actual balance today</label>'
+    +'<input id="catchup-cash-actual" type="number" step="0.01" placeholder="e.g. 1250.00" oninput="catchupUpdateCashPreview()" style="'+CATCHUP_INPUT_STYLE+'">'
+    +'<div id="catchup-cash-preview" style="font-size:var(--fs-xs);color:var(--muted);margin-top:8px;min-height:16px;"></div>');
+  return html;
+}
+// Updates only the preview line — never re-renders the step, so the input keeps focus while typing.
+function catchupUpdateCashPreview(){
+  const inp=document.getElementById('catchup-cash-actual');
+  const out=document.getElementById('catchup-cash-preview');
+  if(!inp||!out)return;
+  if(inp.value===''){out.textContent='Leave blank to keep your balance as is.';out.style.color='var(--muted)';return;}
+  const diff=(parseFloat(inp.value)||0)-catchupCurrentBalance();
+  if(Math.abs(diff)<0.005){out.textContent='Already matches — no change needed.';out.style.color='var(--success)';return;}
+  out.textContent='Starting Cash will be adjusted by '+(diff>0?'+':'−')+fmt(Math.abs(diff))+'.';
+  out.style.color=diff>0?'var(--success)':'var(--warning)';
+}
+async function catchupSaveCash(){
+  const inp=document.getElementById('catchup-cash-actual');
+  if(!inp||inp.value==='')return;
+  const actual=parseFloat(inp.value)||0;
+  const before=catchupCurrentBalance();
+  const diff=actual-before;
+  if(Math.abs(diff)<0.005){catchupLog.cash={before,after:actual,diff:0};return;}
+  const oldSc=myProfile?.starting_cash?parseFloat(myProfile.starting_cash):0;
+  const newSc=Math.round((oldSc+diff)*100)/100;
+  const{error}=await sb.from('profiles').update({starting_cash:newSc}).eq('user_id',currentUser.id);
+  if(error)throw error;
+  if(myProfile)myProfile.starting_cash=newSc;
+  catchupLog.cash={before,after:actual,diff};
+}
+
+// STEP 5 — summary
+function renderCatchUpStep5(){
+  const L=catchupLog;
+  const row=(l,r,col)=>'<div style="display:flex;justify-content:space-between;gap:12px;font-size:var(--fs-sm);padding:4px 0;"><span>'+l+'</span><span style="font-weight:700;color:'+(col||'var(--text)')+';white-space:nowrap;">'+r+'</span></div>';
+  const head=t=>'<div style="font-size:var(--fs-xs);font-weight:600;text-transform:uppercase;letter-spacing:var(--ls-wide);color:var(--muted);margin-bottom:8px;">'+t+'</div>';
+  let html='<div style="font-size:var(--fs-lg);font-weight:700;margin-bottom:16px;"><i class="ti ti-circle-check" style="color:var(--accent);"></i> You\'re caught up</div>';
+  if(L.warn)html+='<div style="background:rgba(247,201,72,0.08);border:1px solid rgba(247,201,72,0.3);border-radius:var(--radius-sm);padding:12px;margin-bottom:12px;font-size:var(--fs-xs);color:var(--warning);">'+esc(L.warn)+'</div>';
+  let any=false;
+  if(L.paychecks||L.skipped){
+    any=true;
+    let inner=head('Paychecks');
+    if(L.paychecks)inner+=row(L.paychecks+' confirmed','+'+fmt(L.paycheckTotal),'var(--success)');
+    if(L.skipped)inner+=row(L.skipped+' skipped','—','var(--muted)');
+    html+=catchupCard(inner);
+  }
+  if(L.debts.length){
+    any=true;
+    let inner=head('Debts updated');
+    L.debts.forEach(d=>{inner+=row(esc(d.name),fmt(d.oldBal)+' → '+fmt(d.newBal));if(Math.abs(d.newMin-d.oldMin)>=0.005)inner+=row('<span style="color:var(--muted);">Min payment</span>',fmt(d.oldMin)+' → '+fmt(d.newMin),'var(--muted)');});
+    html+=catchupCard(inner);
+  }
+  if(L.bills.length||L.billsPaid.length){
+    any=true;
+    let inner=head('Bills');
+    L.bills.forEach(b=>{inner+=row(esc(b.name),fmt(b.oldAmt)+' → '+fmt(b.newAmt));});
+    L.billsPaid.forEach(b=>{inner+=row(esc(b.name)+' <span style="color:var(--muted);">· marked paid</span>',fmt(b.amount),'var(--muted)');});
+    html+=catchupCard(inner);
+  }
+  if(L.cash){
+    any=true;
+    let inner=head('Available Balance');
+    inner+=row('Before',fmt(L.cash.before),'var(--muted)');
+    inner+=row('Now',fmt(L.cash.after),'var(--success)');
+    html+=catchupCard(inner);
+  }
+  if(!any)html+='<div style="font-size:var(--fs-sm);color:var(--muted);margin-bottom:16px;">No changes needed — everything was already current.</div>';
+  html+='<div style="font-size:var(--fs-xs);color:var(--muted);margin:4px 0 16px;">You can run Catch Up again any time from Settings.</div>';
+  html+='<button onclick="catchupFinish()" class="btn btn-primary" style="width:100%;padding:16px;font-size:var(--fs-md);font-weight:600;">Done</button>';
+  return html;
+}
+async function catchupFinish(early){
+  document.getElementById('catchup-overlay').style.display='none';
+  await Promise.all([loadPaychecks(),loadBills(),loadBillPayments(),loadDebts(),loadPayments()]);
+  const activeV=document.querySelector('.view.active');
+  switchView(activeV?activeV.id.replace('view-',''):'dashboard',null);
+  updateBillBadge();updateNotifBadge();
+  if(!early)toast('All caught up ✓');
 }
 function onboardingChecklistHtml(){
   if(localStorage.getItem('onboarding_complete'))return '';
@@ -3164,7 +3544,7 @@ function renderDashboard(){
       const tBarCol=_tSt==='over'?'var(--danger)':_tSt==='close'?'var(--warning)':'var(--success)';
       const _tConfirmedWkIds=new Set(paychecks.map(p=>p.pay_week_id));
       const tIncMo=paychecks.filter(p=>(p.pay_date||'').startsWith(tMo)).reduce((s,p)=>s+parseFloat(p.amount||0),0)
-        +weeks.filter(w=>(w.pay_date||'').startsWith(tMo)&&!_tConfirmedWkIds.has(w.id)).reduce((s,w)=>s+parseFloat(w.expected_amount||0),0);
+        +weeks.filter(w=>(w.pay_date||'').startsWith(tMo)&&!_tConfirmedWkIds.has(w.id)&&!isWeekSkipped(w)).reduce((s,w)=>s+parseFloat(w.expected_amount||0),0);
       const tBillsMo=bills.filter(b=>!isBillExpired(b)&&isBillDueThisMonth(b)).reduce((s,b)=>s+billRemainingThisMonth(b),0);
       const tIncNet=tIncMo-tBillsMo;
       const tIncNetCol=tIncNet>=0?'var(--success)':'var(--danger)';
@@ -4300,10 +4680,11 @@ function renderWeekly(){
     const net=totalIn-totalBills-totalDebtPaid-totalSpent;
     const hasPaycheck=weekPaychecks.length>0;
     const allowAmt=weekAllowance(w);
+    const isSkipped=isWeekSkipped(w);
     return`<div class="week-card ${isCurrent?'current-week':''}" style="${isPending?'border-style:dashed;':''}">
       <div class="week-card-header" onclick="toggleWeek('week-body-${w.id}')">
         <div>
-          <div class="week-num">${w._checkLabel}${isCurrent?'<span class="current-badge">Current</span>':''}${isPending?'<span class="current-badge" style="background:rgba(247,201,72,0.2);color:var(--warning);">Pending</span>':''}</div>
+          <div class="week-num">${w._checkLabel}${isCurrent?'<span class="current-badge">Current</span>':''}${isPending?'<span class="current-badge" style="background:rgba(247,201,72,0.2);color:var(--warning);">Pending</span>':''}${isSkipped?'<span class="current-badge" style="background:var(--surface2);color:var(--muted);">Skipped</span>':''}</div>
           <div class="week-date-label">${fmtDate(w.pay_date)}</div>
           ${w.notes?`<div style="font-size:var(--fs-sm);color:var(--muted);margin-top:2px;">${esc(w.notes)}</div>`:''}
         </div>
@@ -4322,7 +4703,7 @@ function renderWeekly(){
           </div>`:`<div style="font-size:var(--fs-sm);color:var(--muted);margin-bottom:12px;">Paycheck not logged yet — check back on ${fmtDate(w.pay_date)}</div>
           <button class="btn btn-ghost" style="padding:12px;" onclick="openPaycheckModal('${w.id}')">+ Log Early</button>`}
         </div>`:`<div style="margin-bottom:16px;">
-          <div class="week-row-item"><span class="week-row-label">Paycheck</span><span class="week-row-value ${hasPaycheck?'text-success':'text-warning'}">${hasPaycheck?fmt(totalIn):'Not logged yet'}</span></div>
+          <div class="week-row-item"><span class="week-row-label">Paycheck</span><span class="week-row-value ${hasPaycheck?'text-success':isSkipped?'text-muted':'text-warning'}">${hasPaycheck?fmt(totalIn):isSkipped?'Skipped in Catch Up':'Not logged yet'}</span></div>
           ${hasPaycheck&&expected>0?(()=>{const diff=totalIn-expected;if(Math.abs(diff)<0.005)return '<div style="font-size:var(--fs-xs);color:var(--muted);margin:-6px 0 8px;">Matched expected</div>';if(diff>0)return '<div style="font-size:var(--fs-xs);color:var(--success);margin:-6px 0 8px;">'+fmt(diff)+' over expected</div>';return '<div style="font-size:var(--fs-xs);color:var(--warning);margin:-6px 0 8px;">'+fmt(Math.abs(diff))+' under expected</div>';})():''}
           <div class="week-row-item"><span class="week-row-label">Debt Payments</span><span class="week-row-value text-danger">-${fmt(totalDebtPaid)}</span></div>
           <div class="week-row-item"><span class="week-row-label">Expenses</span><span class="week-row-value text-danger">-${fmt(totalSpent)}</span></div>
@@ -4384,7 +4765,7 @@ function renderWeekly(){
   });
   const confirmedTotal=confirmedPaychecks.reduce((s,p)=>s+parseFloat(p.amount||0),0);
   const allFiltered=[...active,...archived];
-  const pendingPeriods=allFiltered.filter(w=>paychecks.filter(p=>p.pay_week_id===w.id).length===0);
+  const pendingPeriods=allFiltered.filter(w=>paychecks.filter(p=>p.pay_week_id===w.id).length===0&&!isWeekSkipped(w));
   const expectedTotal=pendingPeriods.reduce((s,w)=>s+parseFloat(w.expected_amount||0),0);
   // Date-range subtitles under each stat
   const fmtStatDate=(dateStr)=>new Date(dateStr+'T00:00:00').toLocaleString('en-US',{month:'short',day:'numeric'});
@@ -5109,7 +5490,7 @@ function renderBudgetInsights(){
 
   const _confirmedWkIds=new Set(paychecks.map(p=>p.pay_week_id));
   const incomeThisMo=paychecks.filter(p=>(p.pay_date||'').startsWith(thisMonth)).reduce((s,p)=>s+parseFloat(p.amount||0),0)
-    +weeks.filter(w=>(w.pay_date||'').startsWith(thisMonth)&&!_confirmedWkIds.has(w.id)).reduce((s,w)=>s+parseFloat(w.expected_amount||0),0);
+    +weeks.filter(w=>(w.pay_date||'').startsWith(thisMonth)&&!_confirmedWkIds.has(w.id)&&!isWeekSkipped(w)).reduce((s,w)=>s+parseFloat(w.expected_amount||0),0);
   const billsThisMo=bills.filter(b=>isBillDueThisMonth(b)&&!isBillCoveredForCurrentCycle(b)).reduce((s,b)=>s+parseFloat(b.amount||0),0);
   const incomeNetBills=incomeThisMo-billsThisMo;
   const incomeNetCol=incomeNetBills>=0?'var(--success)':'var(--danger)';
@@ -6015,6 +6396,11 @@ function renderSetup(){
       <button class="btn btn-primary" onclick="saveStartingCash()">Save Cash</button>
     </div>
     <div class="card">
+      <div class="card-title">Catch Up</div>
+      <p class="text-muted mb8">Been away a while? Clear missed paychecks, update debt and bill amounts, and match your balance to your bank in one quick pass.</p>
+      <button class="btn btn-primary" onclick="openCatchUp()"><i class="ti ti-refresh"></i> Run Catch Up</button>
+    </div>
+    <div class="card">
       <div class="card-title">Community Auto-Posts</div>
       <p class="text-muted mb8">Automatically share milestones (debts paid off, goals reached) to the community feed. Amounts are never shown.</p>
       <button class="btn ${autoOn?'btn-primary':'btn-ghost'}" onclick="toggleAutoPost()">${autoOn?'✓ Auto-Posts On':'Auto-Posts Off'}</button>
@@ -6226,6 +6612,7 @@ function openPaycalcModal(){openModal('paycalc-modal');renderPaycalc();}
 //                           place of desc when present (desc is used as a fallback if impact is omitted).
 // Any future fix that touches balance-calculation logic should add affectsBalance:true + an impact string.
 const CHANGELOG=[
+  {date:new Date('2026-10-04T12:00:00').getTime(),icon:'ti-refresh',title:'Catch Up after time away',desc:'If it\'s been more than a week since your last visit, a Catch Up flow now opens instead of the Payday Routine. In a few steps you can skip (or bulk-confirm) the paychecks you missed, update debt balances and minimums from your statements, fix bill amounts and mark this month\'s bills you already paid, and set your Available Balance to match your bank. Skipped paychecks show a Skipped badge on the Income tab and stop prompting. You can also run it any time from Settings.'},
   {date:new Date('2026-07-24T12:00:00').getTime(),icon:'ti-chevron-down',title:'You can now collapse the current month on the Income tab',desc:'The month group holding your current pay period can now be collapsed and expanded by tapping its header, just like the other months and Past Periods. It still opens by default since it\'s the most relevant, but you can tuck it away to tidy the view. (Previously it wouldn\'t respond to taps when that same month also had older periods filed under Past Periods.)'},
   {date:new Date('2026-07-10T12:00:00').getTime(),icon:'ti-cash',title:'Debt payments no longer count twice against your balance',desc:'When a debt payment went through its linked minimum-payment bill — marking the bill paid, using Pay All Due, paying in the Payday Routine, or logging the payment on the debt itself — the app recorded it in both the debt ledger and the bill ledger, and your Available Balance subtracted it twice. Balance math now counts each of those payments once. Bill history, paid badges, and debt payoff progress are unchanged.',affectsBalance:true,impact:'Your Available Balance (and Net Worth) likely went UP. Every past debt payment made through a linked minimum-payment bill was being subtracted twice; it now counts once, so the higher number is the correct one.'},
   {date:new Date('2026-07-10T09:00:00').getTime(),icon:'ti-checkbox',title:'Payday Routine payments check off linked bills',desc:'Paying a debt minimum in the Payday Routine now marks the linked minimum-payment bill as paid, just like paying from the Debts tab — so the Bills tab, the bills badge, and due-soon/overdue notifications stop nagging about a minimum you already covered. Routine payoffs also trigger the same celebrations and remove the debt\'s minimum-payment bill automatically.'},
@@ -6444,7 +6831,7 @@ function getNotifications(){
     notifs.push({type:'bill-soon',priority:3,icon:'<i class="ti ti-calendar" style="color:var(--warning);"></i>',title:`${esc(b.name)} due ${diff===0?'today':`in ${diff} day${diff!==1?'s':''}`}`,body:`$${parseFloat(b.amount).toFixed(2)} due day ${b.due_day}`,action:()=>{closeNotifications();switchView('bills',null);}});
   });
   // 4. Paychecks to confirm (past pending periods)
-  weeks.filter(w=>{return w.pay_date<=todayStr&&w.pay_date>=(()=>{const d=new Date();d.setDate(d.getDate()-7);return d.toISOString().slice(0,10);})()&&paychecks.filter(p=>p.pay_week_id===w.id).length===0;}).forEach(w=>{
+  weeks.filter(w=>{return w.pay_date<=todayStr&&w.pay_date>=(()=>{const d=new Date();d.setDate(d.getDate()-7);return d.toISOString().slice(0,10);})()&&paychecks.filter(p=>p.pay_week_id===w.id).length===0&&!isWeekSkipped(w);}).forEach(w=>{
     notifs.push({type:'paycheck',priority:4,icon:'<i class="ti ti-cash"></i>',title:`Confirm your ${w.source_name||'paycheck'}`,body:`Pay period ${fmtDate(w.pay_date)} is waiting for confirmation`,weekId:w.id,expected:w.expected_amount,payDate:w.pay_date,action:()=>{closeNotifications();switchView('weekly',null);}});
   });
   // 5. New community posts since last visit
@@ -6908,6 +7295,7 @@ function calcExpectedIncome(){
     if(w.pay_date<from||w.pay_date>to)return false;
     if(parseFloat(w.expected_amount||0)<=0)return false;
     if(paychecks.some(p=>p.pay_week_id===w.id))return false;
+    if(isWeekSkipped(w))return false;
     if(incomeFilter!=='all'&&w.source_name!==incomeFilter)return false;
     return true;
   }).sort((a,b)=>a.pay_date<b.pay_date?-1:1);
@@ -7243,6 +7631,7 @@ function renderInstructions(){
       ['What do the cards show?','Each card is tappable for more detail. You will see your debt total and payoff progress, your net worth (what you own minus what you owe) with green shading once it crosses above $0, how many bills you have paid this month, and your savings totals. Tap the savings total to split it across your personal pots, shared pots, and physical assets.'],
       ['What is the Debt Payoff Calculator?','A tool on the Dashboard that compares two payoff strategies — Avalanche (highest interest first) and Snowball (smallest balance first) — so you can see which clears your debt sooner and saves the most interest.'],
       ['What is the Payday Routine?','When you have a paycheck waiting to be confirmed, a guided helper appears on the Dashboard. It walks you through it in a few steps: confirm your paycheck, pay your bills, make debt payments, and move money to savings — all in one sitting. You can skip any step or exit anytime.'],
+      ['I haven\'t used the app in a while. How do I get current?','If it\'s been more than a week since you last opened the app, a Catch Up helper opens instead of the Payday Routine. It walks you through it: skip (or confirm) the paychecks you missed, update your debt balances and minimums, fix bill amounts and check off bills you already paid this month, then type in your real bank balance so the app matches it. You don\'t have to log everything you missed. You can also run it any time from Settings → Catch Up.'],
       ['How do I get back here?','Tap the Budget Tracker logo at the top from anywhere to return to the Dashboard.'],
     ])}
     ${section('🔮','Understanding the Forecast',[

@@ -40,6 +40,7 @@ A mobile-first personal finance web app built as a single `index.html` hosted on
 
 ### `profiles`
 - user_id UUID (unique), display_name TEXT, auto_post BOOL default true, starting_cash NUMERIC default 0
+- caught_up_through DATE — Catch Up cutoff: past pay periods on/before this date with no paycheck are "skipped" (`isWeekSkipped`) — never counted as income, never prompt. SQL: `ALTER TABLE profiles ADD COLUMN IF NOT EXISTS caught_up_through date;`
 
 ### `debts`
 - user_id, name, type, balance, credit_limit, apr, min_payment, due_date

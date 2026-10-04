@@ -35,6 +35,7 @@ A mobile-first personal finance web app. Single `index.html` file, no build step
 - user_id UUID (unique), display_name TEXT, auto_post BOOL default true, starting_cash NUMERIC default 0
 - last_login_ts TIMESTAMPTZ — authoritative cross-device prior-login reference; advances only on a genuinely new session (>30 min gap). Drives the "X new updates since your last visit" bell notification
 - updates_dismissed_ts TIMESTAMPTZ — when the user dismissed the Updates notification; changelog items with date > max(last_login_ts, updates_dismissed_ts) are shown as new. Written by `dismissUpdates()`
+- caught_up_through DATE — Catch Up cutoff: past pay periods on/before this date with no paycheck are "skipped" (`isWeekSkipped`) — never counted as income, never prompt. SQL: `ALTER TABLE profiles ADD COLUMN IF NOT EXISTS caught_up_through date;`
 
 ### `debts`
 - user_id, name, type, balance, credit_limit, apr, min_payment, due_date
