@@ -400,6 +400,7 @@ button:active,.btn:active,.stat:active,.balance-line:active,.week-card-header:ac
       <div class="topbar-title" onclick="switchView('dashboard',null)" style="cursor:pointer;display:flex;align-items:center;gap:12px;"><img src="favicon.ico" style="width:28px;height:28px;border-radius:var(--radius-sm);" alt=""/><span><span style="color:var(--text);">Budget</span> <span style="color:var(--success);">Tracker</span></span></div>
     </div>
     <div style="display:flex;align-items:center;gap:12px;">
+      <button class="hamburger-btn" id="hide-amounts-btn" onclick="toggleHideAmounts()" aria-label="Hide amounts" aria-pressed="false" title="Hide or show amounts"><i class="ti ti-eye"></i></button>
       <button class="hamburger-btn" onclick="openNotifications()" aria-label="Notifications" style="position:relative;">
         <i class="ti ti-bell"></i><span id="notif-badge" style="display:none;position:absolute;top:-3px;right:-4px;min-width:16px;height:16px;background:var(--danger);border-radius:var(--radius-full);border:1.5px solid var(--surface);font-size:var(--fs-2xs);font-weight:700;color:#fff;align-items:center;justify-content:center;padding:0 3px;line-height:16px;text-align:center;"></span>
       </button>
@@ -1061,6 +1062,26 @@ let netWorthHistory=[];
 let expenseSelectMode=false;
 let selectedExpenseIds=new Set();
 let appDataReady=false; // false until the initial loadAll() data fetch completes — renders show skeletons before this
+
+// Privacy mode: when on, every dollar amount rendered through fmt() shows as $•••• (inputs keep real
+// values so editing still works). Per-device, remembered in localStorage.
+let hideAmounts=(()=>{try{return localStorage.getItem('bt-hide-amounts')==='1';}catch(e){return false;}})();
+function syncHideAmountsBtn(){
+  const b=document.getElementById('hide-amounts-btn');if(!b)return;
+  b.innerHTML='<i class="ti '+(hideAmounts?'ti-eye-off':'ti-eye')+'"></i>';
+  b.setAttribute('aria-label',hideAmounts?'Show amounts':'Hide amounts');
+  b.setAttribute('aria-pressed',hideAmounts?'true':'false');
+}
+function toggleHideAmounts(){
+  hideAmounts=!hideAmounts;
+  try{localStorage.setItem('bt-hide-amounts',hideAmounts?'1':'0');}catch(e){}
+  syncHideAmountsBtn();
+  const v=document.querySelector('.view.active');
+  if(v)switchView(v.id.replace('view-',''),null);
+  updateNotifBadge();
+  toast(hideAmounts?'Amounts hidden':'Amounts shown');
+}
+window.addEventListener('DOMContentLoaded',syncHideAmountsBtn);
 
 let isInviteFlow=false;
 let lastShownUserId=null;
@@ -3219,7 +3240,7 @@ function renderCatchUpSavings(){
       +'<div style="font-size:var(--fs-md);font-weight:700;min-width:0;">'+esc(p.name)+'</div>'
       +'<div style="font-size:var(--fs-xs);color:var(--muted);white-space:nowrap;">App shows '+fmt(bal)+'</div></div>'
       +'<label style="'+CATCHUP_LABEL_STYLE+'">Actual balance</label>'
-      +'<input id="catchup-pot-'+p.id+'" type="number" min="0" step="0.01" placeholder="'+bal.toFixed(2)+'" style="'+CATCHUP_INPUT_STYLE+'">');
+      +'<input id="catchup-pot-'+p.id+'" type="number" min="0" step="0.01" placeholder="'+(hideAmounts?'':bal.toFixed(2))+'" style="'+CATCHUP_INPUT_STYLE+'">');
   });
   html+='<div style="font-size:var(--fs-xs);color:var(--muted);">Leave a pot blank to keep it as is.</div>';
   return html;
@@ -5847,7 +5868,7 @@ function renderBarChart(data,type,targetAmount){
     const strokeColor=overTarget?'var(--danger)':isThisMonth?'var(--accent)':'var(--border)';
     return`<g>
       <rect x="${x}" y="${y}" width="${barW}" height="${h}" rx="4" fill="${barColor}" stroke="${strokeColor}" stroke-width="1" class="chart-bar"/>
-      <text x="${x+barW/2}" y="${y-4}" text-anchor="middle" font-size="9" fill="${overTarget?'var(--danger)':'var(--muted)'}">${v>=1000?'$'+(v/1000).toFixed(1)+'k':'$'+v.toFixed(0)}</text>
+      <text x="${x+barW/2}" y="${y-4}" text-anchor="middle" font-size="9" fill="${overTarget?'var(--danger)':'var(--muted)'}">${hideAmounts?'':v>=1000?'$'+(v/1000).toFixed(1)+'k':'$'+v.toFixed(0)}</text>
       <text x="${x+barW/2}" y="${chartH+14}" text-anchor="middle" font-size="9" fill="var(--muted)">${labels[i]}</text>
     </g>`;
   }).join('');
@@ -6823,6 +6844,7 @@ function openPaycalcModal(){openModal('paycalc-modal');renderPaycalc();}
 //                           place of desc when present (desc is used as a fallback if impact is omitted).
 // Any future fix that touches balance-calculation logic should add affectsBalance:true + an impact string.
 const CHANGELOG=[
+  {date:new Date('2026-10-04T18:00:00').getTime(),icon:'ti-eye-off',title:'Hide your amounts',desc:'Tap the eye icon at the top of the screen to hide every dollar amount in the app. They show as $•••• until you tap it again. Handy when someone can see your screen. Your choice is remembered on each device, and fields you\'re typing into still show their numbers so you can edit.'},
   {date:new Date('2026-10-04T17:00:00').getTime(),icon:'ti-chart-dots',title:'Trends skip time you weren\'t logging',desc:'Weeks or months with no expenses logged are no longer drawn as $0 in Spending Insights → Trends. They show as hollow dots, the trend arrows compare only periods that have data, and the 3-month and yearly budget totals count only months you were logging, so time away doesn\'t look like money left in the budget.'},
   {date:new Date('2026-10-04T16:00:00').getTime(),icon:'ti-pig-money',title:'Catch Up now updates your savings',desc:'Catch Up has a new Savings step: type what each savings account actually holds and the pot is corrected to match. It\'s recorded as an adjustment, not a deposit or withdrawal, so your Available Balance doesn\'t move.'},
   {date:new Date('2026-10-04T15:00:00').getTime(),icon:'ti-chart-line',title:'Forecast spending stays realistic after a break',desc:'The Forecast estimates your daily spending from the last 60 days of expenses. After time away that window was empty, so it assumed $0 a day and your projected balance looked too good, then jumped too high once you logged a single purchase. Until you have two weeks of new expenses, it now uses your average from before the break, and the Forecast tells you which average it\'s using.'},
@@ -7038,12 +7060,12 @@ function getNotifications(){
   });
   // 2. Overdue bills
   bills.filter(b=>{if(isBillExpired(b))return false;const d=parseInt(b.due_day||0);if(!d)return false;return!isBillCoveredForCurrentCycle(b)&&todayDay>d&&isBillDueThisMonth(b);}).forEach(b=>{
-    notifs.push({type:'bill-overdue',priority:2,icon:'<i class="ti ti-alert-circle" style="color:var(--danger);"></i>',title:`${esc(b.name)} is overdue`,body:`$${parseFloat(b.amount).toFixed(2)} was due on day ${b.due_day}`,action:()=>{closeNotifications();switchView('bills',null);}});
+    notifs.push({type:'bill-overdue',priority:2,icon:'<i class="ti ti-alert-circle" style="color:var(--danger);"></i>',title:`${esc(b.name)} is overdue`,body:`${fmt(b.amount)} was due on day ${b.due_day}`,action:()=>{closeNotifications();switchView('bills',null);}});
   });
   // 3. Bills due soon (within 5 days)
   bills.filter(b=>{if(isBillExpired(b))return false;const d=parseInt(b.due_day||0);if(!d)return false;const diff=d-todayDay;return!isBillCoveredForCurrentCycle(b)&&diff>=0&&diff<=5&&isBillDueThisMonth(b);}).forEach(b=>{
     const diff=parseInt(b.due_day)-todayDay;
-    notifs.push({type:'bill-soon',priority:3,icon:'<i class="ti ti-calendar" style="color:var(--warning);"></i>',title:`${esc(b.name)} due ${diff===0?'today':`in ${diff} day${diff!==1?'s':''}`}`,body:`$${parseFloat(b.amount).toFixed(2)} due day ${b.due_day}`,action:()=>{closeNotifications();switchView('bills',null);}});
+    notifs.push({type:'bill-soon',priority:3,icon:'<i class="ti ti-calendar" style="color:var(--warning);"></i>',title:`${esc(b.name)} due ${diff===0?'today':`in ${diff} day${diff!==1?'s':''}`}`,body:`${fmt(b.amount)} due day ${b.due_day}`,action:()=>{closeNotifications();switchView('bills',null);}});
   });
   // 4. Paychecks to confirm (past pending periods)
   weeks.filter(w=>{return w.pay_date<=todayStr&&w.pay_date>=(()=>{const d=new Date();d.setDate(d.getDate()-7);return d.toISOString().slice(0,10);})()&&paychecks.filter(p=>p.pay_week_id===w.id).length===0&&!isWeekSkipped(w);}).forEach(w=>{
@@ -7085,7 +7107,7 @@ function renderNotifications(){
           <button onclick="event.stopPropagation();${n.decline.toString()}()" style="background:var(--surface2);color:var(--muted);border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px 16px;font-size:var(--fs-sm);cursor:pointer;">Decline</button>
         </div>`:''}
         ${n.type==='paycheck'&&n.expected>0?`<div style="display:flex;gap:8px;margin-top:8px;">
-          <button onclick="event.stopPropagation();confirmExpected('${n.weekId}',${n.expected},'${n.payDate}');closeNotifications();" style="background:rgba(45,212,160,0.15);color:var(--success);border:1px solid rgba(45,212,160,0.3);border-radius:var(--radius-sm);padding:8px 16px;font-size:var(--fs-sm);font-weight:600;cursor:pointer;">✓ Confirm $${parseFloat(n.expected).toFixed(2)}</button>
+          <button onclick="event.stopPropagation();confirmExpected('${n.weekId}',${n.expected},'${n.payDate}');closeNotifications();" style="background:rgba(45,212,160,0.15);color:var(--success);border:1px solid rgba(45,212,160,0.3);border-radius:var(--radius-sm);padding:8px 16px;font-size:var(--fs-sm);font-weight:600;cursor:pointer;">✓ Confirm ${fmt(n.expected)}</button>
         </div>`:''}
         ${n.type==='updates'?`<div style="display:flex;gap:8px;margin-top:8px;">
           <button onclick="event.stopPropagation();dismissUpdates()" style="background:var(--surface2);color:var(--muted);border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px 16px;font-size:var(--fs-sm);cursor:pointer;">Dismiss</button>
@@ -7846,6 +7868,7 @@ function renderInstructions(){
       ['What do the cards show?','Each card is tappable for more detail. You will see your debt total and payoff progress, your net worth (what you own minus what you owe) with green shading once it crosses above $0, how many bills you have paid this month, and your savings totals. Tap the savings total to split it across your personal pots, shared pots, and physical assets.'],
       ['What is the Debt Payoff Calculator?','A tool on the Dashboard that compares two payoff strategies — Avalanche (highest interest first) and Snowball (smallest balance first) — so you can see which clears your debt sooner and saves the most interest.'],
       ['What is the Payday Routine?','When you have a paycheck waiting to be confirmed, a guided helper appears on the Dashboard. It walks you through it in a few steps: confirm your paycheck, pay your bills, make debt payments, and move money to savings — all in one sitting. You can skip any step or exit anytime.'],
+      ['Can I hide my numbers when someone can see my screen?','Yes. Tap the eye icon at the top of the screen, next to the bell. Every dollar amount in the app changes to $•••• until you tap it again. The app remembers your choice on each device, so your phone and computer can be set differently. Boxes you\'re typing numbers into still show the real numbers so you can edit them.'],
       ['I haven\'t used the app in a while. How do I get current?','If it\'s been more than a week since you last opened the app, a Catch Up helper opens instead of the Payday Routine. It walks you through it: skip (or confirm) the paychecks you missed, check that your paycheck amounts and schedule are still right, update your debt balances and minimums, fix bill amounts and check off bills you already paid this month, correct your savings pot balances, then type in your real bank balance so the app matches it. You don\'t have to log everything you missed. You can also run it any time from Settings → Catch Up.'],
       ['How do I get back here?','Tap the Budget Tracker logo at the top from anywhere to return to the Dashboard.'],
     ])}
@@ -7883,7 +7906,7 @@ function renderInstructions(){
 }
 
 
-function fmt(n){return'$'+parseFloat(n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
+function fmt(n){if(hideAmounts)return'$••••';return'$'+parseFloat(n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
 function fmtDate(str){if(!str)return'—';const[y,m,d]=str.split('-');const months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];return`${months[parseInt(m)-1]} ${parseInt(d)}, ${y}`;}
 function fmtMonth(str){if(!str)return'—';const[y,m]=str.split('-');const months=['January','February','March','April','May','June','July','August','September','October','November','December'];return`${months[parseInt(m)-1]} ${y}`;}
 function today(){const d=new Date();const z=n=>String(n).padStart(2,'0');return d.getFullYear()+'-'+z(d.getMonth()+1)+'-'+z(d.getDate());}
